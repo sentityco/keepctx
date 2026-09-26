@@ -60,7 +60,7 @@ it. Quantified, and nobody else leads with it — for an enterprise it is a line
 than a vibe.
 
 **3. Onboarding.** A new person clones the repo and their agent already knows the deploy
-command, the real the log platform index, and which docs are lying. "New hire productive on day one" is
+command, the real logging index, and which docs are lying. "New hire productive on day one" is
 something companies actually buy, and "share with your colleagues" does not say it.
 
 **4. The AI cannot wreck your knowledge base.** Every change is versioned and one revert away.
@@ -126,7 +126,7 @@ An earlier draft hid sync inside a read command so it could not be skipped. It w
 trade: it made the cheapest, most common operation the most expensive one.
 
 **`ctx init` takes an optional name and defaults to the current directory, slugified.**
-`ctx init` in `~/work/checkout` gives you `checkout`; `My Project` becomes `my-project`. Nobody should
+`ctx init` in `~/work/example-project` gives you `example-project`; `My Project` becomes `my-project`. Nobody should
 have to type a name they do not have to.
 
 **The name is settled at `ctx remote`, not at init.** Before creating a remote it is a local label and
@@ -166,11 +166,11 @@ AGENTS.md              # the dev's file. ctx adds two lines at the top, then nev
 .ctx/
   .gitignore           # contains `*`. see below.
   instructions.md      # the rules + the index. ctx owns it; the agent never writes it.
-  checkout/
+  example-project/
     facts.md           # yours. the agent appends and updates lines here.
-  platform-auth/
+  example-platform/
     facts.md           # cloned dependency. read-only.
-  logging/
+  example-logging/
     facts.md           # cloned dependency. read-only.
 ```
 
@@ -285,28 +285,30 @@ A context is **a list of facts**. Not a document, not prose with facts in it —
 
 **A context is whatever unit of knowledge is useful to you** — one repository, one service,
 one team, one programme, one platform. ctx does not care and should never impose a shape. The
-examples here use `acme:checkout` for a service and `acme:platform-auth` for something it
-depends on, but `acme:billing-migration` for a six-month programme or `acme:oncall` for a
-rotation are equally valid. The only rule is that a context has an owner and a name.
+examples here use `example-org:example-project` for a repo or service and
+`example-org:example-platform` for something it depends on. `example-org:example-team` for a
+team, `example-org:example-migration` for a six-month programme, or
+`example-org:example-rotation` for an on-call rotation are all equally valid. The only rule is
+that a context has an owner and a name.
 
 ```markdown
 ---
-id: checkout
+id: example-project
 title: Checkout service — what we own and how we ship
-org: acme
+org: example-org
 owner: "@you"
 updated: 2026-09-26
 review_by: 2027-09-26
-summary: What checkout owns, how we deploy, who to ask. ONE LINE — every session pays for this.
-requires: [platform-auth, logging]
+summary: What example-project owns, how we deploy, who to ask. ONE LINE — every session pays for this.
+requires: [example-platform, logging]
 related:  [payments-service]
 ---
 
 - **deploy.command** — `make ship` from the repo root, not the platform CLI directly.
-- **logging.index** — `checkout_prod_v2`. The docs still say `checkout-prod`; they are wrong.  `[verified]`
+- **logging.index** — `app_prod_v2`. The docs still say `app-prod`; they are wrong.  `[verified]`
 - **gateway-1.ip** — 10.2.3.5
 - **gateway.routes-to** → portal tier, chosen by source IP
-- **gateway.depends-on** → platform-auth, for session validation
+- **gateway.depends-on** → example-platform, for session validation
 - **event.transport** — Kinesis, not Kafka. Inherited, and not changing.  `[verified]`
 - **deploy.process** — three steps:
     - build with `make`
@@ -380,28 +382,28 @@ the local-only build is only step one.
 Two levels, and that is the whole namespace.
 
 ```
-acme:checkout          organization : context
+example-org:example-project          organization : context
 ```
 
-**Organization is tenancy** — who owns the store. Acme's `checkout` and Acme's `checkout` are
-different things that must never collide, which is what matters the moment a hub hosts
-more than one company. It is also therefore the billing boundary.
+**Organization is tenancy** — who owns the store. `example-org:example-project` and
+`other-org:example-project` are different things that must never collide, which is what matters
+the moment a hub hosts more than one company. It is also therefore the billing boundary.
 
-Inside an organization you write bare names. `acme:checkout` requires `platform-auth`, not
-`acme:platform-auth` — qualification is only for crossing an org boundary.
+Inside an organization you write bare names. `example-org:example-project` requires `example-platform`, not
+`example-org:example-platform` — qualification is only for crossing an org boundary.
 
 ### There is no scope, and no team
 
 Both were cut. A scope was a grouping layer that existed to answer "what should be in my
 index", and **the dependency graph already answers that better**. Ten contexts exist;
-three are in your index, because `checkout` requires the other two. Your working set is the
+three are in your index, because `example-project` requires the other two. Your working set is the
 closure of what you have.
 
-This is better than a scope for a reason worth stating: the person who maintains `checkout`
-decides what a new starter sees, by declaring what checkout actually depends on. That is
+This is better than a scope for a reason worth stating: the person who maintains `example-project`
+decides what a new starter sees, by declaring what it actually depends on. That is
 curation by the person best placed to do it, rather than a flat namespace everyone dumps
-into. When checkout picks up a dependency on the log platform, one line in `checkout` puts it in every team
-member's index.
+into. When it picks up a dependency on example-logging, one line in `example-project` puts that in
+every team member's index.
 
 A solo developer has one context and never thinks about any of this.
 
@@ -417,10 +419,10 @@ disk is free and a missing file is worse than an unused one.
 requires get a line in `.ctx/instructions.md`. Everything else collapses to one line:
 
 ```
-- `checkout` — the checkout service: what we own, how we deploy, who to ask
-- `platform-auth` — Platform Auth: identity and credential management, how to request access
-- `logging` — the log platform: indexes we can read, how to get access
-42 more contexts exist in acme — find them with `ctx search <query>`.
+- `example-project` — what this service owns, how it deploys, who to ask
+- `example-platform` — identity and credentials: how to request access, how tokens expire
+- `example-logging` — which indexes we can read, and the one the docs get wrong
+42 more contexts exist in example-org — find them with `ctx search <query>`.
 ```
 
 46 synced, 3 listed. The index is a **working set, not a catalogue** — which is what keeps
@@ -444,7 +446,7 @@ Three answers were tried and discarded before the simple one, and the discards a
 keeping because each looked right at the time.
 
 **A reviewing AI that judges whether a change is good enough.** It has no ground truth — it
-has never seen your the log platform index or your deploy pipeline — so it can only guess from
+has never seen your logging index or your deploy pipeline — so it can only guess from
 plausibility, which selects for confident prose. It also rebuilds the pull-request queue
 this tool exists to avoid, staffed by a reviewer nobody can argue with.
 
@@ -717,7 +719,7 @@ Never for task-specific detail, never for something inferred rather than verifie
 context limit. A fact learned at minute five and written at minute ninety is a fact that may
 never get written at all.
 
-**Record relationships, not just properties.** `gateway.depends-on → platform-auth` is worth more
+**Record relationships, not just properties.** `gateway.depends-on → example-platform` is worth more
 than three facts about gateway's configuration, because it is the kind of thing nobody writes
 down and everybody needs. It is also what lets the architecture diagram draw itself instead of
 being guessed at.
@@ -786,7 +788,7 @@ request, no telemetry, no phone-home to justify.
 
 ```
 $ ctx sync
-checkout        2 facts updated by alex
+example-project        2 facts updated by alex
 
 ctx 0.4.1 available (you have 0.3.2) — `ctx upgrade`
 ```
@@ -909,7 +911,7 @@ Things a git repo structurally cannot do, so the gate is real rather than artifi
   not map to "who can clone this".
 - **Audit.** Who changed what context, when, and who settled it.
 - **Cross-org sharing — the actual moat.** A vendor publishing context that its customers
-  pull, so `acme:shared-sso` appears in Acme's index. This only works on the instance
+  pull, so `vendor-org:shared-sso` appears in Example-org's index. This only works on the instance
   everyone is already on, which makes it the one asset a self-hoster cannot reproduce and
   worth more than any feature gate. The roadmap should aim at it.
 - **Private orgs, self-hosting, SLA.**

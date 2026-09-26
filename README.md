@@ -8,7 +8,7 @@ it current, and shares it with your team.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
-cd ~/work/checkout && ctx init
+cd ~/work/example-project && ctx init
 ```
 
 That's it. Local, no account, no network. An account only matters when you want to share.
@@ -22,8 +22,8 @@ repo, a service, a team, a programme, a platform. ctx doesn't impose a shape:
 
 ```markdown
 - **deploy.command** — `make ship` from the repo root, not the platform CLI
-- **logging.index** — `checkout_prod_v2`. The docs still say checkout-prod; they're wrong.  `[verified]`
-- **gateway.depends-on** → platform-auth, for session validation
+- **logging.index** — `app_prod_v2`. The docs still say app-prod; they're wrong.  `[verified]`
+- **gateway.depends-on** → example-platform, for session validation
 - **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it.  `[verified]`
 ```
 

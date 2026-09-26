@@ -75,11 +75,11 @@
   <p class="sub">A context is a list of facts. The bolded lead is the key, and the value can be
   an IP, a command, or a sentence.</p>
 
-<pre><code><span class="c"># .ctx/checkout/facts.md</span>
+<pre><code><span class="c"># .ctx/example-project/facts.md</span>
 
 - **deploy.command** — <span class="k">`make ship`</span> from the repo root, not the platform CLI
-- **logging.index** — <span class="k">`checkout_prod_v2`</span>. The docs still say checkout-prod; they're wrong. `[verified]`
-- **gateway.depends-on** → platform-auth, for session validation
+- **logging.index** — <span class="k">`app_prod_v2`</span>. The docs still say app-prod; they're wrong. `[verified]`
+- **gateway.depends-on** → example-platform, for session validation
 - **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it. `[verified]`</code></pre>
 
   <h3>Reads and writes are just files</h3>
@@ -116,11 +116,11 @@
       <h3>Set up in your project</h3>
       <p>Creates <code>.ctx/</code>, adds two lines to <code>AGENTS.md</code>, and ignores itself
       in git. The name defaults to your directory.</p>
-<pre><code>cd ~/work/checkout
+<pre><code>cd ~/work/example-project
 ctx init
 
-<span class="c">ctx: initialised `checkout`</span>
-<span class="c">  .ctx/checkout/facts.md      your facts</span>
+<span class="c">ctx: initialised `example-project`</span>
+<span class="c">  .ctx/example-project/facts.md      your facts</span>
 <span class="c">  .ctx/instructions.md   how the agent maintains them</span>
 <span class="c">  AGENTS.md              pointer added at the top</span></code></pre>
     </li>
