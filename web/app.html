@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ctx — your org</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header><div class="wrap">
+  <a class="logo" href="/">ctx</a>
+  <nav>
+    <a href="index.html#quickstart">Quickstart</a>
+    <a href="https://github.com/sentityco/ctx">GitHub</a>
+    <a href="#" id="signout" hidden>Sign out</a>
+  </nav>
+</div></header>
+
+<!-- signed out -->
+<div id="auth" class="wrap" hidden>
+  <div class="panel">
+    <h2 id="auth-title">Sign in</h2>
+    <p class="sub" id="auth-sub">Manage your org's contexts.</p>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" />
+
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" />
+
+    <div id="org-field" hidden>
+      <label for="org">Organization</label>
+      <input id="org" type="text" placeholder="acme" autocomplete="off" />
+      <p class="hint">Lowercase letters, digits and dashes. This becomes the namespace your
+      contexts live under — <code>acme:ace</code>.</p>
+    </div>
+
+    <button class="btn" id="submit">Sign in</button>
+    <div class="msg" id="msg"></div>
+    <p class="switch" id="switch">
+      No account? <button class="link-btn" id="toggle">Create one</button>
+    </p>
+  </div>
+</div>
+
+<!-- signed in -->
+<div id="app" class="wrap" hidden>
+  <div class="bar">
+    <h2 id="org-name">—</h2>
+    <span class="tag" id="who">—</span>
+    <div class="right">
+      <span class="tag" id="count">—</span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div id="detail" hidden>
+    <div class="bar">
+      <h2 id="d-name">—</h2>
+      <span class="tag" id="d-version">—</span>
+      <div class="right">
+        <button class="link-btn" id="back">← all contexts</button>
+      </div>
+    </div>
+    <div class="facts" id="d-facts">—</div>
+    <h3>Version history</h3>
+    <p class="sub">Every sync is a version. Reverting creates a new one, so nothing is lost.</p>
+    <div id="d-versions"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

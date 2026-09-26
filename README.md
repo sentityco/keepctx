@@ -1,79 +1,98 @@
 # ctx
 
-**Context management is the new wiki — AI first, readable by humans.**
+**Your AGENTS.md, except it writes itself — and your team shares it.**
+
+Every AI session starts blind. You re-explain the same things — which queue you use, why
+the docs are wrong, what actually deploys. `ctx` captures that as your agent works, keeps
+it current, and shares it with your team.
 
 ```sh
-brew install ctx                  # or: curl -fsSL ctxhub.com/install | sh
-
-ctx new notes "what I forget between sessions"
+curl -fsSL https://raw.githubusercontent.com/sentityco/ctx/main/install.sh | sh
+cd ~/work/ace && ctx init
 ```
 
-No account, no signup, no prompt. Contexts land in `./ctx`, the index is written into
-`AGENTS.md`, and your agent reads it from then on.
+That's it. Local, no account, no network. An account only matters when you want to share.
 
-When you want somebody else's context, that comes from ctxhub:
+---
+
+## What it does
+
+A context is a list of facts in plain markdown:
+
+```markdown
+- **deploy.command** — `make ship` from the repo root, not the CF CLI
+- **splunk.index** — `ace_prod_v2`. The docs still say ace-prod; they're wrong.  `[verified]`
+- **spacaptive.depends-on** → idcmt, for session validation
+- **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it.  `[verified]`
+```
+
+Your agent reads and edits that file directly, using the same tools it uses for any other
+file. There's no write command to forget and no ceremony to skip — which is exactly why
+capture actually happens.
+
+`ctx init` adds two lines to the top of your `AGENTS.md` pointing at the rules, and
+**nothing you wrote there is touched.** Uninstalling is deleting those two lines.
+
+## Why not just a wiki
+
+Wikis die of low read volume: a page nobody opens is a page nobody notices is wrong. An
+agent reads context every session, which is what surfaces errors — and the correction gets
+captured at the moment someone has the right answer in hand.
+
+## Why not just commit it
+
+Code is correct relative to a commit. Context is a claim about the world *right now*.
+Versioning it by branch means a context that's right on `main` is wrong on a two-week-old
+feature branch, and two people editing one context on different branches produce a prose
+merge conflict neither can resolve from a diff.
+
+So `.ctx/` ignores itself — it contains a `.gitignore` holding `*`, which works whether or
+not git exists yet, and keeps working if you run `git init` next week.
+
+## Conflicts
+
+Changes sync **per key, not per file**.
+
+- Two people learn different things → both land.
+- Two people change the same fact → the later one wins.
+- Every sync is a version on the server → a bad change is one revert away.
+
+That's the whole conflict model. Nothing is ever destroyed, so nobody has to arbitrate.
+
+## Commands
+
+| | |
+|---|---|
+| `ctx` | status |
+| `ctx init [name]` | set up here. local, no account, no network |
+| `ctx remote` | one-time. create this context on a server |
+| `ctx clone org:name` | get a context you don't have |
+| `ctx sync` | upload local changes, download remote ones |
+
+The name defaults to your directory, slugified. It only has to be unique when you run
+`ctx remote`, which is where it gets validated.
+
+## Self-hosting
+
+The server is in [`server/`](server/) — a single Lambda handler plus a DynamoDB table. It
+is deliberately **model-free**: storage, a keyed merge, and version history. Nothing in it
+needs inference, so it runs on the cheapest box there is.
+
+Point the CLI anywhere with `CTX_REMOTE`:
 
 ```sh
-ctx login
-ctx pull comcast:idcmt
+CTX_REMOTE=https://ctx.internal.example.com ctx sync
 ```
 
-## Two commands
-
-```sh
-ctx new  <name> "summary"     create one — always local, never asks
-ctx pull <org>:<context>      fetch one from ctxhub, and what it requires
-```
-
-`ctx` alone reports what you have. `ctx <name>` prints one you already have. `ctx login`
-adds an org when you want to share.
-
-Everything else happens on its own: the `AGENTS.md` index, the HTML view, sending a
-correction upstream. A step you have to remember is a step that gets skipped.
-
-## Local and hosted
-
-Local is the default and is not a degraded mode — contexts are plain markdown either way,
-and an individual developer never needs an account.
-
-An account buys the things a local directory structurally cannot do: pulling other
-teams' contexts, sending a correction to the person who owns it, and a review queue
-somebody will actually drain.
-
-## What the agent does
-
-The index costs about 1,000 tokens and lists one line per context. Full text is fetched
-only when a task needs it — preloading an org's knowledge costs ~50,000 tokens a session
-and is mostly waste.
-
-The index also tells the agent when to write back: someone corrected it, something took
-real digging, or a decision was made whose reasoning would be lost. A correction to a
-context you do not own becomes a proposal for the owner.
-
-## org : context
-
-Two levels, that is the namespace. Inside an org names are bare — `ace` requires `idcmt`,
-not `comcast:idcmt`. Pulling a context gives you it plus what it requires, so the person
-maintaining `ace` decides what a new starter sees.
-
-## Why this does not rot the way wikis do
-
-Wikis die of low read volume — a page nobody opens is a page nobody notices is wrong. An
-agent reads context every session, which is what surfaces errors, and the correction is
-captured while someone still has the right answer in hand.
-
-## Layout
-
-```
-ctx/         contexts this repo owns — committed
-.ctx/        cache, proposals, HTML — gitignored
-AGENTS.md    the index, between <!-- ctx:begin --> markers
-```
+Auth is email + password with PBKDF2 and HMAC-signed tokens — stdlib only, no Cognito, no
+vendor dependency. Self-hosting is a commitment here, not a maybe: it's the only thing
+standing between this and lock-in.
 
 ## Design
 
-See [DESIGN.md](DESIGN.md).
+[`DESIGN.md`](DESIGN.md) is the long version — what was decided, and what was rejected and
+why. The rejected list is the useful half.
 
-## Status
+## License
 
-Local works end to end. `ctx login` and `ctx pull` stub the ctxhub calls.
+Apache-2.0.
