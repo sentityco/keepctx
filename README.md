@@ -3,58 +3,54 @@
 **Context management is the new wiki — AI first, readable by humans.**
 
 ```sh
-ctx comcast:ace        # join. that is the setup.
+brew install ctx        # or: curl -fsSL ctxhub.com/install | sh
+
+ctx new ace             # opens ctxhub — SSO if your org is there,
+                        # otherwise create an account and an org
 ```
 
-That one command creates the workspace, subscribes, syncs, writes the index into
-`AGENTS.md`, and renders the HTML view. Your agent reads the index from then on, and the
-index tells it how to read and write context. Nothing else to run.
+That is the setup. The context is created in your org, the index is written into
+`AGENTS.md`, and your agent reads it from then on.
 
-## The whole interface
+Need someone else's?
 
 ```sh
-ctx                    # what you have, and what the index costs per session
-ctx <org>:<context>    # join one
-ctx <name>             # read it, plus whatever it requires
-ctx new <name> "..."   # write one back
+ctx pull comcast:idcmt
 ```
 
-Anything else is treated as a search. There is no init, no sync, no index, no render, no
-push — those happen because something changed, not because you remembered.
+## Two commands
 
-Owners get two more: `ctx review` for the queue, `ctx ok <name>` to sign off.
+```sh
+ctx pull <org>:<context>    pull one, and everything it requires
+ctx new  <name> "summary"   create one in your org
+```
+
+`ctx` on its own shows what you have. `ctx <name>` prints one you already pulled.
+
+Everything else happens on its own: syncing, the `AGENTS.md` index, the HTML view,
+sending a correction upstream. A step you have to remember is a step that gets skipped.
 
 ## What the agent does
 
-The index in `AGENTS.md` costs about 1,000 tokens and lists one line per context. The
-agent fetches the full text only when a task needs it:
+The index costs about 1,000 tokens and lists one line per context. Full text is fetched
+only when a task needs it — preloading an org's knowledge costs ~50,000 tokens a session
+and is mostly waste.
 
-```
-- `ace` — Team ACE: what we own and how we ship (2026-09-25)
-- `idcmt` — IDCMT: identity and credential management (2026-09-25)
-7 more contexts exist outside your subscriptions — find them with `ctx <query>`.
-```
-
-Preloading an organisation's knowledge costs ~50,000 tokens a session and is mostly
-waste. That number is the whole argument.
-
-Write-back has three triggers, and the agent is told them: someone corrected it,
-something took real digging, or a decision was made whose reasoning would be lost. A
-correction to a context you do not own becomes a proposal and goes upstream for the owner
-to review.
+The index also tells the agent when to write back: someone corrected it, something took
+real digging, or a decision was made whose reasoning would be lost. A correction to a
+context you do not own becomes a proposal and goes to the owner.
 
 ## org : context
 
-Two levels, that is the namespace. `comcast:ace`. Inside an org, names are bare — `ace`
-requires `idcmt`, not `comcast:idcmt`. Subscribing to a context gives you that context
-plus everything it requires; the person maintaining `ace` decides what a new starter sees.
+Two levels, that is the namespace. Inside an org names are bare — `ace` requires `idcmt`,
+not `comcast:idcmt`. Pulling a context gives you it plus what it requires, so the person
+maintaining `ace` decides what a new starter sees.
 
 ## Why this does not rot the way wikis do
 
 Wikis die of low read volume — a page nobody opens is a page nobody notices is wrong. An
-agent reads context every session, which is what surfaces errors, and the correction gets
-captured while someone still has the right answer in hand. The reading is what keeps the
-writing honest.
+agent reads context every session, which is what surfaces errors, and the correction is
+captured while someone still has the right answer in hand.
 
 ## Layout
 
@@ -70,4 +66,5 @@ See [DESIGN.md](DESIGN.md).
 
 ## Status
 
-Local backend works. Git and ctxhub are designed, not built.
+Local backend works; `ctx new` stubs the ctxhub sign-in. Hosted auth and git sync are
+designed, not built.

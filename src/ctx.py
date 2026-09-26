@@ -4,7 +4,7 @@
 Contexts are plain markdown with frontmatter. The index is a plain file. Everything
 works with no server; a hosted backend is an option, never a requirement.
 """
-import argparse, datetime, json, os, pathlib, re, sys, textwrap
+import datetime, json, os, pathlib, re, select, sys
 
 PUBLISHED = "ctx"      # committed: contexts this repo owns
 WORKING   = ".ctx"     # gitignored: cache, proposals, session notes
@@ -441,7 +441,11 @@ tags: []
 ---
 
 """
-    body = "" if sys.stdin.isatty() else sys.stdin.read()
+    body = ""
+    if not sys.stdin.isatty():
+        # only read if something is actually piped in; never block
+        if select.select([sys.stdin], [], [], 0.0)[0]:
+            body = sys.stdin.read()
     if mine:
         path = root / PUBLISHED / f"{cid}.md"
         path.write_text(front + (body or "Body.\n"))
@@ -515,43 +519,71 @@ def bootstrap(root):
                                     user=os.environ.get("USER", "unknown")))
 
 
+IDENTITY = "identity.json"   # ~/.ctx/identity.json — who you are, which org
+
+
+def identity_path():
+    return pathlib.Path.home() / ".ctx" / IDENTITY
+
+
+def whoami():
+    p = identity_path()
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def sign_in():
+    """Opens ctxhub to log in with SSO, or to create an account and an org.
+
+    No hub yet, so this sets up a local identity and tells you what will change.
+    """
+    print("ctx needs to know who you are.")
+    print("  → this will open ctxhub.com/cli to sign in with SSO,")
+    print("    or create an account and an org.\n")
+    org  = input("organization: ").strip() or "personal"
+    user = input(f"user [{os.environ.get('USER','')}]: ").strip() or os.environ.get("USER", "unknown")
+    identity_path().parent.mkdir(parents=True, exist_ok=True)
+    identity_path().write_text(json.dumps({"org": org, "user": user}, indent=2) + "\n")
+    print(f"\nsigned in as {user} in `{org}`")
+    return whoami()
+
+
 def main():
-    root = pathlib.Path.cwd() if not (root_dir() / PUBLISHED).exists() else root_dir()
+    root = root_dir() if (root_dir() / PUBLISHED).exists() else pathlib.Path.cwd()
     argv = sys.argv[1:]
+    cmd  = argv[0] if argv else ""
 
-    # ctx                      -> what have I got
-    if not argv:
-        if not (root / PUBLISHED).exists():
-            print("no contexts here yet. join one:  ctx <org>:<context>")
-            return
-        return status(root)
-
-    a = argv[0]
-
-    # ctx review / ctx ok <id> -> the two owner actions
-    if a == "review":
-        return review(root)
-    if a == "ok":
-        return verify(root, argv[1])
-
-    # ctx new <id> [summary]   -> write one back; publishes if yours, proposes if not
-    if a == "new":
+    # ctx pull <org>:<context>
+    if cmd == "pull":
+        if len(argv) < 2:
+            return usage()
         bootstrap(root)
+        return join(root, argv[1:])
+
+    # ctx new <name> ["one line summary"]
+    if cmd == "new":
+        if len(argv) < 2:
+            return usage()
+        me = whoami() or sign_in()
+        bootstrap(root)
+        subs = load_subs(root)
+        if not subs["org"]:
+            subs["org"] = me["org"]; save_subs(root, subs)
         return write_back(root, argv[1], " ".join(argv[2:]),
                           requires=os.environ.get("CTX_REQUIRES", ""))
 
-    # ctx <org>:<context>      -> join. bootstraps, subscribes, syncs, indexes, renders
-    if ":" in a or pathlib.Path(a).expanduser().is_dir():
-        bootstrap(root)
-        return join(root, argv)
+    if not argv:
+        return status(root) if (root / PUBLISHED).exists() else usage()
 
-    # ctx <name>               -> read it, plus what it requires
+    # ctx <name> — read one you already pulled
     ctxs = load_all(root)
-    if lookup(ctxs, a):
+    if lookup(ctxs, cmd):
         return show(root, ctxs, argv)
-
-    # otherwise, treat it as a search
     return find(root, " ".join(argv))
+
+
+def usage():
+    print("ctx pull <org>:<context>    pull a context and what it requires")
+    print('ctx new  <name> "summary"   create one in your org')
 
 
 if __name__ == "__main__":
