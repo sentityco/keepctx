@@ -155,6 +155,43 @@ no remote for this context — `ctx remote` to create one
 
 Actions that push data outward get typed deliberately, once.
 
+## Contexts nest
+
+A repository can have its own context while sitting inside a team or workspace context, and
+both are visible:
+
+```
+~/work/
+  .ctx/platform-team/facts.md     # the team context
+  repo-a/
+    .ctx/repo-a/facts.md          # this repo's own
+```
+
+From inside `repo-a`, ctx reports both — `[this project]` for its own and `[inherited]` for
+the team's. **Contexts stack the way `AGENTS.md` does**, general underneath and specific on
+top, which is the convention agents already follow.
+
+The obvious implementation is wrong and worth naming: returning only the *nearest* context
+makes the outer one vanish the moment the inner one is created, which is the exact opposite
+of what nesting is for. ctx walks the whole chain upward.
+
+**Three kinds, because where a fact belongs depends on it:**
+
+| Kind | Meaning |
+|---|---|
+| own | The nearest context. The default write target. |
+| inherited | Your own context at a higher level. Writable, but only for facts actually about it. |
+| read-only | A clone of someone else's. Never written locally. |
+
+An agent is told this explicitly: write facts about this project here, and a fact really
+about the team belongs in the team's context instead.
+
+**Nesting alone does not survive a clone.** It is a filesystem relationship, so a teammate
+who clones only the inner repository gets no parent directory and no team context. So
+`ctx init` inside an existing context records the parent as an explicit `requires`. Locally
+that changes nothing; when the context is published and cloned elsewhere, the dependency
+travels with it. Filesystem for convenience, `requires` for correctness.
+
 ## One directory, one authored context
 
 You author one context. Every other context on your disk is someone else's, brought in by

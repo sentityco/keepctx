@@ -33,12 +33,42 @@ FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*(?P<rel>[—→-])\s*(?P
 # ---------------------------------------------------------------- filesystem
 
 def find_root(start=None):
-    """Walk up for a directory containing .ctx/. None if there isn't one."""
+    """Nearest directory containing .ctx/. None if there isn't one."""
+    roots = find_roots(start)
+    return roots[0] if roots else None
+
+
+def find_roots(start=None):
+    """Every .ctx/ from here upward, nearest first.
+
+    Contexts stack the way AGENTS.md does: a repo's own context layers on top of
+    the team context it sits inside. Returning only the nearest would make the
+    outer one vanish the moment the inner one is created, which is the opposite
+    of what nesting is for.
+    """
     d = pathlib.Path(start or os.getcwd()).resolve()
-    for candidate in [d, *d.parents]:
-        if (candidate / CTXDIR).is_dir():
-            return candidate
-    return None
+    return [c for c in [d, *d.parents] if (c / CTXDIR).is_dir()]
+
+
+def contexts_in_scope(start=None):
+    """-> [(root, name, kind)] for every context visible from here.
+
+    Three kinds, and the distinction matters for where a fact should be written:
+      "own"    the nearest context. the default target.
+      "parent" your own context at a higher level — a team or workspace context.
+               writable, but only for facts that are actually about it.
+      "clone"  someone else's, synced from a remote. read-only.
+    """
+    out = []
+    for i, root in enumerate(find_roots(start)):
+        cfg = load_config(root)
+        name = cfg.get("name")
+        if name and (root / CTXDIR / name / FACTS).exists():
+            out.append((root, name, "own" if i == 0 else "parent"))
+        for d in sorted((root / CTXDIR).iterdir()):
+            if d.is_dir() and d.name != name and (d / FACTS).exists():
+                out.append((root, d.name, "clone"))
+    return out
 
 
 def load_config(root):
@@ -278,8 +308,19 @@ def cmd_init(argv):
         facts.write_text(f"# {name}\n\n")
     (ctxdir / name / BASE).write_text("")
 
+    # Nesting is a filesystem fact and does not survive a clone, so record the
+    # parent explicitly. Locally it changes nothing; when this context is
+    # published and cloned elsewhere, the dependency travels with it.
+    parent = None
+    for ancestor in find_roots(root.parent) if root.parent != root else []:
+        pcfg = load_config(ancestor)
+        if pcfg.get("name"):
+            parent = pcfg["name"]
+            break
+
     save_config(root, {"name": name, "org": None, "remote": None,
-                       "token": None, "version": 0})
+                       "token": None, "version": 0,
+                       "requires": [parent] if parent else []})
 
     pointer = (
         f"{BEGIN}\n"
@@ -301,6 +342,8 @@ def cmd_init(argv):
     print(f"  {facts_rel:<{w}}  your facts")
     print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent maintains them")
     print(f"  {AGENTS:<{w}}  pointer added at the top")
+    if parent:
+        print(f"  requires {parent} (the context this sits inside)")
     print()
     print("all local. `ctx remote` when you want to share it.")
     print()
@@ -449,6 +492,9 @@ def cmd_status():
     print(f"  root      {root}")
     print(f"  context   {name}")
     print(f"  facts     {len(facts)}")
+    req = cfg.get("requires") or []
+    if req:
+        print(f"  requires  {', '.join(req)}")
     if cfg.get("org"):
         print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)}")
     else:
@@ -470,25 +516,39 @@ def cmd_status():
 def agent_index(root):
     """What a session-start hook or an agent should receive.
 
-    The index, not the values. Printing every fact on every session start is
-    preloading, which is the thing this design exists to avoid — so the agent
-    gets the keys and reads the file when a key turns out to matter.
+    Keys, not values. Printing every fact on every session start is preloading,
+    the thing this design exists to avoid — so the agent gets the keys and opens
+    a file when one of them turns out to matter.
     """
-    cfg = load_config(root)
-    name = cfg.get("name", "")
-    path = root / CTXDIR / name / FACTS
-    facts, order = parse_facts(path.read_text() if path.exists() else "")
+    scope = contexts_in_scope()
+    if not scope:
+        return 0
 
-    print(f"--- ctx: this project has a context at {CTXDIR}/{name}/{FACTS} ---")
-    if order:
-        print(f"{len(order)} facts are already known. Keys:")
+    label = {"own": "[this project]", "parent": "[inherited]", "clone": "[read-only]"}
+    print("--- ctx: contexts available here ---")
+    for r, n, kind in scope:
+        rel = os.path.relpath(r / CTXDIR / n / FACTS, os.getcwd())
+        _, order = read_facts(r, n)
+        noun = "fact" if len(order) == 1 else "facts"
+        print(f"{label[kind]:<16} {n}  ({len(order)} {noun})  {rel}")
         for k in order:
-            print(f"  {k}")
-        print(f"Read {CTXDIR}/{name}/{FACTS} for the values when one of these matters.")
-    else:
-        print("No facts recorded yet. You are the first.")
-    print(agent_brief(name, "existing").strip())
+            print(f"    {k}")
+
+    print()
+    print("Open a file when one of its keys matters. Do not read them all up front.")
+    own = [n for _, n, k in scope if k == "own"]
+    parents = [n for _, n, k in scope if k == "parent"]
+    if parents:
+        print(f"Write facts about this project to `{own[0] if own else '?'}`. "
+              f"A fact that is really about {', '.join(parents)} belongs there instead.")
+    if own:
+        print(agent_brief(own[0], "existing").strip())
     return 0
+
+
+def read_facts(root, name):
+    p = root / CTXDIR / name / FACTS
+    return parse_facts(p.read_text() if p.exists() else "")
 
 
 def usage():
