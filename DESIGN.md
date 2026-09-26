@@ -230,3 +230,45 @@ put anything there.
 Not the storage, the sync, or the hub. **Whether the one-line summaries are good.** A bad
 summary means the agent never fetches the context, and an unfetched context may as well
 not exist. No tooling fixes that — it is a writing problem, and it is the only real risk.
+
+## Where the paid line goes
+
+Free for individuals, paid for enterprises. The org is the tenant and therefore the
+billing boundary, which the namespace already gives us.
+
+The line has to be drawn so that **nothing which drives adoption is ever gated**. The
+format, the CLI, local and git backends, unlimited contexts, unlimited people in a free
+org — all permanently free. If an enterprise can run this on a git repo and never pay,
+let them; they were never going to pay, and their usage still grows the format. That is
+the deal that made git/GitHub work.
+
+### Never gate
+
+- **The format.** Plain markdown. If contexts are only readable by paid software, nobody
+  adopts and no enterprise will risk the lock-in.
+- **Context count.** Charging per context taxes exactly the behaviour the product needs.
+- **Seats.** Punishes the org for rolling it out, and pushes people to share accounts.
+- **Write-back.** Proposals are the flywheel. Making them a paid feature kills it.
+
+### What enterprises pay for
+
+Things a git repo structurally cannot do, so the gate is real rather than artificial:
+
+- **SSO/SAML and SCIM.** The classic enterprise line. Nobody else wants it, every
+  enterprise requires it, and it is genuinely work to build.
+- **Usage telemetry.** Which contexts get read, which get disputed, which are read and
+  then contradicted. Git cannot see reads. This is also what makes the `confirmed` state
+  possible, so it is a feature *and* a product improvement.
+- **Access control below repo granularity.** Some contexts are sensitive in ways that do
+  not map to "who can clone this".
+- **Audit.** Who changed what context, when, and who approved it.
+- **Cross-org sharing.** A vendor publishing context to its customers — `acme:shared-sso`
+  appearing in Comcast's index. That is a hub-only capability and a strong one.
+- **Private orgs, self-hosting, SLA.**
+
+### Sequencing
+
+Pricing is downstream of adoption, and adoption is unproven. The order stays: use it
+locally, then one team on git, then a hub — and think about pricing when there is
+something to charge for. Designing the paywall before the product has users is the most
+common way this kind of tool dies.
