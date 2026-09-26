@@ -69,8 +69,8 @@ That's the whole conflict model. Nothing is ever destroyed, so nobody has to arb
 |---|---|
 | `ctx` | status |
 | `ctx init [name]` | set up here. local, no account, no network |
-| `ctx remote` | one-time. create this context on a server |
-| `ctx clone org:name` | get a context you don't have |
+| `ctx remote` | put this on a remote — shares it and backs it up |
+| `ctx clone org:name` | get a remote context you don't have |
 | `ctx sync` | upload local changes, download remote ones |
 
 The name defaults to your directory, slugified. It only has to be unique when you run
