@@ -31,6 +31,15 @@ Preloading everything makes the problem worse:
 
 `ctx status` prints the real number for your repo.
 
+## Scopes
+
+A scope is a flat name — `ace`, `billing`, `myapp`. No `team:` prefix, no taxonomy. Use
+`/` to nest only if you want it; subscribing to `platform` picks up
+`platform/observability` too.
+
+Solo: one scope, named after your project, and you never type `--scope`.
+Enterprise: `ctx use ace platform enterprise`.
+
 ## Layout
 
 ```

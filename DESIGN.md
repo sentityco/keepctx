@@ -27,7 +27,7 @@ One markdown file, one topic, with frontmatter.
 ---
 id: ace
 title: Team ACE — what we own and how we ship
-scope: team:ace              # enterprise | team:<name> | project:<name>
+scope: ace                   # a flat name. '/' nests if you want it.
 owner: "@jmarks"
 state: verified
 updated: 2026-09-25
@@ -49,7 +49,7 @@ one hitting it cold.
 
 ```sh
 brew install ctx
-ctx use team:ace          # subscribe: read and write, same command
+ctx use ace               # subscribe: read and write, same command
 
 # later, having lost an hour to a wrong Splunk index name
 ctx propose splunk-index-gotcha --summary "ace-prod index is actually ace_prod_v2"
@@ -74,6 +74,45 @@ A correction trapped in one person's `.ctx/` is worth nothing. The value is enti
 the next person not hitting the same wall. `ctx push` is what makes write-back a shared
 asset rather than a private note — and it is why the local-only build is only step one.
 
+## Scopes: one name, no taxonomy
+
+A scope is a flat name. `ace`. `billing`. `myapp`. There is no `team:` prefix, because
+the prefix is a *type* and nothing in the mechanism uses one — grouping needs a name, not
+a classification. Forcing an indie developer to declare that their side project is a
+`project:` and not a `team:` is asking them to model an organisation they do not have.
+
+**Indie developer.** One scope, named after the thing:
+
+```
+- `deploy` — How myapp ships: fly.io, one command, rollback story (myapp)
+- `gotchas` — The three things that bite me every time I come back (myapp)
+```
+
+**Enterprise.** Same mechanism. `/` nests when it earns its keep, and subscribing to a
+parent picks up the children:
+
+```sh
+ctx use ace platform enterprise
+```
+```
+- `ace-deploy` — How ACE ships to prod (ace)
+- `ace-oncall` — ACE paging and escalation (ace)
+- `cloud-foundry` — CF spaces, quotas, routes (enterprise)
+- `grafana` — Dashboards that matter (platform/observability)
+- `splunk` — Splunk indexes and access (platform/observability)
+- `k8s` — Clusters, namespaces, who approves (platform/runtime)
+4 more contexts exist outside your scopes — find them with `ctx search <query>`.
+```
+
+`platform` matched both `platform/observability` and `platform/runtime`; `billing` was
+not subscribed, so it collapsed into the count.
+
+`enterprise` is a convention, not a keyword — it is just the name people will reach for.
+The tool does not know or care.
+
+Scope defaults to your first subscription, or the directory name if you have none. An
+indie developer never types `--scope` at all.
+
 ## Limiting recursion: three limits, not one
 
 The question "how deep do dependencies go" has three different answers because it is
@@ -88,8 +127,8 @@ require get a line in AGENTS.md. Everything else collapses to one line:
 ```
 - `comcast-cf` — Cloud Foundry: spaces, quotas, routes (enterprise)
 - `plat-splunk` — Splunk: indexes we can read, how to get access (enterprise)
-- `ace` — Team ACE: what we own, how we deploy, who to ask (team:ace)
-- `oncall-rota` — Who is on call and how paging reaches them (team:ace)
+- `ace` — Team ACE: what we own, how we deploy, who to ask (ace)
+- `oncall-rota` — Who is on call and how paging reaches them (ace)
 42 more contexts exist outside your scopes — find them with `ctx search <query>`.
 ```
 
@@ -114,8 +153,7 @@ quietly pulls forty files, and better than one that hides that more exists.
 the index is good, the agent knows what exists and fetches correctly. If it is bad, no
 amount of storage helps.
 
-**2. Three layers, one mechanism.** `enterprise`, `team:<x>`, `project:<x>` are just
-scopes on the same object. No separate systems.
+**2. Scopes are flat names, and nesting is optional.** Not a taxonomy. See below.
 
 **3. `requires` is loaded, `related` is not.** Hard dependencies get pulled with the
 context; pointers get listed. Depth 2 by default, cycles detected, token cost always

@@ -35,7 +35,7 @@ def parse(path):
     meta["_path"], meta["_body"] = path, body
     meta.setdefault("id", path.stem)
     meta.setdefault("state", "proposed")
-    meta.setdefault("scope", "team")
+    meta.setdefault("scope", "")
     return meta
 
 
@@ -123,7 +123,7 @@ def cmd_init(args):
         seed.write_text(f"""---
 id: how-ctx-works
 title: How context works in this repo
-scope: team
+scope: {root.name}
 owner: "{os.environ.get('USER', 'unknown')}"
 state: verified
 updated: {datetime.date.today()}
@@ -165,17 +165,23 @@ def index_lines(ctxs):
     return out
 
 
+def scope_match(scope, subscribed):
+    """`platform` matches `platform` and `platform/observability`, not `platform-x`."""
+    return any(scope == s or scope.startswith(s + "/") for s in subscribed)
+
+
 def in_working_set(c, scopes, direct):
     """Your scopes at full detail, plus anything they directly require."""
     if not scopes:
         return True
-    return c.get("scope", "") in scopes or c["id"] in direct
+    return scope_match(c.get("scope", ""), scopes) or c["id"] in direct
 
 
 def write_index(root):
     ctxs = load_all(root)
     scopes = load_subs(root)["scopes"]
-    direct = {r for c in ctxs.values() if c.get("scope") in scopes for r in c["requires"]}
+    direct = {r for c in ctxs.values() if scope_match(c.get("scope",""), scopes)
+              for r in c["requires"]}
     shown  = [c for c in ctxs.values() if in_working_set(c, scopes, direct)]
     hidden = len(ctxs) - len(shown)
     block = "\n".join([
@@ -232,7 +238,7 @@ def cmd_use(args):
     ctxs = load_all(root)
     known = {c.get("scope", "") for c in ctxs.values()}
     for sc in subs["scopes"]:
-        if sc not in known:
+        if not any(scope_match(k, [sc]) for k in known):
             print(f"  note: nothing published under `{sc}` yet")
     write_index(root)
     cmd_status(args)
@@ -248,8 +254,14 @@ def cmd_index(args):
         print("\n".join(index_lines(ctxs)) or "no contexts yet — try: ctx new <id>")
 
 
+def default_scope(root):
+    subs = load_subs(root)["scopes"]
+    return subs[0] if subs else root.name
+
+
 def cmd_new(args):
     root = root_dir()
+    args.scope = args.scope or default_scope(root)
     path = root / PUBLISHED / f"{args.id}.md"
     if path.exists():
         sys.exit(f"{path} already exists")
@@ -316,6 +328,7 @@ def cmd_search(args):
 
 def cmd_propose(args):
     root = root_dir()
+    args.scope = args.scope or default_scope(root)
     path = root / WORKING / "proposed" / f"{args.id}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     body = args.body or sys.stdin.read() if not sys.stdin.isatty() else (args.body or "")
@@ -494,7 +507,7 @@ def main():
     for name, fn in (("new", cmd_new), ("propose", cmd_propose)):
         p = sub.add_parser(name, help=f"{name} a context")
         p.add_argument("id"); p.add_argument("--title"); p.add_argument("--summary")
-        p.add_argument("--scope", default="team")
+        p.add_argument("--scope", help="group this belongs to (default: your first subscription)")
         p.add_argument("--requires", help="ids this context cannot be understood without")
         p.add_argument("--related", help="comma-separated ids worth knowing about, not auto-loaded")
         if name == "propose":
