@@ -557,14 +557,17 @@ Every command ends with one line, and which line depends on who is reading:
 | stdout | Line |
 |---|---|
 | not a tty — an agent or hook ran it | `AGENTS.md changed — re-read it.` |
-| a tty — a person typed it | ``Run `ctx init` in your AI session so it picks this up.`` |
+| a tty — a person typed it | ``Run `ctx` in your AI session so it picks this up.`` |
 
 That is the whole mechanism. keepctx runs as a subprocess of the agent, so its stdout lands in the
 agent's context as the tool result — the one channel that reaches a session already in flight.
 
-One line each, one option each. The human is pointed at `ctx init` rather than at AGENTS.md so
-that a single command is all anyone has to remember — and when the agent runs it, the agent
-gets its own tailored line rather than a relayed English instruction.
+One line each, one option each. The human is pointed at bare `ctx`, not at `ctx init`: telling
+someone to re-run `init` reads as "it did not work", and the second run initialises nothing —
+the verb would be lying. Bare `ctx` claims only to report, which is what it does.
+
+`ctx init` stays idempotent anyway, because people will type it, and refusing with nothing
+useful is the worse failure.
 
 **The instruction is "re-read AGENTS.md", not a copy of the rules.** An earlier version printed
 the format, the write triggers and an index of every key on every invocation — thirty lines,
