@@ -561,6 +561,15 @@ session already in flight. The output *is* the injection; no re-read is required
 commands are one-time, so the tokens are paid once. `ctx sync` prints no brief: it runs
 constantly and a reminder every call would be waste.
 
+**`ctx init` is idempotent in the useful sense.** Running it on a directory that already has a
+context is not an error and does not just refuse. It prints the current state and the same
+brief a first run would, and exits 0.
+
+That matters because `ctx init` is the command people will be *told* to run — in the README,
+in a teammate's message, by an agent following instructions. If it only orients on the first
+run, the second person to type it gets a refusal and no context, which is the worst possible
+outcome for the one command everyone reaches for.
+
 **To the human, if the human ran it.** *Tell your agent to run `ctx`.* Bare `ctx` prints the
 same brief, so one command catches the session up without losing any of its working state.
 Restarting also works and is the fallback, but it throws away everything the session knows,

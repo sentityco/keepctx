@@ -279,16 +279,25 @@ def cmd_init(argv):
     here = pathlib.Path.cwd().resolve()
     found = find_root()
 
+    # Already initialised is not a failure. `ctx init` is what people will be
+    # told to run, so it must orient the agent every time — not only the first.
     if found == here:
-        print(f"ctx: already set up in {here}")
-        return 1
+        cfg = load_config(found)
+        n = cfg.get("name", "?")
+        _, order = read_facts(found, n)
+        print(f"ctx: already set up here — `{n}`, {len(order)} facts")
+        print()
+        agent_index(found)
+        return 0
     if found and not here_only:
         print(f"ctx: already set up in {found}")
         print(f"     that is a parent of {here}, so every project under it shares one")
         print("     context. for a context scoped to this directory only:")
         name = argv[0] if argv else here.name
         print(f"       ctx init --here {name}")
-        return 1
+        print()
+        agent_index(found)
+        return 0
 
     root = pathlib.Path.cwd()
     name = slugify(argv[0]) if argv else slugify(root.name)
