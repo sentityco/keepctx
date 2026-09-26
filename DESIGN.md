@@ -557,7 +557,7 @@ Every command ends with one line, and which line depends on who is reading:
 | stdout | Line |
 |---|---|
 | not a tty — an agent or hook ran it | `AGENTS.md changed — re-read it.` |
-| a tty — a person typed it | `Ask your AI to re-read AGENTS.md.` |
+| a tty — a person typed it | ``Tell your AI to re-read AGENTS.md — or just run `ctx init` there.`` |
 
 That is the whole mechanism. keepctx runs as a subprocess of the agent, so its stdout lands in the
 agent's context as the tool result — the one channel that reaches a session already in flight.
