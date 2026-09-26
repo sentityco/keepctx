@@ -29,6 +29,7 @@ def parse(path):
             continue
         k, v = line.split(":", 1)
         meta[k.strip()] = v.strip().strip('"').strip("'")
+    meta.setdefault("org", "")
     for key in ("requires", "related", "tags"):
         raw = meta.get(key, "")
         meta[key] = [x.strip() for x in raw.strip("[]").split(",") if x.strip()]
@@ -88,7 +89,9 @@ def subs_path(root):
 
 def load_subs(root):
     p = subs_path(root)
-    return json.loads(p.read_text()) if p.exists() else {"scopes": [], "sources": []}
+    d = json.loads(p.read_text()) if p.exists() else {}
+    return {"org": d.get("org", ""), "scopes": d.get("scopes", []),
+            "sources": d.get("sources", [])}
 
 
 def save_subs(root, subs):
@@ -156,12 +159,17 @@ an existing context already covers — update that one instead.
 
 
 def index_lines(ctxs):
+    orgs = {c.get("org", "") for c in ctxs.values()}
+    show_org = len([o for o in orgs if o]) > 1
     out = []
     for c in sorted(ctxs.values(), key=lambda c: (c.get("scope", ""), c["id"])):
         mark = {"verified": "", "confirmed": " ~confirmed", "proposed": " ~unverified",
                 "disputed": " ~disputed", "stale": " ~stale"}.get(c["state"], "")
+        where = c.get("scope", "")
+        if show_org and c.get("org"):
+            where = f"{c['org']}/{where}"
         out.append(f"- `{c['id']}` — {c.get('summary','(no summary)')} "
-                   f"({c.get('scope','team')}, {c.get('updated','?')}{mark})")
+                   f"({where}, {c.get('updated','?')}{mark})")
     return out
 
 
@@ -229,10 +237,21 @@ def cmd_use(args):
                 subs["sources"].append(str(src))
             print(f"synced {n} contexts from {src}")
         else:
-            scope = target
+            org, _, scope = target.rpartition("/") if target.count("/") and \
+                            not target.startswith("/") else ("", "", target)
+            # first path element is the org only when an org is not already set
+            if "/" in target and not subs["org"]:
+                org, scope = target.split("/", 1)
+            elif "/" in target and subs["org"] and target.startswith(subs["org"] + "/"):
+                org, scope = target.split("/", 1)
+            else:
+                org, scope = subs["org"], target
+            if org and not subs["org"]:
+                subs["org"] = org
+                print(f"organization set to `{org}`")
             if scope not in subs["scopes"]:
                 subs["scopes"].append(scope)
-            print(f"subscribed to scope `{scope}`")
+            print(f"subscribed to scope `{scope}`" + (f" in `{subs['org']}`" if subs["org"] else ""))
     save_subs(root, subs)
 
     ctxs = load_all(root)
@@ -262,6 +281,7 @@ def default_scope(root):
 def cmd_new(args):
     root = root_dir()
     args.scope = args.scope or default_scope(root)
+    org = load_subs(root)["org"]
     path = root / PUBLISHED / f"{args.id}.md"
     if path.exists():
         sys.exit(f"{path} already exists")
@@ -271,6 +291,7 @@ def cmd_new(args):
 id: {args.id}
 title: {args.title or args.id.replace('-', ' ').capitalize()}
 scope: {args.scope}
+org: {org}
 owner: "{os.environ.get('USER','unknown')}"
 state: verified
 updated: {today}
@@ -463,6 +484,8 @@ def cmd_status(args):
     idx_tokens = sum(len(l.split()) for l in index_lines(ctxs)) * 1.4
     subs = load_subs(root)
     print(f"{root}")
+    if subs["org"]:
+        print(f"  organization: {subs['org']}")
     if subs["scopes"]:
         print(f"  subscribed: {', '.join(subs['scopes'])}")
     print(f"  {len(ctxs)} contexts · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))

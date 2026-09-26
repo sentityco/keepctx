@@ -31,9 +31,16 @@ Preloading everything makes the problem worse:
 
 `ctx status` prints the real number for your repo.
 
-## Scopes
+## Organization and scopes
 
-A scope is a flat name — `ace`, `billing`, `myapp`. No `team:` prefix, no taxonomy. Use
+An organization is **tenancy** — set once, then invisible:
+
+```sh
+ctx use comcast/ace platform enterprise    # org is `comcast`, thereafter implicit
+ctx use sentity/myapp                       # solo: same mechanism, one scope
+```
+
+Within it, a scope is a flat name — `ace`, `billing`, `myapp`. No `team:` prefix, no taxonomy. Use
 `/` to nest only if you want it; subscribing to `platform` picks up
 `platform/observability` too.
 

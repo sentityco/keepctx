@@ -74,6 +74,49 @@ A correction trapped in one person's `.ctx/` is worth nothing. The value is enti
 the next person not hitting the same wall. `ctx push` is what makes write-back a shared
 asset rather than a private note — and it is why the local-only build is only step one.
 
+## Organization is tenancy, not a level
+
+An organization is not a hierarchy level — it is **who owns the store**. Comcast's
+`platform` and Acme's `platform` are different things that must never collide, and that
+becomes load-bearing the moment more than one company uses a hub. Same shape as
+`github.com/<org>/<repo>`, `npm @scope/pkg`, `docker org/image`.
+
+It is set once and then invisible:
+
+```sh
+ctx use comcast/ace platform enterprise
+# organization set to `comcast`
+# subscribed to scope `ace` in `comcast`
+```
+
+After that, nobody types it. The index shows plain scopes:
+
+```
+- `ace-deploy` — How ACE ships to prod (ace)
+- `cf` — Cloud Foundry spaces and quotas (enterprise)
+- `splunk` — Splunk indexes and access (platform/observability)
+```
+
+Until a context arrives from somewhere else, at which point origin starts mattering and
+appears automatically:
+
+```
+- `ace-deploy` — How ACE ships to prod (comcast/ace)
+- `shared-sso` — How our SSO federates with Acme's (acme/identity)
+```
+
+A solo developer sets `ctx use sentity/myapp` once and never thinks about it again.
+
+### Why not a fixed `organization / team` pair
+
+Team is not a structural level, it is a scope that happens to be named after a team.
+Hardcoding it breaks immediately: a team that owns two scopes cannot express that, and a
+scope spanning two teams has nowhere to live. Both are common.
+
+Worse, a fixed pair forces a solo developer to name two buckets when they have one —
+`organization: my-company, team: dev` is pure ceremony. Flat scopes inside a tenant
+collapse to nothing when you do not need them and nest with `/` when you do.
+
 ## Scopes: one name, no taxonomy
 
 A scope is a flat name. `ace`. `billing`. `myapp`. There is no `team:` prefix, because
