@@ -241,6 +241,11 @@ Do not record who wrote a fact or when. That is kept for you in version history.
 
 
 
+def err(msg):
+    """Errors go to stderr, so an agent piping stdout gets only real output."""
+    print(msg, file=sys.stderr)
+
+
 def reread(tty=None):
     """One line. The rules live in AGENTS.md -> instructions.md; duplicating them
     in command output only creates a second copy to keep in step."""
@@ -261,17 +266,14 @@ def cmd_init(argv):
     # Already initialised is not a failure. `ctx init` is what people will be
     # told to run, so it must orient the agent every time — not only the first.
     if found == here:
-        cfg = load_config(found)
-        n = cfg.get("name", "?")
-        _, order = read_facts(found, n)
-        return agent_index(found)
+        return cmd_status()
     if found and not here_only:
-        print(f"ctx: already set up in {found}")
+        print(f"Already set up in {found}")
         print(f"     that is a parent of {here}, so every project under it shares one")
         print("     context. For a context scoped to this directory only:")
         name = argv[0] if argv else here.name
         print(f"       ctx init --here {name}")
-        return agent_index(found)
+        return cmd_status()
 
     root = pathlib.Path.cwd()
     name = slugify(argv[0]) if argv else slugify(root.name)
@@ -320,7 +322,7 @@ def cmd_init(argv):
     else:
         agents.write_text(pointer)
 
-    print(f"ctx: initialized `{name}`")
+    print(f"Initialized `{name}`")
     w = max(len(facts_rel), len(f"{CTXDIR}/{INSTRUCTIONS}"), len(AGENTS))
     print(f"  {facts_rel:<{w}}  your facts")
     print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent maintains them")
@@ -335,23 +337,23 @@ def cmd_init(argv):
 def cmd_remote(argv):
     root = find_root()
     if not root:
-        print("ctx: nothing here yet — `ctx init` first")
+        err("error: no context here. Run `ctx init` first.")
         return 1
     cfg = load_config(root)
     if cfg.get("org"):
-        print(f"ctx: already on a remote as {cfg['org']}:{cfg['name']}")
+        print(f"Already on a remote as {cfg['org']}:{cfg['name']}")
         return 1
 
     name = cfg.get("name") or slugify(root.name)
     if name in GENERIC:
-        print(f"ctx: `{name}` is too generic to claim on a remote.")
-        print("     Pick a name: ctx remote --name <name>")
+        err(f"error: `{name}` is too generic to claim.")
+        err("       Pick a name: ctx remote --name <name>")
         return 1
     if "--name" in argv:
         name = slugify(argv[argv.index("--name") + 1])
 
     remote = os.environ.get("CTX_REMOTE", DEFAULT_REMOTE)
-    print(f"remote: {remote}")
+    print(f"Remote: {remote}")
     email = input("email: ").strip()
     password = getpass.getpass("password: ")
     org = input("org (new or existing): ").strip().lower()
@@ -369,14 +371,14 @@ def cmd_remote(argv):
     save_config(root, cfg)
     (root / CTXDIR / name / BASE).write_text(facts)
 
-    print(f"ctx: {cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
+    print(f"{cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
     return 0
 
 
 def cmd_sync(argv):
     root = find_root()
     if not root:
-        print("ctx: nothing here yet — `ctx init` first")
+        err("error: no context here. Run `ctx init` first.")
         return 1
     cfg = load_config(root)
     if not cfg.get("org"):
@@ -420,7 +422,7 @@ def cmd_sync(argv):
 
 def cmd_clone(argv):
     if not argv or ":" not in argv[0]:
-        print("ctx: usage — ctx clone <org>:<name>")
+        err("error: usage: ctx clone <org>:<name>")
         return 1
     org, _, name = argv[0].partition(":")
     root = find_root() or pathlib.Path.cwd()
@@ -438,7 +440,7 @@ def cmd_clone(argv):
     (d / BASE).write_text(got["facts"])
     (d / ".readonly").write_text("cloned — edits here are not synced upstream\n")
 
-    print(f"ctx: cloned {org}:{name} ({got.get('count', 0)} facts)")
+    print(f"Cloned {org}:{name} ({got.get('count', 0)} facts)")
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
     print()
@@ -495,9 +497,9 @@ def agent_index(root):
     bits = []
     for r, n, kind in scope:
         _, order = read_facts(r, n)
-        tag = {"own": "", "parent": " (inherited)", "clone": " (read-only)"}[kind]
-        bits.append(f"{n}{tag}: {len(order)} facts")
-    print("ctx: " + ", ".join(bits))
+        tag = {"own": "", "parent": ", inherited", "clone": ", read-only"}[kind]
+        bits.append(f"{n} ({len(order)} facts{tag})")
+    print("Contexts: " + ", ".join(bits))
     print(reread())
     return 0
 
@@ -537,11 +539,11 @@ def main():
     if cmd == "clone":
         return cmd_clone(argv[1:])
     if cmd == "upgrade":
-        print("ctx: install with brew or the install script; see https://keepctx.com")
+        print("Install with brew or the install script: https://keepctx.com")
         return 0
     if not argv:
         return cmd_status()
-    print(f"ctx: unknown command `{cmd}`")
+    err(f"error: unknown command `{cmd}`")
     return usage()
 
 

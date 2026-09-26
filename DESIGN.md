@@ -583,6 +583,24 @@ agent to follow it costs one line and cannot go stale.
 It also says *why* to re-read, because the agent already read that file at session start and
 would otherwise treat the instruction as a no-op.
 
+### Output conventions
+
+Follow git, rather than inventing something. git does not prefix normal output with `git:` — it
+says `Switched to branch 'main'` — and reserves lowercase prefixes for `error:`, `warning:` and
+`fatal:`, which go to stderr.
+
+| Kind | Form | Stream |
+|---|---|---|
+| Normal output | Plain sentence, capitalised. No program prefix. | stdout |
+| Errors | `error: ...`, lowercase after the prefix | stderr |
+| Help descriptions | Capitalised, no trailing period, like git and cargo | stdout |
+
+Errors on stderr is not cosmetic here: an agent pipes stdout, and error text mixed into that is
+text it will try to interpret as context.
+
+An earlier version prefixed everything with `ctx:` *and* capitalised some labels, which is two
+conventions at once and reads as carelessness.
+
 ### When sync fires
 
 **Before a read**, so you start from what your teammates learned. **After a write**, so a
