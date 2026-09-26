@@ -17,7 +17,7 @@ command -v python3 >/dev/null 2>&1 || {
 }
 
 mkdir -p "$PREFIX"
-echo "downloading keepctx..."
+echo "Downloading keepctx..."
 curl -fsSL "$URL" -o "$PREFIX/keepctx"
 chmod +x "$PREFIX/keepctx"
 
@@ -37,9 +37,9 @@ fi
 
 echo
 if [ -n "$SHORT" ]; then
-  echo "installed: $PREFIX/ctx (and keepctx)"
+  echo "Installed: $PREFIX/ctx (and keepctx)"
 else
-  echo "installed: $PREFIX/keepctx"
+  echo "Installed: $PREFIX/keepctx"
 fi
 
 case ":$PATH:" in
@@ -53,7 +53,7 @@ esac
 
 echo
 if [ -n "$SHORT" ]; then
-  echo "next:  cd your-project && ctx init"
+  echo "Next: cd your-project && ctx init"
 else
-  echo "next:  cd your-project && keepctx init"
+  echo "Next: cd your-project && keepctx init"
 fi
