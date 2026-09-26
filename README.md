@@ -8,7 +8,7 @@ it current, and shares it with your team.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
-cd ~/work/ace && ctx init
+cd ~/work/checkout && ctx init
 ```
 
 That's it. Local, no account, no network. An account only matters when you want to share.
@@ -17,12 +17,13 @@ That's it. Local, no account, no network. An account only matters when you want 
 
 ## What it does
 
-A context is a list of facts in plain markdown:
+A context is a list of facts in plain markdown. **What a context covers is up to you** — a
+repo, a service, a team, a programme, a platform. ctx doesn't impose a shape:
 
 ```markdown
-- **deploy.command** — `make ship` from the repo root, not the CF CLI
-- **splunk.index** — `ace_prod_v2`. The docs still say ace-prod; they're wrong.  `[verified]`
-- **spacaptive.depends-on** → idcmt, for session validation
+- **deploy.command** — `make ship` from the repo root, not the platform CLI
+- **logging.index** — `checkout_prod_v2`. The docs still say checkout-prod; they're wrong.  `[verified]`
+- **gateway.depends-on** → platform-auth, for session validation
 - **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it.  `[verified]`
 ```
 

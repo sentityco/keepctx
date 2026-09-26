@@ -60,7 +60,7 @@ it. Quantified, and nobody else leads with it — for an enterprise it is a line
 than a vibe.
 
 **3. Onboarding.** A new person clones the repo and their agent already knows the deploy
-command, the real Splunk index, and which docs are lying. "New hire productive on day one" is
+command, the real the log platform index, and which docs are lying. "New hire productive on day one" is
 something companies actually buy, and "share with your colleagues" does not say it.
 
 **4. The AI cannot wreck your knowledge base.** Every change is versioned and one revert away.
@@ -126,7 +126,7 @@ An earlier draft hid sync inside a read command so it could not be skipped. It w
 trade: it made the cheapest, most common operation the most expensive one.
 
 **`ctx init` takes an optional name and defaults to the current directory, slugified.**
-`ctx init` in `~/work/ace` gives you `ace`; `My Project` becomes `my-project`. Nobody should
+`ctx init` in `~/work/checkout` gives you `checkout`; `My Project` becomes `my-project`. Nobody should
 have to type a name they do not have to.
 
 **The name is settled at `ctx remote`, not at init.** Before creating a remote it is a local label and
@@ -166,11 +166,11 @@ AGENTS.md              # the dev's file. ctx adds two lines at the top, then nev
 .ctx/
   .gitignore           # contains `*`. see below.
   instructions.md      # the rules + the index. ctx owns it; the agent never writes it.
-  ace/
+  checkout/
     facts.md           # yours. the agent appends and updates lines here.
-  idcmt/
+  platform-auth/
     facts.md           # cloned dependency. read-only.
-  plat-splunk/
+  logging/
     facts.md           # cloned dependency. read-only.
 ```
 
@@ -193,7 +193,7 @@ file the agent rewrites from the file it only reads removes that whole failure c
 
 **A context is a directory even when it holds one file.** It gives clones and your own
 context the same shape, with no special case anywhere, and it leaves somewhere to put a
-context that outgrows one file — split by key prefix, `spacaptive.md` and `deploy.md`, so a
+context that outgrows one file — split by key prefix, `gateway.md` and `deploy.md`, so a
 fetch can take the cluster it needs instead of everything. A single flat file read whole is
 preloading, the thing this design exists to avoid.
 
@@ -283,28 +283,34 @@ to adopt.
 
 A context is **a list of facts**. Not a document, not prose with facts in it — a list.
 
+**A context is whatever unit of knowledge is useful to you** — one repository, one service,
+one team, one programme, one platform. ctx does not care and should never impose a shape. The
+examples here use `acme:checkout` for a service and `acme:platform-auth` for something it
+depends on, but `acme:billing-migration` for a six-month programme or `acme:oncall` for a
+rotation are equally valid. The only rule is that a context has an owner and a name.
+
 ```markdown
 ---
-id: ace
-title: Team ACE — what we own and how we ship
-org: comcast
-owner: "@jmarks"
+id: checkout
+title: Checkout service — what we own and how we ship
+org: acme
+owner: "@you"
 updated: 2026-09-26
 review_by: 2027-09-26
-summary: What ACE owns, how we deploy, who to ask. ONE LINE — every session pays for this.
-requires: [idcmt, plat-splunk]
+summary: What checkout owns, how we deploy, who to ask. ONE LINE — every session pays for this.
+requires: [platform-auth, logging]
 related:  [payments-service]
 ---
 
-- **deploy.command** — `make ship` from the repo root, not the CF CLI directly.
-- **splunk.index** — `ace_prod_v2`. The docs still say `ace-prod`; they are wrong.  `[verified]`
-- **spacaptive-1.ip** — 10.2.3.5
-- **spacaptive.routes-to** → portal tier, chosen by source IP
-- **spacaptive.depends-on** → idcmt, for session validation
+- **deploy.command** — `make ship` from the repo root, not the platform CLI directly.
+- **logging.index** — `checkout_prod_v2`. The docs still say `checkout-prod`; they are wrong.  `[verified]`
+- **gateway-1.ip** — 10.2.3.5
+- **gateway.routes-to** → portal tier, chosen by source IP
+- **gateway.depends-on** → platform-auth, for session validation
 - **event.transport** — Kinesis, not Kafka. Inherited, and not changing.  `[verified]`
 - **deploy.process** — three steps:
     - build with `make`
-    - push to CF
+    - push to staging
     - verify the health endpoint
 ```
 
@@ -312,7 +318,7 @@ The bolded lead is the **key**; everything after the dash is the value. A value 
 IP, a command, or a sentence — so dropping prose costs expressiveness nothing. What it costs
 is narrative flow, and agents do not need flow. They need retrievable statements.
 
-Dotted keys group for free: `spacaptive.*` reads as a cluster without anyone maintaining
+Dotted keys group for free: `gateway.*` reads as a cluster without anyone maintaining
 headings.
 
 ### Why markdown, and why line-oriented
@@ -374,27 +380,27 @@ the local-only build is only step one.
 Two levels, and that is the whole namespace.
 
 ```
-comcast:ace          organization : context
+acme:checkout          organization : context
 ```
 
-**Organization is tenancy** — who owns the store. Comcast's `ace` and Acme's `ace` are
+**Organization is tenancy** — who owns the store. Acme's `checkout` and Acme's `checkout` are
 different things that must never collide, which is what matters the moment a hub hosts
 more than one company. It is also therefore the billing boundary.
 
-Inside an organization you write bare names. `comcast:ace` requires `idcmt`, not
-`comcast:idcmt` — qualification is only for crossing an org boundary.
+Inside an organization you write bare names. `acme:checkout` requires `platform-auth`, not
+`acme:platform-auth` — qualification is only for crossing an org boundary.
 
 ### There is no scope, and no team
 
 Both were cut. A scope was a grouping layer that existed to answer "what should be in my
 index", and **the dependency graph already answers that better**. Ten contexts exist;
-three are in your index, because `ace` requires the other two. Your working set is the
+three are in your index, because `checkout` requires the other two. Your working set is the
 closure of what you have.
 
-This is better than a scope for a reason worth stating: the person who maintains `ace`
-decides what a new starter sees, by declaring what ACE actually depends on. That is
+This is better than a scope for a reason worth stating: the person who maintains `checkout`
+decides what a new starter sees, by declaring what checkout actually depends on. That is
 curation by the person best placed to do it, rather than a flat namespace everyone dumps
-into. When ACE picks up a dependency on Splunk, one line in `ace` puts it in every team
+into. When checkout picks up a dependency on the log platform, one line in `checkout` puts it in every team
 member's index.
 
 A solo developer has one context and never thinks about any of this.
@@ -411,10 +417,10 @@ disk is free and a missing file is worse than an unused one.
 requires get a line in `.ctx/instructions.md`. Everything else collapses to one line:
 
 ```
-- `ace` — Team ACE: what we own, how we deploy, who to ask
-- `idcmt` — IDCMT: identity and credential management, how to request access
-- `plat-splunk` — Splunk: indexes we can read, how to get access
-42 more contexts exist in comcast — find them with `ctx search <query>`.
+- `checkout` — the checkout service: what we own, how we deploy, who to ask
+- `platform-auth` — Platform Auth: identity and credential management, how to request access
+- `logging` — the log platform: indexes we can read, how to get access
+42 more contexts exist in acme — find them with `ctx search <query>`.
 ```
 
 46 synced, 3 listed. The index is a **working set, not a catalogue** — which is what keeps
@@ -438,7 +444,7 @@ Three answers were tried and discarded before the simple one, and the discards a
 keeping because each looked right at the time.
 
 **A reviewing AI that judges whether a change is good enough.** It has no ground truth — it
-has never seen your Splunk index or your deploy pipeline — so it can only guess from
+has never seen your the log platform index or your deploy pipeline — so it can only guess from
 plausibility, which selects for confident prose. It also rebuilds the pull-request queue
 this tool exists to avoid, staffed by a reviewer nobody can argue with.
 
@@ -453,7 +459,7 @@ keeping versions of the file.
 ### Three rules
 
 1. **The client sends only the lines it changed**, never the whole file. A changing
-   `spacaptive-1.ip` and B adding `splunk.index` both land, because they are different keys.
+   `gateway-1.ip` and B adding `logging.index` both land, because they are different keys.
 2. **Same key, different value — the later one wins**, and the change appears in the diff.
 3. **Every sync is a new version on the server.** A bad change is one revert away.
 
@@ -463,7 +469,7 @@ That is the entire conflict model. Nothing is ever lost, because the server keep
 is where stale context and prose merge conflicts came from. One linear history that is always
 current gives undo without any of it.
 
-**Provenance is per-version, not per-fact.** "devB changed these two lines on the 26th" is
+**Provenance is per-version, not per-fact.** "a teammate changed these two lines on the 26th" is
 `git blame`, and it is enough. Per-claim authorship, model attribution and evidence fields
 all bought less than they cost.
 
@@ -541,7 +547,7 @@ The wiki half of the positioning. Two layers, and only one of them needs a model
 
 Turning a fact list into a reference site is markdown-to-HTML plus grouping. Nothing to infer:
 
-- `spacaptive.*` collapses into a **Spacaptive** section — the dotted keys already encode it
+- `gateway.*` collapses into a **Gateway** section — the dotted keys already encode it
 - every fact shows who last changed it and when, straight from version history
 - anything past `review_by` renders greyed with a stale flag
 - a client-side search box, because that is how reference docs are actually used
@@ -572,7 +578,7 @@ The whole design of this rests on one decision:
 **Sections are scoped to key prefixes, and only the changed section regenerates.**
 
 ```
-## Spacaptive          ← regenerated, because spacaptive.* changed
+## Gateway          ← regenerated, because gateway.* changed
 ## Deploy              ← untouched
 ## Event transport     ← untouched
 ```
@@ -596,20 +602,20 @@ Two smaller rules:
 **Ordering within a section is derived, not generated.** The facts are the source and the prose
 wraps them, so regeneration cannot reshuffle the document unpredictably and diffs stay readable.
 
-**An orphaned section is flagged mechanically.** Delete every `spacaptive.*` fact and the
-Spacaptive narrative is prose describing nothing. That check is deterministic — no model — and
+**An orphaned section is flagged mechanically.** Delete every `gateway.*` fact and the
+Gateway narrative is prose describing nothing. That check is deterministic — no model — and
 it is the narrative equivalent of a stale flag.
 
 **The render always shows the facts, with narrative as a wrapper — never instead of them.**
 
 ```
-## Spacaptive
+## Gateway
 
-The spacaptive tier terminates client sessions and routes each one to a
+The gateway tier terminates client sessions and routes each one to a
 portal based on source IP.
 
-- **spacaptive-1.ip** — 10.2.3.5
-- **spacaptive.routes-to** → portal tier, chosen by source IP
+- **gateway-1.ip** — 10.2.3.5
+- **gateway.routes-to** → portal tier, chosen by source IP
 ```
 
 Generation is client-side, so narrative quality is whatever that client's model produced — good,
@@ -711,8 +717,8 @@ Never for task-specific detail, never for something inferred rather than verifie
 context limit. A fact learned at minute five and written at minute ninety is a fact that may
 never get written at all.
 
-**Record relationships, not just properties.** `spacaptive.depends-on → idcmt` is worth more
-than three facts about spacaptive's configuration, because it is the kind of thing nobody writes
+**Record relationships, not just properties.** `gateway.depends-on → platform-auth` is worth more
+than three facts about gateway's configuration, because it is the kind of thing nobody writes
 down and everybody needs. It is also what lets the architecture diagram draw itself instead of
 being guessed at.
 
@@ -780,7 +786,7 @@ request, no telemetry, no phone-home to justify.
 
 ```
 $ ctx sync
-ace    2 facts updated by devB
+checkout        2 facts updated by alex
 
 ctx 0.4.1 available (you have 0.3.2) — `ctx upgrade`
 ```
@@ -903,7 +909,7 @@ Things a git repo structurally cannot do, so the gate is real rather than artifi
   not map to "who can clone this".
 - **Audit.** Who changed what context, when, and who settled it.
 - **Cross-org sharing — the actual moat.** A vendor publishing context that its customers
-  pull, so `acme:shared-sso` appears in Comcast's index. This only works on the instance
+  pull, so `acme:shared-sso` appears in Acme's index. This only works on the instance
   everyone is already on, which makes it the one asset a self-hoster cannot reproduce and
   worth more than any feature gate. The roadmap should aim at it.
 - **Private orgs, self-hosting, SLA.**

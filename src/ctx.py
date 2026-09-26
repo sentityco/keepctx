@@ -176,7 +176,7 @@ Only three things are worth recording:
 Never record task-specific detail, and never record something you inferred
 rather than verified.
 
-**Record relationships, not just properties.** `spacaptive.depends-on → idcmt`
+**Record relationships, not just properties.** `gateway.depends-on → platform-auth`
 is worth more than three facts about its configuration, because it is what
 nobody writes down and everybody needs.
 
@@ -192,8 +192,8 @@ One fact per line. The bolded lead is the key.
 
 ```markdown
 - **deploy.command** — `make ship` from the repo root
-- **splunk.index** — `ace_prod_v2`, not what the docs say  `[verified]`
-- **spacaptive.depends-on** → idcmt, for session validation
+- **logging.index** — `checkout_prod_v2`, not what the docs say  `[verified]`
+- **gateway.depends-on** → platform-auth, for session validation
 - **deploy.process** — three steps:
     - build with `make`
     - push, then verify the health endpoint

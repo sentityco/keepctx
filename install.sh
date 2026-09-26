@@ -6,7 +6,7 @@
 # so if one is already on your PATH, use keepctx and nothing is blocked).
 set -e
 
-REPO="${CTX_REPO:-sentityco/keepctx}"
+REPO="${CTX_REPO:-keepctx/keepctx}"
 REF="${CTX_REF:-main}"
 PREFIX="${CTX_PREFIX:-$HOME/.local/bin}"
 URL="https://raw.githubusercontent.com/$REPO/$REF/src/ctx.py"
