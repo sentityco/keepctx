@@ -41,7 +41,8 @@ def parse(path):
 
 def load_all(root):
     ctxs = {}
-    for base in (root / PUBLISHED, root / WORKING / "cache", root / WORKING / "proposed"):
+    for base in (root / PUBLISHED, root / WORKING / "cache",
+                 root / WORKING / "proposed", root / WORKING / "inbox"):
         if not base.exists():
             continue
         for p in sorted(base.rglob("*.md")):
@@ -323,6 +324,7 @@ id: {args.id}
 title: {args.title or args.id.replace('-', ' ').capitalize()}
 scope: {args.scope}
 owner: "unassigned"
+author: "{os.environ.get('USER','unknown')}"
 state: proposed
 updated: {datetime.date.today()}
 summary: {args.summary or 'proposed by an agent — needs a one-line summary'}
@@ -338,6 +340,31 @@ tags: []
     print(f"proposed {args.id} — review with: ctx review")
 
 
+def cmd_push(args):
+    """Send local proposals to the sources they belong to."""
+    root = root_dir()
+    subs = load_subs(root)
+    pending = sorted((root / WORKING / "proposed").glob("*.md"))
+    if not pending:
+        print("nothing to push")
+        return
+    if not subs["sources"]:
+        print("no upstream source configured — ctx use <path-or-url> first")
+        print(f"{len(pending)} proposals are waiting in {WORKING}/proposed/")
+        return
+
+    dest = pathlib.Path(subs["sources"][0]).expanduser()
+    inbox = dest.parent / ".ctx" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    for f in pending:
+        (inbox / f.name).write_text(f.read_text())
+        if not args.keep:
+            f.unlink()
+    print(f"pushed {len(pending)} proposal(s) to {inbox}")
+    print("the scope owner sees them with: ctx review")
+    write_index(root)
+
+
 def cmd_review(args):
     ctxs = load_all(root_dir())
     queue = [c for c in ctxs.values() if c["state"] in ("proposed", "disputed", "stale")]
@@ -345,7 +372,8 @@ def cmd_review(args):
         print("nothing awaiting review")
         return
     for c in sorted(queue, key=lambda c: c["state"]):
-        print(f"  [{c['state']:9}] {c['id']:26} {c.get('summary','')[:60]}")
+        who = f"  from {c['author']}" if c.get("author") else ""
+        print(f"  [{c['state']:9}] {c['id']:26} {c.get('summary','')[:52]}{who}")
     print(f"\n{len(queue)} awaiting review · promote with: ctx verify <id>")
 
 
@@ -438,6 +466,10 @@ def main():
     sub.add_parser("init", help="scaffold ctx in this repo").set_defaults(fn=cmd_init)
     sub.add_parser("status", help="what exists and what it costs").set_defaults(fn=cmd_status)
     sub.add_parser("review", help="contexts awaiting a human").set_defaults(fn=cmd_review)
+
+    p = sub.add_parser("push", help="send your proposals upstream")
+    p.add_argument("--keep", action="store_true", help="do not clear them locally")
+    p.set_defaults(fn=cmd_push)
 
     p = sub.add_parser("use", help="subscribe to a scope, or sync a source directory")
     p.add_argument("targets", nargs="+", metavar="SCOPE|PATH")

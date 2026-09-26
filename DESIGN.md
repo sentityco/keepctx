@@ -41,21 +41,38 @@ related:  [payments-service]
 Small, owned, dated. **Wrong context is worse than no context**, so ownership and
 freshness are structural, not decoration.
 
-## Two different people, two different commands
+## One role: everyone reads, everyone writes
 
-Conflating these is the easiest mistake to make.
+There is no publisher class. Anyone who consumes context can improve it, and the fastest
+person to spot that a context is wrong is the newest person on the team — they are the
+one hitting it cold.
 
 ```sh
-# Publishing — my repo has context to share
-ctx init
-ctx new ace --scope team:ace
-
-# Joining — I am new on ACE and want the context
 brew install ctx
-ctx use team:ace
+ctx use team:ace          # subscribe: read and write, same command
+
+# later, having lost an hour to a wrong Splunk index name
+ctx propose splunk-index-gotcha --summary "ace-prod index is actually ace_prod_v2"
+ctx push                  # goes upstream to the ACE source
 ```
 
-A new hire never runs `init`. They run `use`, and the index appears in their AGENTS.md.
+The scope owner sees it in `ctx review`, with the author attached:
+
+```
+[proposed ] splunk-index-gotcha   ace-prod index is actually ace_prod_v2   from jmarks
+```
+
+Attribution is for **routing and credit**, never for weighting. The owner knows who to
+ask a follow-up question; that is all it is for.
+
+`ctx init` still exists, but only for the rare act of starting a brand-new source. Most
+people never run it. `ctx use` is the command.
+
+### Why proposals go upstream rather than staying local
+
+A correction trapped in one person's `.ctx/` is worth nothing. The value is entirely in
+the next person not hitting the same wall. `ctx push` is what makes write-back a shared
+asset rather than a private note — and it is why the local-only build is only step one.
 
 ## Limiting recursion: three limits, not one
 

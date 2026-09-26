@@ -10,11 +10,13 @@ context the model mostly does not need.
 index into `AGENTS.md`, and lets the agent fetch only the contexts a task actually needs.
 
 ```sh
-ctx init            # one command, no flags, working immediately
+ctx use <scope>     # subscribe — read and write, one command
 ctx new <id>        # write a context
 ctx list            # what exists  (--scope --state --tag)
 ctx get <id>        # print it, plus whatever it requires
 ctx deps <id>       # what it pulls in, and what that costs
+ctx propose <id>    # write something back
+ctx push            # send it upstream for the owner to review
 ctx status          # totals, and what the index costs per session
 ```
 
