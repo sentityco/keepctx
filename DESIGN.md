@@ -183,6 +183,65 @@ people**:
 
 Same benefit, none of the politics.
 
+## ctxhub
+
+A hosted home for context — what GitHub is to git. Teams publish cards there, discover
+each other's, and review the proposal queue in a browser. The `ctx` CLI is the client.
+
+### The rule that decides whether this works
+
+**The format and the CLI must be fully useful with no server at all.**
+
+GitHub won because git already worked. You could clone, branch and merge on a laptop
+with no account, and GitHub added collaboration on top of something already valuable.
+If `ctx` only functions when pointed at ctxhub, you do not have a protocol with a host —
+you have a SaaS with a CLI attached, which is a far harder thing to get into an
+enterprise and a far easier thing to be locked out of by a security review.
+
+So: cards are plain markdown files. The index is a plain file. A team can run the whole
+thing out of a git repo forever and never create an account.
+
+### Backends
+
+One interface, three backends, chosen per source:
+
+| Backend | Use |
+|---|---|
+| `local` | A directory. Works offline, no setup, good for a single user. |
+| `git` | A repo. Ownership, review and history for free. Good for one org. |
+| `ctxhub` | Hosted. Discovery, usage data, access control, web editing. |
+
+`ctx sync` treats all three the same. Adding ctxhub later must not require changing a
+single card.
+
+### What ctxhub adds that git genuinely cannot
+
+Worth being strict here, because anything git can do should stay in git.
+
+- **Usage telemetry.** The card-scoring model above needs aggregate signal: which cards
+  get fetched, which get disputed, which get fetched and then contradicted. A git repo
+  cannot see reads. This is the strongest argument for a hub.
+- **Cross-team discovery.** Searching across thirty repos you may not have cloned, or
+  may not have access to.
+- **The review queue.** Auto-capture produces proposals; proposals need draining. A
+  queue that lives in a web UI with notifications gets drained. A queue that requires
+  `git pull` does not.
+- **Non-engineer contributors.** Support, PM and ops hold some of the best context in a
+  company and will not author markdown in a pull request.
+- **Access control finer than repo permissions.** Some cards are sensitive in ways that
+  do not map to "who can read this repo".
+
+### Build order
+
+Hub last. The sequence that de-risks it:
+
+1. Local-only CLI, real cards, use it personally for a fortnight.
+2. Git backend, one team, see whether anyone but you writes a card.
+3. ctxhub, only if step 2 produced cards worth hosting.
+
+Building the hub first is the classic failure: a platform with nothing on it, and no
+evidence anyone wants to put anything there.
+
 ## Command surface (proposed)
 
 ```
@@ -212,7 +271,8 @@ It is not memory. It is a note you choose to write, which is also why it will be
 
 ## Open questions
 
-1. **Sync model** — git-only, or a hosted registry later? Git is right for v1.
+1. **Does anyone but the author write cards?** This is the whole bet. Step 2 of the build
+   order exists to answer it cheaply, before ctxhub is built.
 2. **Access control** — if some cards are sensitive, does ctx rely on git permissions,
    or does it need its own model? Git is right for v1.
 3. **Does the review queue get drained?** Auto-capture moves the failure mode rather than
