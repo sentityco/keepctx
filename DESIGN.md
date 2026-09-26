@@ -542,6 +542,17 @@ AGENTS.md                →  read .ctx/instructions.md          (two committed 
 Three hops, and only the middle one is keepctx's. The first is a file read of two committed lines;
 the last is a file the agent owns for the length of the session.
 
+**`instructions.md` is generated and kept current by keepctx.** The agent never writes it, so
+keepctx owns it outright — and regenerates it on every `ctx init`, including on a directory that
+is already set up. Without that, someone who initialised on an old version keeps stale rules
+forever, and a file written once and never refreshed is the rot this whole design exists to
+avoid.
+
+**Its sync steps appear only when a remote exists.** A local-only context has nothing to sync,
+so telling the agent to run `ctx sync` would make the *first* instruction in the file fail. An
+agent whose first instruction fails has been taught that the rest may not be worth following
+either. `ctx remote` regenerates the file with the sync steps added.
+
 **`instructions.md` is where the discipline lives**, because it is loaded every session and the
 agent never rewrites it. Two directives about keepctx and three about what deserves recording.
 

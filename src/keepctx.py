@@ -181,18 +181,12 @@ def api(cfg, method, path, body=None, token=None):
 
 # ----------------------------------------------------------------- commands
 
-INSTRUCTIONS_TEXT = """# ctx — instructions for the agent
+INSTRUCTIONS_TEXT = """# keepctx — instructions for the agent
 
 Context for this project lives here. Read it, keep it current.
 
 ## Every session
-
-1. **Before reading context, run `ctx sync`.** Starts you from what your
-   teammates have learned.
-2. **Read `{facts_path}`** for what is known about this project.
-3. **Write facts back as you learn them** (see below).
-4. **After writing facts, run `ctx sync`.** A session that ends without this
-   takes its findings with it.
+{session}
 
 ## What to write down
 
@@ -257,6 +251,33 @@ def reread(tty=None):
     return "AGENTS.md changed — re-read it."
 
 
+LOCAL_STEPS = """
+1. **Read `{facts_path}`** for what is known about this project.
+2. **Write facts back as you learn them** (see below).
+
+This context is local only, so there is nothing to sync. If it is ever put on a
+remote with `ctx remote`, these instructions gain two sync steps.
+"""
+
+REMOTE_STEPS = """
+1. **Before reading context, run `ctx sync`.** Starts you from what your
+   teammates have learned.
+2. **Read `{facts_path}`** for what is known about this project.
+3. **Write facts back as you learn them** (see below).
+4. **After writing facts, run `ctx sync`.** A session that ends without this
+   takes its findings with it.
+"""
+
+
+def write_instructions(root, name, has_remote):
+    """ctx owns this file and the agent never writes it, so ctx keeps it current
+    — including on a later run, so an old setup does not keep stale rules."""
+    facts_path = f"{CTXDIR}/{name}/{FACTS}"
+    steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
+    (root / CTXDIR / INSTRUCTIONS).write_text(
+        INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps))
+
+
 def cmd_init(argv):
     here_only = "--here" in argv
     argv = [a for a in argv if a != "--here"]
@@ -266,6 +287,9 @@ def cmd_init(argv):
     # Already initialised is not a failure. `ctx init` is what people will be
     # told to run, so it must orient the agent every time — not only the first.
     if found == here:
+        cfg = load_config(found)
+        if cfg.get("name"):
+            write_instructions(found, cfg["name"], has_remote=bool(cfg.get("org")))
         return cmd_status()
     if found and not here_only:
         print(f"Already set up in {found}")
@@ -285,8 +309,7 @@ def cmd_init(argv):
     (ctxdir / ".gitignore").write_text("*\n")
 
     facts_rel = f"{CTXDIR}/{name}/{FACTS}"
-    (ctxdir / INSTRUCTIONS).write_text(
-        INSTRUCTIONS_TEXT.format(facts_path=facts_rel))
+    write_instructions(root, name, has_remote=False)
 
     facts = ctxdir / name / FACTS
     if not facts.exists():
@@ -370,6 +393,7 @@ def cmd_remote(argv):
     cfg["version"] = made["version"]
     save_config(root, cfg)
     (root / CTXDIR / name / BASE).write_text(facts)
+    write_instructions(root, name, has_remote=True)
 
     print(f"{cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
     return 0
