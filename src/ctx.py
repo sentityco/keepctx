@@ -206,6 +206,20 @@ def write_index(root):
     return len(ctxs)
 
 
+def pull(root, targets):
+    """Fetch contexts from ctxhub. Requires an account; local-only never needs this."""
+    me = whoami()
+    if not me or not me.get("org"):
+        print("pulling needs an account — `ctx login`")
+        print("  (everything you create locally keeps working without one)")
+        return
+    for t in targets:
+        if ":" not in t and not pathlib.Path(t).expanduser().is_dir():
+            print(f"pull needs <org>:<context>, got `{t}`")
+            return
+    return join(root, targets)
+
+
 def join(root, targets):
     if not (root / WORKING).exists():
         (root / WORKING / "cache").mkdir(parents=True, exist_ok=True)
@@ -277,10 +291,8 @@ def find(root, query):
             or any(q in t.lower() for t in c["tags"]) or q in c["_body"].lower()]
     if not hits:
         print(f"nothing matches `{query}`")
-        print("\n  ctx                    what you have")
-        print("  ctx <org>:<context>    join one")
-        print("  ctx <name>             read it")
-        print('  ctx new <name> "..."   write one back')
+        print()
+        usage()
         return
     for c in sorted(hits, key=lambda c: c["id"]):
         print(f"  {c['id']:28} {c.get('summary','')[:70]}")
@@ -404,8 +416,11 @@ def status(root):
     idx_tokens = sum(len(l.split()) for l in index_lines(ctxs)) * 1.4
     subs = load_subs(root)
     print(f"{root}")
+    me = whoami()
     if subs["org"]:
         print(f"  organization: {subs['org']}")
+    elif me and me.get("local"):
+        print(f"  local only — `ctx login` to add an org")
     if subs["subscribed"]:
         print(f"  subscribed: {', '.join(subs['subscribed'])}")
     print(f"  {len(ctxs)} contexts · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))
@@ -532,18 +547,25 @@ def whoami():
 
 
 def sign_in():
-    """Opens ctxhub to log in with SSO, or to create an account and an org.
+    """Only reached by `ctx login`. Everything works locally without it."""
+    user = os.environ.get("USER", "unknown")
+    if not sys.stdin.isatty():
+        return save_identity("", user, local=True)
+    org = input("organization: ").strip()
+    if not org:
+        print("staying local")
+        return save_identity("", user, local=True)
+    print(f"  → opening ctxhub.com/cli to sign in to `{org}`")
+    user = input(f"user [{user}]: ").strip() or user
+    me = save_identity(org, user)
+    print(f"signed in as {user} in `{org}`")
+    return me
 
-    No hub yet, so this sets up a local identity and tells you what will change.
-    """
-    print("ctx needs to know who you are.")
-    print("  → this will open ctxhub.com/cli to sign in with SSO,")
-    print("    or create an account and an org.\n")
-    org  = input("organization: ").strip() or "personal"
-    user = input(f"user [{os.environ.get('USER','')}]: ").strip() or os.environ.get("USER", "unknown")
+
+def save_identity(org, user, local=False):
     identity_path().parent.mkdir(parents=True, exist_ok=True)
-    identity_path().write_text(json.dumps({"org": org, "user": user}, indent=2) + "\n")
-    print(f"\nsigned in as {user} in `{org}`")
+    identity_path().write_text(json.dumps(
+        {"org": org, "user": user, "local": local}, indent=2) + "\n")
     return whoami()
 
 
@@ -552,18 +574,27 @@ def main():
     argv = sys.argv[1:]
     cmd  = argv[0] if argv else ""
 
-    # ctx pull <org>:<context>
+    # ctx login — add an org to a local setup, whenever you want one
+    if cmd == "login":
+        me = whoami()
+        if me and me.get("org"):
+            print(f"already signed in as {me['user']} in `{me['org']}`")
+            return
+        identity_path().unlink(missing_ok=True)
+        return sign_in()
+
+    # ctx pull <org>:<context> — always remote
     if cmd == "pull":
         if len(argv) < 2:
             return usage()
         bootstrap(root)
-        return join(root, argv[1:])
+        return pull(root, argv[1:])
 
     # ctx new <name> ["one line summary"]
     if cmd == "new":
         if len(argv) < 2:
             return usage()
-        me = whoami() or sign_in()
+        me = whoami() or save_identity("", os.environ.get("USER", "unknown"), local=True)
         bootstrap(root)
         subs = load_subs(root)
         if not subs["org"]:
@@ -574,7 +605,7 @@ def main():
     if not argv:
         return status(root) if (root / PUBLISHED).exists() else usage()
 
-    # ctx <name> — read one you already pulled
+    # ctx <name> — read something you already have
     ctxs = load_all(root)
     if lookup(ctxs, cmd):
         return show(root, ctxs, argv)
@@ -582,8 +613,10 @@ def main():
 
 
 def usage():
-    print("ctx pull <org>:<context>    pull a context and what it requires")
-    print('ctx new  <name> "summary"   create one in your org')
+    print("ctx pull <org>:<context>    pull one from ctxhub, and what it requires")
+    print('ctx new  <name> "summary"   create one')
+    print()
+    print("all local by default. `ctx login` adds an org when you want to share.")
 
 
 if __name__ == "__main__":

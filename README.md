@@ -3,32 +3,42 @@
 **Context management is the new wiki — AI first, readable by humans.**
 
 ```sh
-brew install ctx        # or: curl -fsSL ctxhub.com/install | sh
+brew install ctx                  # or: curl -fsSL ctxhub.com/install | sh
 
-ctx new ace             # opens ctxhub — SSO if your org is there,
-                        # otherwise create an account and an org
+ctx new notes "what I forget between sessions"
 ```
 
-That is the setup. The context is created in your org, the index is written into
+No account, no signup, no prompt. Contexts land in `./ctx`, the index is written into
 `AGENTS.md`, and your agent reads it from then on.
 
-Need someone else's?
+When you want somebody else's context, that comes from ctxhub:
 
 ```sh
+ctx login
 ctx pull comcast:idcmt
 ```
 
 ## Two commands
 
 ```sh
-ctx pull <org>:<context>    pull one, and everything it requires
-ctx new  <name> "summary"   create one in your org
+ctx new  <name> "summary"     create one — always local, never asks
+ctx pull <org>:<context>      fetch one from ctxhub, and what it requires
 ```
 
-`ctx` on its own shows what you have. `ctx <name>` prints one you already pulled.
+`ctx` alone reports what you have. `ctx <name>` prints one you already have. `ctx login`
+adds an org when you want to share.
 
-Everything else happens on its own: syncing, the `AGENTS.md` index, the HTML view,
-sending a correction upstream. A step you have to remember is a step that gets skipped.
+Everything else happens on its own: the `AGENTS.md` index, the HTML view, sending a
+correction upstream. A step you have to remember is a step that gets skipped.
+
+## Local and hosted
+
+Local is the default and is not a degraded mode — contexts are plain markdown either way,
+and an individual developer never needs an account.
+
+An account buys the things a local directory structurally cannot do: pulling other
+teams' contexts, sending a correction to the person who owns it, and a review queue
+somebody will actually drain.
 
 ## What the agent does
 
@@ -38,7 +48,7 @@ and is mostly waste.
 
 The index also tells the agent when to write back: someone corrected it, something took
 real digging, or a decision was made whose reasoning would be lost. A correction to a
-context you do not own becomes a proposal and goes to the owner.
+context you do not own becomes a proposal for the owner.
 
 ## org : context
 
@@ -66,5 +76,4 @@ See [DESIGN.md](DESIGN.md).
 
 ## Status
 
-Local backend works; `ctx new` stubs the ctxhub sign-in. Hosted auth and git sync are
-designed, not built.
+Local works end to end. `ctx login` and `ctx pull` stub the ctxhub calls.
