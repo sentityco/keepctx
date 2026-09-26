@@ -209,20 +209,25 @@ Do not record who wrote a fact or when. That is kept for you in version history.
 
 
 
-def agent_brief(name, cloned=False):
-    """Printed by init and clone.
+def agent_brief(name, mode="created"):
+    """Printed by init, clone, and to a non-tty caller (a session-start hook).
 
     ctx runs as a subprocess of the agent, so whatever this prints lands in the
-    agent's context as the tool result. That is the only way to reach a session
-    that is *already running* — AGENTS.md is read at session start, so a file
+    agent's context as the tool result. That is the only channel that reaches a
+    session *already running* — AGENTS.md is read at session start, so a file
     written afterwards reaches nobody until the next session.
     """
     facts = f"{CTXDIR}/{name}/{FACTS}"
-    verb = "cloned" if cloned else "created"
+    lead = {
+        "created": (f"A context was just created at {facts}. It did not exist when\n"
+                    "this session started, so nothing in your loaded context mentions it."),
+        "cloned":  (f"A context was just cloned into {facts}. It did not exist when\n"
+                    "this session started, so nothing in your loaded context mentions it."),
+        "existing": f"This project keeps its context at {facts}.",
+    }[mode]
     return f"""
---- for the AI agent that ran this command -------------------------------
-A context was just {verb} at {facts}. It did not exist when this
-session started, so nothing in your loaded context mentions it. From now on:
+--- for the AI agent reading this ----------------------------------------
+{lead}
 
   1. READ  {facts} before answering questions about this project.
   2. WRITE facts to it as you learn them — when a human corrects you, when
@@ -298,6 +303,9 @@ def cmd_init(argv):
     print(f"  {AGENTS:<{w}}  pointer added at the top")
     print()
     print("all local. `ctx remote` when you want to share it.")
+    print()
+    print("NOTE: if an AI session is already open, restart it. Agents read AGENTS.md")
+    print("      when they start, so one running now will not see this until it does.")
     print(agent_brief(name))
     return 0
 
@@ -411,14 +419,25 @@ def cmd_clone(argv):
     print(f"ctx: cloned {org}:{name} ({got.get('count', 0)} facts)")
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
-    print(agent_brief(name, cloned=True))
+    print()
+    print("NOTE: if an AI session is already open, restart it. Agents read AGENTS.md")
+    print("      when they start, so one running now will not see this until it does.")
+    print(agent_brief(name, "cloned"))
     return 0
 
 
 def cmd_status():
     root = find_root()
+    piped = not sys.stdout.isatty()   # a hook or an agent is reading, not a person
+
     if not root:
+        if piped:
+            return 0          # silent: a session-start hook runs everywhere
         return usage()
+
+    if piped:
+        return agent_index(root)
+
     cfg = load_config(root)
     name = cfg.get("name", "?")
     facts_path = root / CTXDIR / name / FACTS
@@ -441,8 +460,32 @@ def cmd_status():
     if not facts:
         print()
         print("no facts yet. ctx does not write them — your agent does, as it works.")
-        print(f"if nothing appears, the agent has not read {CTXDIR}/{INSTRUCTIONS}.")
-        print("point it there explicitly, or start a fresh session so AGENTS.md loads.")
+        print("if nothing appears, your AI session probably started before `ctx init`")
+        print("ran. Restart it: agents read AGENTS.md when they start.")
+    return 0
+
+
+def agent_index(root):
+    """What a session-start hook or an agent should receive.
+
+    The index, not the values. Printing every fact on every session start is
+    preloading, which is the thing this design exists to avoid — so the agent
+    gets the keys and reads the file when a key turns out to matter.
+    """
+    cfg = load_config(root)
+    name = cfg.get("name", "")
+    path = root / CTXDIR / name / FACTS
+    facts, order = parse_facts(path.read_text() if path.exists() else "")
+
+    print(f"--- ctx: this project has a context at {CTXDIR}/{name}/{FACTS} ---")
+    if order:
+        print(f"{len(order)} facts are already known. Keys:")
+        for k in order:
+            print(f"  {k}")
+        print(f"Read {CTXDIR}/{name}/{FACTS} for the values when one of these matters.")
+    else:
+        print("No facts recorded yet. You are the first.")
+    print(agent_brief(name, "existing").strip())
     return 0
 
 

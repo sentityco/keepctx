@@ -515,22 +515,22 @@ reaches nobody until the next session — so `ctx init` in a live session instal
 that the agent running right now will never see. This is not hypothetical; it is what happened
 the first time ctx was used on a real project, and the facts file stayed empty because of it.
 
-The fix uses the one channel that does reach a running agent: **ctx runs as its subprocess, so
-whatever ctx prints lands in the agent's context as the tool result.** The agent invoked the
-command, so ctx gets to answer.
+There are two readers and they need different things, so `ctx init` and `ctx clone` print to
+both.
 
-So `ctx init` and `ctx clone` print a short brief addressed to the agent — read this file,
-write facts to it in this format, run sync afterwards. No re-read is required because the
-output *is* the injection. Both commands are one-time, so the token cost is paid once.
+**To the agent, if the agent ran the command.** ctx runs as its subprocess, so whatever ctx
+prints lands in the agent's context as the tool result — the one channel that reaches a
+session already in flight. The output *is* the injection; no re-read is required. Both
+commands are one-time, so the tokens are paid once. `ctx sync` prints no brief: it runs
+constantly and a reminder every call would be waste.
 
-`ctx sync` prints nothing extra; it runs constantly and a reminder on every call would be
-waste.
+**To the human, if the human ran it.** *Restart your AI session.* That is the whole answer,
+and it is better than anything clever: it needs no hook, no plugin, no per-agent config, and
+it works identically for every agent that exists or ships next year.
 
-**The honest limit:** this only reaches an agent that *ran the command*. A human running
-`ctx init` in a separate terminal reaches no agent at all, and there is nothing ctx can do
-about that from inside a subprocess. For that case the answer is a session-start hook where
-the harness offers one, or simply the next session. Worth stating plainly rather than
-implying the brief closes the gap completely.
+The cost of that instruction is one session, once, at first setup. From the next session
+`AGENTS.md` loads normally and the pointer works. A first-run papercut does not justify an
+integration surface.
 
 ### When sync fires
 
@@ -790,6 +790,25 @@ anything.
 
 **Session memory.** Continuity between sessions is a real problem and a different one.
 `ctx` should not pretend to solve it.
+
+**Per-agent integrations.** Shipping hooks, plugins or config for Claude Code, Cursor,
+Copilot, Windsurf, Cline, Gemini CLI, Codex, Continue, Junie, Aider and whatever ships next
+quarter. Every one has its own config format, every one changes it, and the list only grows —
+it is permanent maintenance for something that is not a moat. Competitors in this space
+support eight or more agents and that is the treadmill they are on.
+
+**`AGENTS.md` is the integration.** That is what the convention exists for: one file, many
+agents, read natively by the major ones. Betting on the standard is one integration instead
+of N, and it is where the industry is converging anyway.
+
+What ctx does instead requires no integration: it prints to its own stdout. That works
+identically for every agent that can run a shell command, today and for anything released
+later.
+
+A session-start hook is worth *documenting* for people who want one — it closes the case where
+a human runs `ctx init` in a terminal no agent can see. It must never be shipped, configured
+or supported per-agent. And the gap it closes is one session long and only on first
+initialisation: from the next session `AGENTS.md` loads normally and the pointer works.
 
 **A render command.** HTML regenerates on write. A documentation site that needs a command
 to rebuild is a documentation site that is out of date.
