@@ -41,6 +41,56 @@ related:  [payments-service]
 Small, owned, dated. **Wrong context is worse than no context**, so ownership and
 freshness are structural, not decoration.
 
+## Two different people, two different commands
+
+Conflating these is the easiest mistake to make.
+
+```sh
+# Publishing — my repo has context to share
+ctx init
+ctx new ace --scope team:ace
+
+# Joining — I am new on ACE and want the context
+brew install ctx
+ctx use team:ace
+```
+
+A new hire never runs `init`. They run `use`, and the index appears in their AGENTS.md.
+
+## Limiting recursion: three limits, not one
+
+The question "how deep do dependencies go" has three different answers because it is
+three different questions. The rule: **greedy on disk, stingy on tokens.**
+
+**1. Sync — unbounded.** Pull the whole reachable graph. These are small markdown files;
+disk is free and a missing file is worse than an unused one.
+
+**2. Index — bounded by scope.** Only your subscribed scopes and what they *directly*
+require get a line in AGENTS.md. Everything else collapses to one line:
+
+```
+- `comcast-cf` — Cloud Foundry: spaces, quotas, routes (enterprise)
+- `plat-splunk` — Splunk: indexes we can read, how to get access (enterprise)
+- `ace` — Team ACE: what we own, how we deploy, who to ask (team:ace)
+- `oncall-rota` — Who is on call and how paging reaches them (team:ace)
+42 more contexts exist outside your scopes — find them with `ctx search <query>`.
+```
+
+46 synced, 4 listed. The index is a **working set, not a catalogue** — which is what keeps
+it constant-cost as the organisation grows. `ctx search` is the escape hatch, so nothing
+is ever unreachable, just unlisted.
+
+**3. Fetch — depth 1 by default.** `ctx get ace` returns ACE and what it directly
+requires. Anything beyond is named but not loaded:
+
+```
+<!-- depth 1 reached; not loaded: sso-onboarding -->
+<!-- 3 contexts, roughly 45 tokens -->
+```
+
+The agent can see what it did not get and ask for it. That is better than a default that
+quietly pulls forty files, and better than one that hides that more exists.
+
 ## Five decisions
 
 **1. Retrieval, not preload.** The index is the product; everything else is plumbing. If

@@ -10,6 +10,8 @@ PUBLISHED = "ctx"      # committed: contexts this repo owns
 WORKING   = ".ctx"     # gitignored: cache, proposals, session notes
 AGENTS    = "AGENTS.md"
 BEGIN, END = "<!-- ctx:begin -->", "<!-- ctx:end -->"
+SUBS = "subscriptions.json"      # which scopes this workspace cares about
+INDEX_BUDGET = 60                # contexts listed in full before the index collapses
 
 STATES = ("verified", "confirmed", "proposed", "disputed", "stale")
 
@@ -77,6 +79,20 @@ def resolve(ctxs, ids, depth=2):
             continue
         frontier.extend((r, d + 1) for r in c["requires"] if r not in seen)
     return order, missing, sorted(set(cut))
+
+
+def subs_path(root):
+    return root / WORKING / SUBS
+
+
+def load_subs(root):
+    p = subs_path(root)
+    return json.loads(p.read_text()) if p.exists() else {"scopes": [], "sources": []}
+
+
+def save_subs(root, subs):
+    subs_path(root).parent.mkdir(parents=True, exist_ok=True)
+    subs_path(root).write_text(json.dumps(subs, indent=2) + "\n")
 
 
 def root_dir():
@@ -148,8 +164,19 @@ def index_lines(ctxs):
     return out
 
 
+def in_working_set(c, scopes, direct):
+    """Your scopes at full detail, plus anything they directly require."""
+    if not scopes:
+        return True
+    return c.get("scope", "") in scopes or c["id"] in direct
+
+
 def write_index(root):
     ctxs = load_all(root)
+    scopes = load_subs(root)["scopes"]
+    direct = {r for c in ctxs.values() if c.get("scope") in scopes for r in c["requires"]}
+    shown  = [c for c in ctxs.values() if in_working_set(c, scopes, direct)]
+    hidden = len(ctxs) - len(shown)
     block = "\n".join([
         BEGIN,
         "## Contexts available to you",
@@ -158,7 +185,9 @@ def write_index(root):
         "`~unverified` were written by an agent and not yet reviewed; `~stale` means the",
         "owner has not confirmed it recently. Weight them accordingly.",
         "",
-        *index_lines(ctxs),
+        *index_lines({c["id"]: c for c in shown}),
+        *([f"", f"{hidden} more contexts exist outside your scopes — find them with "
+                f"`ctx search <query>`, load them with `ctx get <id>`."] if hidden else []),
         "",
         "Write context back with `ctx propose <id>` when someone corrects you, when you",
         "establish something that took real digging, or when a decision is made whose",
@@ -174,6 +203,38 @@ def write_index(root):
         text = text.rstrip() + "\n\n" + block + "\n"
     p.write_text(text)
     return len(ctxs)
+
+
+def cmd_use(args):
+    root = root_dir()
+    if not (root / WORKING).exists():
+        (root / WORKING / "cache").mkdir(parents=True, exist_ok=True)
+    subs = load_subs(root)
+    for target in args.targets:
+        src = pathlib.Path(target).expanduser()
+        if src.is_dir():
+            dest = root / WORKING / "cache" / src.name
+            dest.mkdir(parents=True, exist_ok=True)
+            n = 0
+            for f in src.rglob("*.md"):
+                (dest / f.name).write_text(f.read_text()); n += 1
+            if target not in subs["sources"]:
+                subs["sources"].append(str(src))
+            print(f"synced {n} contexts from {src}")
+        else:
+            scope = target
+            if scope not in subs["scopes"]:
+                subs["scopes"].append(scope)
+            print(f"subscribed to scope `{scope}`")
+    save_subs(root, subs)
+
+    ctxs = load_all(root)
+    known = {c.get("scope", "") for c in ctxs.values()}
+    for sc in subs["scopes"]:
+        if sc not in known:
+            print(f"  note: nothing published under `{sc}` yet")
+    write_index(root)
+    cmd_status(args)
 
 
 def cmd_index(args):
@@ -359,7 +420,10 @@ def cmd_status(args):
         return
     counts = {s: sum(1 for c in ctxs.values() if c["state"] == s) for s in STATES}
     idx_tokens = sum(len(l.split()) for l in index_lines(ctxs)) * 1.4
+    subs = load_subs(root)
     print(f"{root}")
+    if subs["scopes"]:
+        print(f"  subscribed: {', '.join(subs['scopes'])}")
     print(f"  {len(ctxs)} contexts · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))
     print(f"  index costs roughly {int(idx_tokens)} tokens per session")
     q = counts["proposed"] + counts["disputed"] + counts["stale"]
@@ -375,10 +439,14 @@ def main():
     sub.add_parser("status", help="what exists and what it costs").set_defaults(fn=cmd_status)
     sub.add_parser("review", help="contexts awaiting a human").set_defaults(fn=cmd_review)
 
+    p = sub.add_parser("use", help="subscribe to a scope, or sync a source directory")
+    p.add_argument("targets", nargs="+", metavar="SCOPE|PATH")
+    p.set_defaults(fn=cmd_use)
+
     p = sub.add_parser("index", help="print the index");  p.add_argument("--write", action="store_true"); p.set_defaults(fn=cmd_index)
     p = sub.add_parser("get", help="print a context and what it requires")
     p.add_argument("ids", nargs="+")
-    p.add_argument("--depth", type=int, default=2, help="how far to follow requires (default 2)")
+    p.add_argument("--depth", type=int, default=1, help="how far to follow requires (default 1)")
     p.add_argument("--no-deps", action="store_true", help="just the contexts named")
     p.set_defaults(fn=cmd_get)
 
