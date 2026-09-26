@@ -239,38 +239,15 @@ Do not record who wrote a fact or when. That is kept for you in version history.
 
 
 
-def agent_brief(name, mode="created"):
-    """Printed by init, clone, and to a non-tty caller (a session-start hook).
-
-    ctx runs as a subprocess of the agent, so whatever this prints lands in the
-    agent's context as the tool result. That is the only channel that reaches a
-    session *already running* — AGENTS.md is read at session start, so a file
-    written afterwards reaches nobody until the next session.
-    """
-    facts = f"{CTXDIR}/{name}/{FACTS}"
-    lead = {
-        "created": (f"A context was just created at {facts}. It did not exist when\n"
-                    "this session started, so nothing in your loaded context mentions it."),
-        "cloned":  (f"A context was just cloned into {facts}. It did not exist when\n"
-                    "this session started, so nothing in your loaded context mentions it."),
-        "existing": f"This project keeps its context at {facts}.",
-    }[mode]
-    return f"""
---- for the AI agent reading this ----------------------------------------
-{lead}
-
-  1. READ  {facts} before answering questions about this project.
-  2. WRITE facts to it as you learn them — when a human corrects you, when
-     something took real effort to establish, or when a decision gets made.
-     One fact per line:  - **key** — value
-     Use a relationship arrow for dependencies:  - **a.depends-on** -> b
-  3. RUN   `ctx sync` after writing, so the facts leave this machine.
-
-Full rules: {CTXDIR}/{INSTRUCTIONS}
-Do not record task-specific detail, or anything you inferred but did not
-verify. Do not record who wrote a fact or when — that is kept for you.
---------------------------------------------------------------------------
-"""
+def reread(tty=None):
+    """One line. The rules live in AGENTS.md -> instructions.md; duplicating them
+    in command output only creates a second copy to keep in step."""
+    tty = sys.stdout.isatty() if tty is None else tty
+    if tty:
+        return "Ask your AI to re-read AGENTS.md."
+    # the agent already read AGENTS.md at session start, so say why to read it
+    # again — otherwise the instruction looks like a no-op.
+    return "AGENTS.md changed — re-read it."
 
 
 def cmd_init(argv):
@@ -285,19 +262,14 @@ def cmd_init(argv):
         cfg = load_config(found)
         n = cfg.get("name", "?")
         _, order = read_facts(found, n)
-        print(f"ctx: already set up here — `{n}`, {len(order)} facts")
-        print()
-        agent_index(found)
-        return 0
+        return agent_index(found)
     if found and not here_only:
         print(f"ctx: already set up in {found}")
         print(f"     that is a parent of {here}, so every project under it shares one")
         print("     context. for a context scoped to this directory only:")
         name = argv[0] if argv else here.name
         print(f"       ctx init --here {name}")
-        print()
-        agent_index(found)
-        return 0
+        return agent_index(found)
 
     root = pathlib.Path.cwd()
     name = slugify(argv[0]) if argv else slugify(root.name)
@@ -355,15 +327,7 @@ def cmd_init(argv):
         print(f"  requires {parent} (the context this sits inside)")
     print()
     print("all local. `ctx remote` when you want to share it.")
-    if sys.stdout.isatty():
-        print()
-        # A person is reading this, so it was typed in a terminal and no agent
-        # saw it. If an agent ran it, this note would be noise — the brief below
-        # is already in its context.
-        print("NOTE: you ran this in a terminal, so your AI session has not seen it —")
-        print("      agents read AGENTS.md when they start. Ask your agent to run")
-        print("      `ctx init` and it will pick this up. No restart needed.")
-    print(agent_brief(name))
+    print(reread())
     return 0
 
 
@@ -484,7 +448,7 @@ def cmd_clone(argv):
         print("NOTE: you ran this in a terminal, so your AI session has not seen it —")
         print("      agents read AGENTS.md when they start. Ask your agent to run")
         print("      `ctx init` and it will pick this up. No restart needed.")
-    print(agent_brief(name, "cloned"))
+    print(reread())
     return 0
 
 
@@ -524,42 +488,24 @@ def cmd_status():
 
     if not facts:
         print()
-        print("no facts yet. ctx does not write them — your agent does, as it works.")
-        print("if nothing appears, your AI session started before `ctx init` ran and")
-        print("has not seen the context. Tell it to run `ctx` and it will catch up.")
+        print()
+        print("no facts yet — your agent writes them, not ctx. " + reread())
     return 0
 
 
 def agent_index(root):
-    """What a session-start hook or an agent should receive.
-
-    Keys, not values. Printing every fact on every session start is preloading,
-    the thing this design exists to avoid — so the agent gets the keys and opens
-    a file when one of them turns out to matter.
-    """
+    """One line per context. Keys live in the files; listing them here is
+    preloading by another name, and it grows without bound."""
     scope = contexts_in_scope()
     if not scope:
         return 0
-
-    label = {"own": "[this project]", "parent": "[inherited]", "clone": "[read-only]"}
-    print("--- ctx: contexts available here ---")
+    bits = []
     for r, n, kind in scope:
-        rel = os.path.relpath(r / CTXDIR / n / FACTS, os.getcwd())
         _, order = read_facts(r, n)
-        noun = "fact" if len(order) == 1 else "facts"
-        print(f"{label[kind]:<16} {n}  ({len(order)} {noun})  {rel}")
-        for k in order:
-            print(f"    {k}")
-
-    print()
-    print("Open a file when one of its keys matters. Do not read them all up front.")
-    own = [n for _, n, k in scope if k == "own"]
-    parents = [n for _, n, k in scope if k == "parent"]
-    if parents:
-        print(f"Write facts about this project to `{own[0] if own else '?'}`. "
-              f"A fact that is really about {', '.join(parents)} belongs there instead.")
-    if own:
-        print(agent_brief(own[0], "existing").strip())
+        tag = {"own": "", "parent": " (inherited)", "clone": " (read-only)"}[kind]
+        bits.append(f"{n}{tag}: {len(order)} facts")
+    print("ctx: " + ", ".join(bits))
+    print(reread())
     return 0
 
 

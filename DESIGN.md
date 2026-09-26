@@ -549,44 +549,27 @@ agent never rewrites it. Two directives about ctx and three about what deserves 
 
 `AGENTS.md` is read into an agent's context **at session start**. A file written after that
 reaches nobody until the next session — so `ctx init` in a live session installs instructions
-that the agent running right now will never see. This is not hypothetical; it is what happened
-the first time ctx was used on a real project, and the facts file stayed empty because of it.
+the running agent never sees. This is not hypothetical: it is what happened the first time ctx
+was used on a real project, and the facts file stayed empty because of it.
 
-There are two readers and they need different things, so `ctx init` and `ctx clone` print to
-both.
+Every command ends with one line, and which line depends on who is reading:
 
-**To the agent, if the agent ran the command.** ctx runs as its subprocess, so whatever ctx
-prints lands in the agent's context as the tool result — the one channel that reaches a
-session already in flight. The output *is* the injection; no re-read is required. Both
-commands are one-time, so the tokens are paid once. `ctx sync` prints no brief: it runs
-constantly and a reminder every call would be waste.
+| stdout | Line |
+|---|---|
+| not a tty — an agent or hook ran it | `AGENTS.md changed — re-read it.` |
+| a tty — a person typed it | `Ask your AI to re-read AGENTS.md.` |
 
-**`ctx init` is idempotent in the useful sense.** Running it on a directory that already has a
-context is not an error and does not just refuse. It prints the current state and the same
-brief a first run would, and exits 0.
+That is the whole mechanism. ctx runs as a subprocess of the agent, so its stdout lands in the
+agent's context as the tool result — the one channel that reaches a session already in flight.
 
-That matters because `ctx init` is the command people will be *told* to run — in the README,
-in a teammate's message, by an agent following instructions. If it only orients on the first
-run, the second person to type it gets a refusal and no context, which is the worst possible
-outcome for the one command everyone reaches for.
+**The instruction is "re-read AGENTS.md", not a copy of the rules.** An earlier version printed
+the format, the write triggers and an index of every key on every invocation — thirty lines,
+and a second copy of `instructions.md` that would drift out of step with the first. The chain
+already exists: `AGENTS.md` points at `instructions.md`, which holds the rules. Telling the
+agent to follow it costs one line and cannot go stale.
 
-**To the human, if the human ran it.** *Ask your agent to run `ctx init`.* The same command
-they just typed — one to remember, not two — and because init orients on every run it works
-whether or not the project was already set up. No restart, so the session keeps everything it
-knows.
-
-That note prints **only on a tty**, since a person is reading it; an agent that ran the
-command does not need to be told to ask its agent. The brief, by contrast, prints
-unconditionally. The failure modes are not symmetric: a human seeing an agent-addressed block
-is mildly odd, but an agent not receiving the brief breaks the entire mechanism, and tty
-detection is not reliable enough to gate the thing that matters.
-
-This is why bare `ctx` prints the brief to a non-tty caller. It does double duty: the thing a
-session-start hook would run, and the thing a human tells their agent to run. Neither needs
-ctx to know anything about which agent it is talking to.
-
-That is the entire answer — no hook, no plugin, no per-agent config, and it works identically
-for every agent that exists or ships next year.
+It also says *why* to re-read, because the agent already read that file at session start and
+would otherwise treat the instruction as a no-op.
 
 ### When sync fires
 
