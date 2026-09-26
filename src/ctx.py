@@ -142,34 +142,6 @@ def cmd_init(args):
         lines.append(WORKING + "/")
         gi.write_text("\n".join(lines) + "\n")
 
-    seed = root / PUBLISHED / "how-ctx-works.md"
-    if not seed.exists():
-        seed.write_text(f"""---
-id: how-ctx-works
-title: How context works in this repo
-org: ""
-owner: "{os.environ.get('USER', 'unknown')}"
-state: verified
-updated: {datetime.date.today()}
-summary: What ctx is, when to read a context, and when to write one back.
-tags: [meta, ctx]
----
-
-Contexts live in `{PUBLISHED}/` as small markdown files, one topic each. `{WORKING}/` is a
-working directory and is not committed.
-
-Read one with `ctx get <id>`. The index in {AGENTS} lists what exists — that index is
-the only thing loaded every session, so keep summaries to one line.
-
-Write one back when, and only when, one of these happens:
-
-- Someone corrects you about how something actually works.
-- You establish something that took real digging.
-- A decision gets made and the reasoning would otherwise be lost.
-
-Not for anything task-specific, anything you inferred rather than verified, or anything
-an existing context already covers — update that one instead.
-""")
 
     write_index(root)
     print(f"initialised ctx in {root}")
@@ -234,12 +206,11 @@ def write_index(root):
     return len(ctxs)
 
 
-def cmd_use(args):
-    root = root_dir()
+def join(root, targets):
     if not (root / WORKING).exists():
         (root / WORKING / "cache").mkdir(parents=True, exist_ok=True)
     subs = load_subs(root)
-    for target in args.targets:
+    for target in targets:
         src = pathlib.Path(target).expanduser()
         if src.is_dir():
             dest = root / WORKING / "cache" / src.name
@@ -268,58 +239,20 @@ def cmd_use(args):
         if not lookup(ctxs, sc, subs["org"]):
             print(f"  note: no context named `{sc}` yet")
     write_index(root)
-    cmd_status(args)
+    status(root)
 
 
-def cmd_index(args):
-    root = root_dir()
-    n = write_index(root) if args.write else None
-    ctxs = load_all(root)
-    if args.write:
-        print(f"wrote {n} contexts into {AGENTS}")
+
+
+def show(root, ctxs, ids, depth=1):
+    if False:
+        order, missing, cut = [], [], []
     else:
-        print("\n".join(index_lines(ctxs)) or "no contexts yet — try: ctx new <id>")
-
-
-def cmd_new(args):
-    root = root_dir()
-    org = load_subs(root)["org"]
-    path = root / PUBLISHED / f"{args.id}.md"
-    if path.exists():
-        sys.exit(f"{path} already exists")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    today = datetime.date.today()
-    path.write_text(f"""---
-id: {args.id}
-title: {args.title or args.id.replace('-', ' ').capitalize()}
-org: {org}
-owner: "{os.environ.get('USER','unknown')}"
-state: verified
-updated: {today}
-review_by: {today.replace(year=today.year + 1) if today.month != 2 or today.day != 29 else today}
-summary: {args.summary or 'ONE LINE — this is what every session pays for.'}
-requires: [{args.requires or ''}]
-related: [{args.related or ''}]
-tags: []
----
-
-Body. If this needs three thousand words it is two contexts.
-""")
-    write_index(root)
-    print(f"created {path.relative_to(root)}")
-
-
-def cmd_get(args):
-    ctxs = load_all(root_dir())
-    if args.no_deps:
-        order, missing, cut = [i for i in args.ids if i in ctxs], \
-                              [i for i in args.ids if i not in ctxs], []
-    else:
-        order, missing, cut = resolve(ctxs, args.ids, args.depth)
+        order, missing, cut = resolve(ctxs, ids, depth)
 
     for cid in order:
         c = ctxs[cid]
-        why = "" if cid in args.ids else "  (required by a context you asked for)"
+        why = "" if cid in ids else "  (required by a context you asked for)"
         print(f"# {c.get('title', cid)}{why}")
         where = f"{c['org']}:{c['id']}" if c.get("org") else c["id"]
         print(f"<!-- {where} · {c['state']} · owner {c.get('owner')} · "
@@ -331,77 +264,32 @@ def cmd_get(args):
     for cid in missing:
         print(f"# {cid}\n\nno such context. `ctx index` lists what exists.\n")
     if cut:
-        print(f"<!-- depth {args.depth} reached; not loaded: {', '.join(cut)} -->")
+        print(f"<!-- not loaded: {', '.join(cut)} · ask for them by name -->")
     if len(order) > 1:
         total = sum(tokens(ctxs[c]) for c in order)
         print(f"<!-- {len(order)} contexts, roughly {total} tokens -->")
 
 
-def cmd_search(args):
-    q = args.query.lower()
-    hits = [c for c in load_all(root_dir()).values()
+def find(root, query):
+    q = query.lower()
+    hits = [c for c in load_all(root).values()
             if q in c["id"].lower() or q in c.get("summary", "").lower()
-            or q in c.get("tags", "").lower() or q in c["_body"].lower()]
+            or any(q in t.lower() for t in c["tags"]) or q in c["_body"].lower()]
     if not hits:
-        print("no matches")
+        print(f"nothing matches `{query}`")
+        print("\n  ctx                    what you have")
+        print("  ctx <org>:<context>    join one")
+        print("  ctx <name>             read it")
+        print('  ctx new <name> "..."   write one back')
         return
     for c in sorted(hits, key=lambda c: c["id"]):
         print(f"  {c['id']:28} {c.get('summary','')[:70]}")
 
 
-def cmd_propose(args):
-    root = root_dir()
-    path = root / WORKING / "proposed" / f"{args.id}.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    body = args.body or sys.stdin.read() if not sys.stdin.isatty() else (args.body or "")
-    path.write_text(f"""---
-id: {args.id}
-title: {args.title or args.id.replace('-', ' ').capitalize()}
-org: {load_subs(root)["org"]}
-owner: "unassigned"
-author: "{os.environ.get('USER','unknown')}"
-state: proposed
-updated: {datetime.date.today()}
-summary: {args.summary or 'proposed by an agent — needs a one-line summary'}
-source: agent
-requires: [{args.requires or ''}]
-related: [{args.related or ''}]
-tags: []
----
-
-{body.strip() or '(no body provided)'}
-""")
-    write_index(root)
-    print(f"proposed {args.id} — review with: ctx review")
 
 
-def cmd_push(args):
-    """Send local proposals to the sources they belong to."""
-    root = root_dir()
-    subs = load_subs(root)
-    pending = sorted((root / WORKING / "proposed").glob("*.md"))
-    if not pending:
-        print("nothing to push")
-        return
-    if not subs["sources"]:
-        print("no upstream source configured — ctx use <path-or-url> first")
-        print(f"{len(pending)} proposals are waiting in {WORKING}/proposed/")
-        return
-
-    dest = pathlib.Path(subs["sources"][0]).expanduser()
-    inbox = dest.parent / ".ctx" / "inbox"
-    inbox.mkdir(parents=True, exist_ok=True)
-    for f in pending:
-        (inbox / f.name).write_text(f.read_text())
-        if not args.keep:
-            f.unlink()
-    print(f"pushed {len(pending)} proposal(s) to {inbox}")
-    print("the owner sees them with: ctx review")
-    write_index(root)
-
-
-def cmd_review(args):
-    ctxs = load_all(root_dir())
+def review(root):
+    ctxs = load_all(root)
     queue = [c for c in ctxs.values() if c["state"] in ("proposed", "disputed", "stale")]
     if not queue:
         print("nothing awaiting review")
@@ -412,67 +300,24 @@ def cmd_review(args):
     print(f"\n{len(queue)} awaiting review · promote with: ctx verify <id>")
 
 
-def cmd_verify(args):
-    root = root_dir()
+def verify(root, cid):
     ctxs = load_all(root)
-    c = ctxs.get(args.id)
+    c = lookup(ctxs, cid)
     if not c:
-        sys.exit(f"no context {args.id}")
+        sys.exit(f"no context {cid}")
     src = c["_path"]
     text = src.read_text()
     text = re.sub(r"^state:.*$", "state: verified", text, count=1, flags=re.M)
     text = re.sub(r'^owner:.*$', f'owner: "{os.environ.get("USER","unknown")}"', text, count=1, flags=re.M)
     text = re.sub(r"^updated:.*$", f"updated: {datetime.date.today()}", text, count=1, flags=re.M)
-    dest = root / PUBLISHED / f"{args.id}.md"
+    dest = root / PUBLISHED / f"{c['id']}.md"
     dest.write_text(text)
     if src != dest:
         src.unlink()
     write_index(root)
-    print(f"verified {args.id} → {dest.relative_to(root)}")
+    print(f"verified {c['id']}")
 
 
-def cmd_deps(args):
-    ctxs = load_all(root_dir())
-    if not lookup(ctxs, args.id):
-        sys.exit(f"no context {args.id}")
-
-    def walk(cid, prefix="", seen=()):
-        c = lookup(ctxs, cid)
-        if not c:
-            print(f"{prefix}{cid}  (missing)")
-            return
-        label = f"{c['org']}:{c['id']}" if c.get("org") else c["id"]
-        cid = c["id"]
-        loop = " ↺ cycle" if cid in seen else ""
-        print(f"{prefix}{label}  — {c.get('summary','')[:50]} [{tokens(c)}t]{loop}")
-        if loop:
-            return
-        kids = c["requires"]
-        for i, k in enumerate(kids):
-            last = i == len(kids) - 1
-            walk(k, prefix[:-2].replace("└", " ").replace("├", "│") +
-                 ("  " if prefix else "") + ("└ " if last else "├ "), seen + (cid,))
-
-    walk(args.id)
-    order, missing, _ = resolve(ctxs, [args.id], depth=99)
-    total = sum(tokens(ctxs[c]) for c in order if c in ctxs)
-    print(f"\n{len(order)} contexts in the closure, roughly {total} tokens")
-    if missing:
-        print(f"missing: {', '.join(missing)}")
-
-
-def cmd_list(args):
-    ctxs = load_all(root_dir())
-    rows = [c for c in ctxs.values()
-            if (not args.state or c["state"] == args.state)
-            and (not args.tag or args.tag in c["tags"])]
-    if not rows:
-        print("no contexts match")
-        return
-    for c in sorted(rows, key=lambda c: c["id"]):
-        dep = f"  →{len(c['requires'])}" if c["requires"] else ""
-        print(f"  {c['state']:9} {c['id']:26} {c.get('summary','')[:52]}{dep}")
-    print(f"\n{len(rows)} of {len(ctxs)} contexts")
 
 
 def md_to_html(md):
@@ -550,8 +395,7 @@ def render(root, ctxs=None):
     return out
 
 
-def cmd_status(args):
-    root = root_dir()
+def status(root):
     ctxs = load_all(root)
     if not ctxs:
         print("no contexts yet. run: ctx init")
@@ -574,50 +418,140 @@ def cmd_status(args):
         print(f"  {q} awaiting review — ctx review")
 
 
+def write_back(root, cid, summary="", requires=""):
+    """One way to write. Yours -> published. Someone else's -> proposed and pushed."""
+    subs = load_subs(root)
+    ctxs = load_all(root)
+    existing = lookup(ctxs, cid)
+    mine = not existing or existing.get("owner", "") in (os.environ.get("USER", ""), "", "unassigned")
+    today = datetime.date.today()
+    front = f"""---
+id: {cid}
+title: {cid.replace('-', ' ').capitalize()}
+org: {subs["org"]}
+owner: "{os.environ.get('USER','unknown') if mine else existing.get('owner')}"
+author: "{os.environ.get('USER','unknown')}"
+state: {"verified" if mine else "proposed"}
+updated: {today}
+review_by: {today.replace(year=today.year + 1)}
+summary: {summary or 'ONE LINE — this is what every session pays for.'}
+requires: [{requires}]
+related: []
+tags: []
+---
+
+"""
+    body = "" if sys.stdin.isatty() else sys.stdin.read()
+    if mine:
+        path = root / PUBLISHED / f"{cid}.md"
+        path.write_text(front + (body or "Body.\n"))
+        print(f"wrote {path.relative_to(root)}")
+    else:
+        path = root / WORKING / "proposed" / f"{cid}.md"
+        path.write_text(front + (body or "Body.\n"))
+        print(f"proposed {cid} (owned by {existing.get('owner')})")
+        push(root, quiet=True)
+    write_index(root)
+
+
+def push(root, quiet=False):
+    subs = load_subs(root)
+    pending = sorted((root / WORKING / "proposed").glob("*.md"))
+    if not pending or not subs["sources"]:
+        if pending and not quiet:
+            print(f"{len(pending)} proposal(s) waiting — no upstream yet")
+        return
+    inbox = pathlib.Path(subs["sources"][0]).expanduser().parent / ".ctx" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    for f in pending:
+        (inbox / f.name).write_text(f.read_text()); f.unlink()
+    print(f"  sent upstream for review")
+
+
+SEED = """---
+id: how-ctx-works
+title: How context works here
+org: ""
+owner: "{user}"
+state: verified
+updated: {today}
+summary: What ctx is, when to read a context, and when to write one back.
+requires: []
+related: []
+tags: [meta]
+---
+
+Contexts live in `{P}/` as small markdown files, one topic each. `{W}/` is working
+state and is not committed.
+
+The index in {A} lists what exists. Read one with `ctx <name>`. It will also pull in
+whatever that context requires.
+
+Write one back with `ctx new <name> "<one line summary>"`, piping the body on stdin.
+Do that when, and only when:
+
+- Someone corrects you about how something actually works.
+- You establish something that took real digging.
+- A decision is made whose reasoning would otherwise be lost.
+
+Not for task-specific detail, not for anything you inferred rather than verified, and
+not when an existing context covers it — rewrite that one instead.
+"""
+
+
+def bootstrap(root):
+    """Everything init used to do. Runs itself when a workspace has no ctx yet."""
+    (root / PUBLISHED).mkdir(exist_ok=True)
+    for sub in ("cache", "proposed", "sessions", "html"):
+        (root / WORKING / sub).mkdir(parents=True, exist_ok=True)
+    gi = root / ".gitignore"
+    lines = gi.read_text().splitlines() if gi.exists() else []
+    if WORKING + "/" not in lines:
+        gi.write_text("\n".join(lines + [WORKING + "/"]) + "\n")
+    seed = root / PUBLISHED / "how-ctx-works.md"
+    if not seed.exists():
+        seed.write_text(SEED.format(P=PUBLISHED, W=WORKING, A=AGENTS,
+                                    today=datetime.date.today(),
+                                    user=os.environ.get("USER", "unknown")))
+
+
 def main():
-    ap = argparse.ArgumentParser(prog="ctx", description=__doc__.splitlines()[0])
-    sub = ap.add_subparsers(dest="cmd")
+    root = pathlib.Path.cwd() if not (root_dir() / PUBLISHED).exists() else root_dir()
+    argv = sys.argv[1:]
 
-    sub.add_parser("init", help="scaffold ctx in this repo").set_defaults(fn=cmd_init)
-    sub.add_parser("status", help="what exists and what it costs").set_defaults(fn=cmd_status)
-    sub.add_parser("review", help="contexts awaiting a human").set_defaults(fn=cmd_review)
+    # ctx                      -> what have I got
+    if not argv:
+        if not (root / PUBLISHED).exists():
+            print("no contexts here yet. join one:  ctx <org>:<context>")
+            return
+        return status(root)
 
+    a = argv[0]
 
-    p = sub.add_parser("push", help="send your proposals upstream")
-    p.add_argument("--keep", action="store_true", help="do not clear them locally")
-    p.set_defaults(fn=cmd_push)
+    # ctx review / ctx ok <id> -> the two owner actions
+    if a == "review":
+        return review(root)
+    if a == "ok":
+        return verify(root, argv[1])
 
-    p = sub.add_parser("use", help="subscribe to a context, or sync a source directory")
-    p.add_argument("targets", nargs="+", metavar="CONTEXT|PATH")
-    p.set_defaults(fn=cmd_use)
+    # ctx new <id> [summary]   -> write one back; publishes if yours, proposes if not
+    if a == "new":
+        bootstrap(root)
+        return write_back(root, argv[1], " ".join(argv[2:]),
+                          requires=os.environ.get("CTX_REQUIRES", ""))
 
-    p = sub.add_parser("index", help="print the index");  p.add_argument("--write", action="store_true"); p.set_defaults(fn=cmd_index)
-    p = sub.add_parser("get", help="print a context and what it requires")
-    p.add_argument("ids", nargs="+")
-    p.add_argument("--depth", type=int, default=1, help="how far to follow requires (default 1)")
-    p.add_argument("--no-deps", action="store_true", help="just the contexts named")
-    p.set_defaults(fn=cmd_get)
+    # ctx <org>:<context>      -> join. bootstraps, subscribes, syncs, indexes, renders
+    if ":" in a or pathlib.Path(a).expanduser().is_dir():
+        bootstrap(root)
+        return join(root, argv)
 
-    p = sub.add_parser("deps", help="show what a context requires, and the total cost")
-    p.add_argument("id"); p.set_defaults(fn=cmd_deps)
+    # ctx <name>               -> read it, plus what it requires
+    ctxs = load_all(root)
+    if lookup(ctxs, a):
+        return show(root, ctxs, argv)
 
-    p = sub.add_parser("list", help="list contexts, filtered")
-    p.add_argument("--state"); p.add_argument("--tag")
-    p.set_defaults(fn=cmd_list)
-    p = sub.add_parser("search", help="find contexts");      p.add_argument("query"); p.set_defaults(fn=cmd_search)
-    p = sub.add_parser("verify", help="owner signs off"); p.add_argument("id"); p.set_defaults(fn=cmd_verify)
-
-    for name, fn in (("new", cmd_new), ("propose", cmd_propose)):
-        p = sub.add_parser(name, help=f"{name} a context")
-        p.add_argument("id"); p.add_argument("--title"); p.add_argument("--summary")
-        p.add_argument("--requires", help="ids this context cannot be understood without")
-        p.add_argument("--related", help="comma-separated ids worth knowing about, not auto-loaded")
-        if name == "propose":
-            p.add_argument("--body")
-        p.set_defaults(fn=fn)
-
-    a = ap.parse_args()
-    (a.fn if a.cmd else cmd_status)(a)
+    # otherwise, treat it as a search
+    return find(root, " ".join(argv))
 
 
 if __name__ == "__main__":

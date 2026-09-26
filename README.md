@@ -2,93 +2,72 @@
 
 **Context management is the new wiki — AI first, readable by humans.**
 
-A wiki is written for people and scraped by machines as an afterthought. `ctx` inverts
-that: contexts are written to be read by an agent every session, and rendered to HTML
-when a person wants to look.
-
-Every new AI session starts blind. The usual workarounds are to keep one session alive
-for days, or to paste the same background in again — both of which burn tokens on
-context the model mostly does not need.
-
-`ctx` stores organisational knowledge as small markdown files it calls **contexts**, publishes a one-line
-index into `AGENTS.md`, and lets the agent fetch only the contexts a task actually needs.
-
 ```sh
-ctx use <scope>     # subscribe — read and write, one command
-ctx new <id>        # write a context
-ctx list            # what exists  (--scope --state --tag)
-ctx get <id>        # print it, plus whatever it requires
-ctx deps <id>       # what it pulls in, and what that costs
-ctx propose <id>    # write something back
-ctx push            # send it upstream for the owner to review
-ctx status          # totals, index cost, and where to browse it
+ctx comcast:ace        # join. that is the setup.
 ```
 
-## Why this does not die the way wikis die
+That one command creates the workspace, subscribes, syncs, writes the index into
+`AGENTS.md`, and renders the HTML view. Your agent reads the index from then on, and the
+index tells it how to read and write context. Nothing else to run.
 
-Wikis rot because nobody reads them. A page nobody opens is a page nobody notices is
-wrong, and the error sits there for years.
+## The whole interface
 
-An agent reads context on **every session**. High read volume is what surfaces errors —
-and when the agent is corrected, `ctx propose` captures the correction while someone has
-the right answer in hand. The reading is what keeps the writing honest.
+```sh
+ctx                    # what you have, and what the index costs per session
+ctx <org>:<context>    # join one
+ctx <name>             # read it, plus whatever it requires
+ctx new <name> "..."   # write one back
+```
 
-There is no render command. HTML regenerates on every change, so the human-readable view
-is always current and nobody has to remember it exists. `ctx status` prints the path.
+Anything else is treated as a search. There is no init, no sync, no index, no render, no
+push — those happen because something changed, not because you remembered.
 
-Same files either way. The agent reads the markdown; a person opens the page.
+Owners get two more: `ctx review` for the queue, `ctx ok <name>` to sign off.
 
-## Why an index instead of a dump
+## What the agent does
 
-Preloading everything makes the problem worse:
+The index in `AGENTS.md` costs about 1,000 tokens and lists one line per context. The
+agent fetches the full text only when a task needs it:
 
-| | Tokens per session |
-|---|---|
-| Preload all context | ~50,000 |
-| Index + fetch on demand | ~1,000 + ~2,000 per context used |
+```
+- `ace` — Team ACE: what we own and how we ship (2026-09-25)
+- `idcmt` — IDCMT: identity and credential management (2026-09-25)
+7 more contexts exist outside your subscriptions — find them with `ctx <query>`.
+```
 
-`ctx status` prints the real number for your repo.
+Preloading an organisation's knowledge costs ~50,000 tokens a session and is mostly
+waste. That number is the whole argument.
+
+Write-back has three triggers, and the agent is told them: someone corrected it,
+something took real digging, or a decision was made whose reasoning would be lost. A
+correction to a context you do not own becomes a proposal and goes upstream for the owner
+to review.
 
 ## org : context
 
-Two levels, that is all.
+Two levels, that is the namespace. `comcast:ace`. Inside an org, names are bare — `ace`
+requires `idcmt`, not `comcast:idcmt`. Subscribing to a context gives you that context
+plus everything it requires; the person maintaining `ace` decides what a new starter sees.
 
-```sh
-ctx use comcast:ace      # org is `comcast`, thereafter implicit
-ctx use sentity:myapp    # solo: same mechanism
-```
+## Why this does not rot the way wikis do
 
-Inside an org, names are bare — `comcast:ace` requires `idcmt`. You subscribe to a
-**context**, and your index is that context plus everything it requires. Nothing else.
+Wikis die of low read volume — a page nobody opens is a page nobody notices is wrong. An
+agent reads context every session, which is what surfaces errors, and the correction gets
+captured while someone still has the right answer in hand. The reading is what keeps the
+writing honest.
 
 ## Layout
 
 ```
 ctx/         contexts this repo owns — committed
-.ctx/        cache, proposals, session notes — gitignored
+.ctx/        cache, proposals, HTML — gitignored
 AGENTS.md    the index, between <!-- ctx:begin --> markers
 ```
 
-## Context that maintains itself
-
-Agents write back with `ctx propose`. Proposals land in a staging state rather than the
-trusted store, so a wrong context never silently becomes a fact:
-
-| State | Meaning |
-|---|---|
-| `verified` | An owner signed off. Treat as fact. |
-| `confirmed` | Held up in practice, never contradicted. |
-| `proposed` | Agent-written, unreviewed. |
-| `disputed` | Someone hit a contradiction. |
-| `stale` | Past `review_by`. |
-
-The index marks state, so a reader always knows what it is trusting.
-
 ## Design
 
-See [DESIGN.md](DESIGN.md) — including why this scores *context* rather than people, and
-why `ctxhub` must never be required for `ctx` to work.
+See [DESIGN.md](DESIGN.md).
 
 ## Status
 
-Local backend only. Git and ctxhub backends are designed, not built.
+Local backend works. Git and ctxhub are designed, not built.
