@@ -74,89 +74,54 @@ A correction trapped in one person's `.ctx/` is worth nothing. The value is enti
 the next person not hitting the same wall. `ctx push` is what makes write-back a shared
 asset rather than a private note — and it is why the local-only build is only step one.
 
-## Organization is tenancy, not a level
+## The model: org and context
 
-An organization is not a hierarchy level — it is **who owns the store**. Comcast's
-`platform` and Acme's `platform` are different things that must never collide, and that
-becomes load-bearing the moment more than one company uses a hub. Same shape as
-`github.com/<org>/<repo>`, `npm @scope/pkg`, `docker org/image`.
+Two levels, and that is the whole namespace.
 
-It is set once and then invisible:
+```
+comcast:ace          organization : context
+```
+
+**Organization is tenancy** — who owns the store. Comcast's `ace` and Acme's `ace` are
+different things that must never collide, which is what matters the moment a hub hosts
+more than one company. Set once, then implicit:
 
 ```sh
-ctx use comcast/ace platform enterprise
+ctx use comcast:ace
 # organization set to `comcast`
-# subscribed to scope `ace` in `comcast`
+# subscribed to `ace` in `comcast`
 ```
 
-After that, nobody types it. The index shows plain scopes:
+Inside an organization you write bare names. `comcast:ace` requires `idcmt`, not
+`comcast:idcmt` — qualification is only for crossing an org boundary.
 
-```
-- `ace-deploy` — How ACE ships to prod (ace)
-- `cf` — Cloud Foundry spaces and quotas (enterprise)
-- `splunk` — Splunk indexes and access (platform/observability)
-```
+### There is no scope, and no team
 
-Until a context arrives from somewhere else, at which point origin starts mattering and
-appears automatically:
-
-```
-- `ace-deploy` — How ACE ships to prod (comcast/ace)
-- `shared-sso` — How our SSO federates with Acme's (acme/identity)
-```
-
-A solo developer sets `ctx use sentity/myapp` once and never thinks about it again.
-
-### Why not a fixed `organization / team` pair
-
-Team is not a structural level, it is a scope that happens to be named after a team.
-Hardcoding it breaks immediately: a team that owns two scopes cannot express that, and a
-scope spanning two teams has nowhere to live. Both are common.
-
-Worse, a fixed pair forces a solo developer to name two buckets when they have one —
-`organization: my-company, team: dev` is pure ceremony. Flat scopes inside a tenant
-collapse to nothing when you do not need them and nest with `/` when you do.
-
-## Scopes: one name, no taxonomy
-
-A scope is a flat name. `ace`. `billing`. `myapp`. There is no `team:` prefix, because
-the prefix is a *type* and nothing in the mechanism uses one — grouping needs a name, not
-a classification. Forcing an indie developer to declare that their side project is a
-`project:` and not a `team:` is asking them to model an organisation they do not have.
-
-**Indie developer.** One scope, named after the thing:
-
-```
-- `deploy` — How myapp ships: fly.io, one command, rollback story (myapp)
-- `gotchas` — The three things that bite me every time I come back (myapp)
-```
-
-**Enterprise.** Same mechanism. `/` nests when it earns its keep, and subscribing to a
-parent picks up the children:
+Both were cut. A scope was a grouping layer that existed to answer "what should be in my
+index", and **the dependency graph already answers that better**:
 
 ```sh
-ctx use ace platform enterprise
+ctx use comcast:ace
 ```
 ```
-- `ace-deploy` — How ACE ships to prod (ace)
-- `ace-oncall` — ACE paging and escalation (ace)
-- `cloud-foundry` — CF spaces, quotas, routes (enterprise)
-- `grafana` — Dashboards that matter (platform/observability)
-- `splunk` — Splunk indexes and access (platform/observability)
-- `k8s` — Clusters, namespaces, who approves (platform/runtime)
-4 more contexts exist outside your scopes — find them with `ctx search <query>`.
+- `ace` — Team ACE: what we own, how we ship, who to ask
+- `cloud-foundry` — CF spaces, quotas, routes
+- `idcmt` — IDCMT: identity and credential management, how to request access
+7 more contexts exist outside your subscriptions — find them with `ctx search <query>`.
 ```
 
-`platform` matched both `platform/observability` and `platform/runtime`; `billing` was
-not subscribed, so it collapsed into the count.
+Ten contexts exist; three are in the index, because `ace` requires the other two. You
+subscribe to **a context**, and your working set is its closure.
 
-`enterprise` is a convention, not a keyword — it is just the name people will reach for.
-The tool does not know or care.
+This is better than a scope for a reason worth stating: the person who maintains `ace`
+decides what a new starter sees, by declaring what ACE actually depends on. That is
+curation by the person best placed to do it, rather than a flat namespace everyone dumps
+into. When ACE picks up a dependency on Splunk, one line in `ace` puts it in every team
+member's index.
 
-Scope defaults to your first subscription, or the directory name if you have none. An
-indie developer never types `--scope` at all.
+A solo developer subscribes to one context and never thinks about any of this.
 
-## Limiting recursion: three limits, not one
+## Limiting recursion## Limiting recursion: three limits, not one
 
 The question "how deep do dependencies go" has three different answers because it is
 three different questions. The rule: **greedy on disk, stingy on tokens.**

@@ -10,7 +10,7 @@ PUBLISHED = "ctx"      # committed: contexts this repo owns
 WORKING   = ".ctx"     # gitignored: cache, proposals, session notes
 AGENTS    = "AGENTS.md"
 BEGIN, END = "<!-- ctx:begin -->", "<!-- ctx:end -->"
-SUBS = "subscriptions.json"      # which scopes this workspace cares about
+SUBS = "subscriptions.json"      # which contexts this workspace cares about
 INDEX_BUDGET = 60                # contexts listed in full before the index collapses
 
 STATES = ("verified", "confirmed", "proposed", "disputed", "stale")
@@ -36,7 +36,6 @@ def parse(path):
     meta["_path"], meta["_body"] = path, body
     meta.setdefault("id", path.stem)
     meta.setdefault("state", "proposed")
-    meta.setdefault("scope", "")
     return meta
 
 
@@ -62,6 +61,25 @@ def tokens(c):
     return int(len(c["_body"].split()) * 1.4)
 
 
+def qualify(ref, from_org):
+    """`idcmt` inside comcast -> comcast:idcmt. `acme:sso` stays as it is."""
+    return ref if ":" in ref else (f"{from_org}:{ref}" if from_org else ref)
+
+
+def lookup(ctxs, ref, from_org=""):
+    """Find a context by bare id or org/id."""
+    if ref in ctxs:
+        return ctxs[ref]
+    if ":" in ref:
+        org, _, bare = ref.partition(":")
+        c = ctxs.get(bare)
+        return c if c and c.get("org", "") == org else None
+    for c in ctxs.values():
+        if c["id"] == ref and (not from_org or c.get("org", "") == from_org):
+            return c
+    return None
+
+
 def resolve(ctxs, ids, depth=2):
     """Requires-closure, breadth-first, cycle-safe. Returns (ordered ids, missing, cut)."""
     seen, order, missing, cut = set(), [], [], []
@@ -71,9 +89,12 @@ def resolve(ctxs, ids, depth=2):
         if cid in seen:
             continue
         seen.add(cid)
-        c = ctxs.get(cid)
+        c = lookup(ctxs, cid)
         if not c:
             missing.append(cid)
+            continue
+        cid = c["id"]
+        if cid in order:
             continue
         order.append(cid)
         if d >= depth:
@@ -90,7 +111,7 @@ def subs_path(root):
 def load_subs(root):
     p = subs_path(root)
     d = json.loads(p.read_text()) if p.exists() else {}
-    return {"org": d.get("org", ""), "scopes": d.get("scopes", []),
+    return {"org": d.get("org", ""), "subscribed": d.get("subscribed", []),
             "sources": d.get("sources", [])}
 
 
@@ -126,7 +147,7 @@ def cmd_init(args):
         seed.write_text(f"""---
 id: how-ctx-works
 title: How context works in this repo
-scope: {root.name}
+org: ""
 owner: "{os.environ.get('USER', 'unknown')}"
 state: verified
 updated: {datetime.date.today()}
@@ -162,35 +183,27 @@ def index_lines(ctxs):
     orgs = {c.get("org", "") for c in ctxs.values()}
     show_org = len([o for o in orgs if o]) > 1
     out = []
-    for c in sorted(ctxs.values(), key=lambda c: (c.get("scope", ""), c["id"])):
+    for c in sorted(ctxs.values(), key=lambda c: c["id"]):
         mark = {"verified": "", "confirmed": " ~confirmed", "proposed": " ~unverified",
                 "disputed": " ~disputed", "stale": " ~stale"}.get(c["state"], "")
-        where = c.get("scope", "")
-        if show_org and c.get("org"):
-            where = f"{c['org']}/{where}"
-        out.append(f"- `{c['id']}` — {c.get('summary','(no summary)')} "
-                   f"({where}, {c.get('updated','?')}{mark})")
+        where = f"{c['org']}:{c['id']}" if (show_org and c.get("org")) else c["id"]
+        out.append(f"- `{where}` — {c.get('summary','(no summary)')} "
+                   f"({c.get('updated','?')}{mark})")
     return out
 
 
-def scope_match(scope, subscribed):
-    """`platform` matches `platform` and `platform/observability`, not `platform-x`."""
-    return any(scope == s or scope.startswith(s + "/") for s in subscribed)
-
-
-def in_working_set(c, scopes, direct):
-    """Your scopes at full detail, plus anything they directly require."""
-    if not scopes:
-        return True
-    return scope_match(c.get("scope", ""), scopes) or c["id"] in direct
+def working_set(root, ctxs):
+    """What you subscribed to, plus everything it requires. Nothing else."""
+    subs = load_subs(root)["subscribed"]
+    if not subs:
+        return list(ctxs.values())
+    ids, _, _ = resolve(ctxs, subs, depth=99)
+    return [ctxs[i] for i in ids if i in ctxs]
 
 
 def write_index(root):
     ctxs = load_all(root)
-    scopes = load_subs(root)["scopes"]
-    direct = {r for c in ctxs.values() if scope_match(c.get("scope",""), scopes)
-              for r in c["requires"]}
-    shown  = [c for c in ctxs.values() if in_working_set(c, scopes, direct)]
+    shown = working_set(root, ctxs)
     hidden = len(ctxs) - len(shown)
     block = "\n".join([
         BEGIN,
@@ -201,7 +214,7 @@ def write_index(root):
         "owner has not confirmed it recently. Weight them accordingly.",
         "",
         *index_lines({c["id"]: c for c in shown}),
-        *([f"", f"{hidden} more contexts exist outside your scopes — find them with "
+        *([f"", f"{hidden} more contexts exist outside your subscriptions — find them with "
                 f"`ctx search <query>`, load them with `ctx get <id>`."] if hidden else []),
         "",
         "Write context back with `ctx propose <id>` when someone corrects you, when you",
@@ -237,28 +250,22 @@ def cmd_use(args):
                 subs["sources"].append(str(src))
             print(f"synced {n} contexts from {src}")
         else:
-            org, _, scope = target.rpartition("/") if target.count("/") and \
-                            not target.startswith("/") else ("", "", target)
-            # first path element is the org only when an org is not already set
-            if "/" in target and not subs["org"]:
-                org, scope = target.split("/", 1)
-            elif "/" in target and subs["org"] and target.startswith(subs["org"] + "/"):
-                org, scope = target.split("/", 1)
+            if ":" in target:
+                org, scope = target.split(":", 1)
             else:
                 org, scope = subs["org"], target
             if org and not subs["org"]:
                 subs["org"] = org
                 print(f"organization set to `{org}`")
-            if scope not in subs["scopes"]:
-                subs["scopes"].append(scope)
-            print(f"subscribed to scope `{scope}`" + (f" in `{subs['org']}`" if subs["org"] else ""))
+            if scope not in subs["subscribed"]:
+                subs["subscribed"].append(scope)
+            print(f"subscribed to `{scope}`" + (f" in `{subs['org']}`" if subs["org"] else ""))
     save_subs(root, subs)
 
     ctxs = load_all(root)
-    known = {c.get("scope", "") for c in ctxs.values()}
-    for sc in subs["scopes"]:
-        if not any(scope_match(k, [sc]) for k in known):
-            print(f"  note: nothing published under `{sc}` yet")
+    for sc in subs["subscribed"]:
+        if not lookup(ctxs, sc, subs["org"]):
+            print(f"  note: no context named `{sc}` yet")
     write_index(root)
     cmd_status(args)
 
@@ -273,14 +280,8 @@ def cmd_index(args):
         print("\n".join(index_lines(ctxs)) or "no contexts yet — try: ctx new <id>")
 
 
-def default_scope(root):
-    subs = load_subs(root)["scopes"]
-    return subs[0] if subs else root.name
-
-
 def cmd_new(args):
     root = root_dir()
-    args.scope = args.scope or default_scope(root)
     org = load_subs(root)["org"]
     path = root / PUBLISHED / f"{args.id}.md"
     if path.exists():
@@ -290,7 +291,6 @@ def cmd_new(args):
     path.write_text(f"""---
 id: {args.id}
 title: {args.title or args.id.replace('-', ' ').capitalize()}
-scope: {args.scope}
 org: {org}
 owner: "{os.environ.get('USER','unknown')}"
 state: verified
@@ -320,7 +320,8 @@ def cmd_get(args):
         c = ctxs[cid]
         why = "" if cid in args.ids else "  (required by a context you asked for)"
         print(f"# {c.get('title', cid)}{why}")
-        print(f"<!-- {c['state']} · {c.get('scope')} · owner {c.get('owner')} · "
+        where = f"{c['org']}:{c['id']}" if c.get("org") else c["id"]
+        print(f"<!-- {where} · {c['state']} · owner {c.get('owner')} · "
               f"updated {c.get('updated')} -->\n")
         print(c["_body"] + "\n")
         if c["related"]:
@@ -349,14 +350,13 @@ def cmd_search(args):
 
 def cmd_propose(args):
     root = root_dir()
-    args.scope = args.scope or default_scope(root)
     path = root / WORKING / "proposed" / f"{args.id}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     body = args.body or sys.stdin.read() if not sys.stdin.isatty() else (args.body or "")
     path.write_text(f"""---
 id: {args.id}
 title: {args.title or args.id.replace('-', ' ').capitalize()}
-scope: {args.scope}
+org: {load_subs(root)["org"]}
 owner: "unassigned"
 author: "{os.environ.get('USER','unknown')}"
 state: proposed
@@ -395,7 +395,7 @@ def cmd_push(args):
         if not args.keep:
             f.unlink()
     print(f"pushed {len(pending)} proposal(s) to {inbox}")
-    print("the scope owner sees them with: ctx review")
+    print("the owner sees them with: ctx review")
     write_index(root)
 
 
@@ -432,16 +432,18 @@ def cmd_verify(args):
 
 def cmd_deps(args):
     ctxs = load_all(root_dir())
-    if args.id not in ctxs:
+    if not lookup(ctxs, args.id):
         sys.exit(f"no context {args.id}")
 
     def walk(cid, prefix="", seen=()):
-        c = ctxs.get(cid)
+        c = lookup(ctxs, cid)
         if not c:
             print(f"{prefix}{cid}  (missing)")
             return
+        label = f"{c['org']}:{c['id']}" if c.get("org") else c["id"]
+        cid = c["id"]
         loop = " ↺ cycle" if cid in seen else ""
-        print(f"{prefix}{cid}  — {c.get('summary','')[:52]} [{tokens(c)}t]{loop}")
+        print(f"{prefix}{label}  — {c.get('summary','')[:50]} [{tokens(c)}t]{loop}")
         if loop:
             return
         kids = c["requires"]
@@ -461,16 +463,14 @@ def cmd_deps(args):
 def cmd_list(args):
     ctxs = load_all(root_dir())
     rows = [c for c in ctxs.values()
-            if (not args.scope or c.get("scope", "").startswith(args.scope))
-            and (not args.state or c["state"] == args.state)
+            if (not args.state or c["state"] == args.state)
             and (not args.tag or args.tag in c["tags"])]
     if not rows:
         print("no contexts match")
         return
-    for c in sorted(rows, key=lambda c: (c.get("scope",""), c["id"])):
+    for c in sorted(rows, key=lambda c: c["id"]):
         dep = f"  →{len(c['requires'])}" if c["requires"] else ""
-        print(f"  {c['state']:9} {c.get('scope',''):16} {c['id']:24} "
-              f"{c.get('summary','')[:46]}{dep}")
+        print(f"  {c['state']:9} {c['id']:26} {c.get('summary','')[:52]}{dep}")
     print(f"\n{len(rows)} of {len(ctxs)} contexts")
 
 
@@ -486,8 +486,8 @@ def cmd_status(args):
     print(f"{root}")
     if subs["org"]:
         print(f"  organization: {subs['org']}")
-    if subs["scopes"]:
-        print(f"  subscribed: {', '.join(subs['scopes'])}")
+    if subs["subscribed"]:
+        print(f"  subscribed: {', '.join(subs['subscribed'])}")
     print(f"  {len(ctxs)} contexts · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))
     print(f"  index costs roughly {int(idx_tokens)} tokens per session")
     q = counts["proposed"] + counts["disputed"] + counts["stale"]
@@ -507,8 +507,8 @@ def main():
     p.add_argument("--keep", action="store_true", help="do not clear them locally")
     p.set_defaults(fn=cmd_push)
 
-    p = sub.add_parser("use", help="subscribe to a scope, or sync a source directory")
-    p.add_argument("targets", nargs="+", metavar="SCOPE|PATH")
+    p = sub.add_parser("use", help="subscribe to a context, or sync a source directory")
+    p.add_argument("targets", nargs="+", metavar="CONTEXT|PATH")
     p.set_defaults(fn=cmd_use)
 
     p = sub.add_parser("index", help="print the index");  p.add_argument("--write", action="store_true"); p.set_defaults(fn=cmd_index)
@@ -522,7 +522,7 @@ def main():
     p.add_argument("id"); p.set_defaults(fn=cmd_deps)
 
     p = sub.add_parser("list", help="list contexts, filtered")
-    p.add_argument("--scope"); p.add_argument("--state"); p.add_argument("--tag")
+    p.add_argument("--state"); p.add_argument("--tag")
     p.set_defaults(fn=cmd_list)
     p = sub.add_parser("search", help="find contexts");      p.add_argument("query"); p.set_defaults(fn=cmd_search)
     p = sub.add_parser("verify", help="owner signs off"); p.add_argument("id"); p.set_defaults(fn=cmd_verify)
@@ -530,7 +530,6 @@ def main():
     for name, fn in (("new", cmd_new), ("propose", cmd_propose)):
         p = sub.add_parser(name, help=f"{name} a context")
         p.add_argument("id"); p.add_argument("--title"); p.add_argument("--summary")
-        p.add_argument("--scope", help="group this belongs to (default: your first subscription)")
         p.add_argument("--requires", help="ids this context cannot be understood without")
         p.add_argument("--related", help="comma-separated ids worth knowing about, not auto-loaded")
         if name == "propose":

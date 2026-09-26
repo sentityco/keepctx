@@ -31,21 +31,17 @@ Preloading everything makes the problem worse:
 
 `ctx status` prints the real number for your repo.
 
-## Organization and scopes
+## org : context
 
-An organization is **tenancy** — set once, then invisible:
+Two levels, that is all.
 
 ```sh
-ctx use comcast/ace platform enterprise    # org is `comcast`, thereafter implicit
-ctx use sentity/myapp                       # solo: same mechanism, one scope
+ctx use comcast:ace      # org is `comcast`, thereafter implicit
+ctx use sentity:myapp    # solo: same mechanism
 ```
 
-Within it, a scope is a flat name — `ace`, `billing`, `myapp`. No `team:` prefix, no taxonomy. Use
-`/` to nest only if you want it; subscribing to `platform` picks up
-`platform/observability` too.
-
-Solo: one scope, named after your project, and you never type `--scope`.
-Enterprise: `ctx use ace platform enterprise`.
+Inside an org, names are bare — `comcast:ace` requires `idcmt`. You subscribe to a
+**context**, and your index is that context plus everything it requires. Nothing else.
 
 ## Layout
 
