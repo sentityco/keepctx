@@ -1,4 +1,4 @@
-# ctx — design
+# keepctx — design
 
 **Positioning.** Context management is the new wiki: AI first, readable by humans.
 
@@ -251,7 +251,7 @@ can read, edit or delete:
 
 ```markdown
 AI context for this project lives in `.ctx/instructions.md` — read it first.
-Missing? It is gitignored by design. Install ctx (https://ctxinit.sh), then
+Missing? It is gitignored by design. Install ctx (https://keepctx.com), then
 `ctx clone <org>:<name>` — or `ctx init` if this project has no context yet.
 ```
 

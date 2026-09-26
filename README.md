@@ -1,4 +1,4 @@
-# ctx
+# keepctx
 
 **Your AGENTS.md, except it writes itself — and your team shares it.**
 
@@ -7,7 +7,7 @@ the docs are wrong, what actually deploys. `ctx` captures that as your agent wor
 it current, and shares it with your team.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/sentityco/ctx/main/install.sh | sh
+curl -fsSL https://keepctx.com/install.sh | sh
 cd ~/work/ace && ctx init
 ```
 

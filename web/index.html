@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ctx — context management for AI and people</title>
+<title>keepctx — context management for AI and people</title>
 <meta name="description" content="Your AGENTS.md, except it writes itself — and your team shares it. Open-source context management for AI coding agents." />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <header><div class="wrap">
-  <a class="logo" href="/">ctx</a>
+  <a class="logo" href="/">keepctx</a>
   <nav>
     <a href="#why">Why</a>
     <a href="#how">How it works</a>
@@ -21,9 +21,9 @@
 
 <div class="hero"><div class="wrap">
   <h1>Your AGENTS.md,<br />except it writes itself.</h1>
-  <p class="lede">Every AI session starts blind. You re-explain the same things — which queue you
-  use, why the docs are wrong, what actually deploys. ctx captures that as your agent works,
-  keeps it current, and shares it with your team.</p>
+  <p class="lede">Today, what your team <em>shares</em> is hand-written, and what your agent
+  <em>learns</em> is stuck on one laptop. keepctx joins them: context captured as your agent
+  works, kept current, and shared with everyone.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="app.html">Create an org</a>
@@ -107,8 +107,10 @@
   <ol class="steps">
     <li>
       <h3>Install</h3>
-      <p>Python 3.9 or newer. No dependencies.</p>
-<pre><code>curl -fsSL https://raw.githubusercontent.com/sentityco/ctx/main/install.sh | sh</code></pre>
+      <p>Python 3.9 or newer. No dependencies. Installs as <code>ctx</code>, with
+      <code>keepctx</code> as a second name in case another <code>ctx</code> is already on
+      your PATH.</p>
+<pre><code>curl -fsSL https://keepctx.com/install.sh | sh</code></pre>
     </li>
     <li>
       <h3>Set up in your project</h3>
@@ -151,7 +153,7 @@ ctx sync            <span class="c"># two-way. mostly automatic after this</span
 </div></section>
 
 <footer><div class="wrap">
-  <a href="https://github.com/sentityco/ctx">GitHub</a> ·
+  <a href="https://github.com/sentityco/keepctx">GitHub</a> ·
   <a href="app.html">Sign in</a> ·
   Apache-2.0 · free for individuals and small teams
 </div></footer>

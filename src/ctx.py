@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ctx — context management for AI and people.
+"""keepctx — context management for AI and people.
 
 Local by default. A context is a list of facts in markdown; the agent reads and
 edits facts.md directly, and ctx is called only for network work.
@@ -238,7 +238,7 @@ def cmd_init(argv):
     pointer = (
         f"{BEGIN}\n"
         f"AI context for this project lives in `{CTXDIR}/{INSTRUCTIONS}` — read it first.\n"
-        f"Missing? It is gitignored by design. Install ctx (https://d34xqgb75vvlg2.cloudfront.net), then\n"
+        f"Missing? It is gitignored by design. Install ctx (https://keepctx.com), then\n"
         f"`ctx clone <org>:<name>` — or `ctx init` if this project has no context yet.\n"
         f"{END}\n"
     )
@@ -427,7 +427,7 @@ def main():
     if cmd == "clone":
         return cmd_clone(argv[1:])
     if cmd == "upgrade":
-        print("ctx: install with brew or the install script; see https://d34xqgb75vvlg2.cloudfront.net")
+        print("ctx: install with brew or the install script; see https://keepctx.com")
         return 0
     if not argv:
         return cmd_status()
