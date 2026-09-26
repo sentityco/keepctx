@@ -1,15 +1,15 @@
 #!/bin/sh
 # keepctx installer. Downloads a single Python file; no dependencies.
 #
-# Installs two names for the same program: `ctx` (what you'll type) and
-# `keepctx` (an escape hatch — several unrelated projects also ship a `ctx`,
-# so if one is already on your PATH, use keepctx and nothing is blocked).
+# The executable is `keepctx`. It also installs `ctx` as a short alias, which is
+# what you'll actually type — unless another project's `ctx` is already on your
+# PATH, in which case the alias is skipped and keepctx still works.
 set -e
 
 REPO="${CTX_REPO:-sentityco/keepctx}"
 REF="${CTX_REF:-main}"
 PREFIX="${CTX_PREFIX:-$HOME/.local/bin}"
-URL="https://raw.githubusercontent.com/$REPO/$REF/src/ctx.py"
+URL="https://raw.githubusercontent.com/$REPO/$REF/src/keepctx.py"
 
 command -v python3 >/dev/null 2>&1 || {
   echo "keepctx needs python3 (3.9 or newer)." >&2

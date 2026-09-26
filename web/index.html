@@ -44,7 +44,7 @@
     </div>
     <div class="card">
       <h3>~1,200 tokens, not 50,000</h3>
-      <p>Preloading a company's knowledge every session is about 95% waste. ctx loads a small
+      <p>Preloading a company's knowledge every session is about 95% waste. keepctx loads a small
       index and fetches a context only when the task touches it.</p>
     </div>
     <div class="card">
@@ -107,9 +107,9 @@
   <ol class="steps">
     <li>
       <h3>Install</h3>
-      <p>Python 3.9 or newer. No dependencies. Installs as <code>ctx</code>, with
-      <code>keepctx</code> as a second name in case another <code>ctx</code> is already on
-      your PATH.</p>
+      <p>Python 3.9 or newer, no dependencies. The executable is <code>keepctx</code>;
+      <code>keepctx</code> is a short alias and what you'll type. If another <code>keepctx</code> is
+      already on your PATH the alias is skipped and <code>keepctx</code> works the same.</p>
 <pre><code>curl -fsSL https://keepctx.com/install.sh | sh</code></pre>
     </li>
     <li>
@@ -117,9 +117,9 @@
       <p>Creates <code>.ctx/</code>, adds two lines to <code>AGENTS.md</code>, and ignores itself
       in git. The name defaults to your directory.</p>
 <pre><code>cd ~/work/example-project
-ctx init
+keepctx init
 
-<span class="c">ctx: initialised `example-project`</span>
+<span class="c">keepctx: initialised `example-project`</span>
 <span class="c">  .ctx/example-project/facts.md      your facts</span>
 <span class="c">  .ctx/instructions.md   how the agent maintains them</span>
 <span class="c">  AGENTS.md              pointer added at the top</span></code></pre>
@@ -131,24 +131,24 @@ ctx init
     </li>
     <li>
       <h3>Share it, when you want to</h3>
-      <p>Local works forever with no account. <code>ctx remote</code> puts it on a server so
+      <p>Local works forever with no account. <code>keepctx remote</code> puts it on a server so
       your team gets it — and so it survives a dead laptop.</p>
-<pre><code>ctx remote          <span class="c"># one time, creates it on the server</span>
-ctx sync            <span class="c"># two-way. mostly automatic after this</span></code></pre>
+<pre><code>keepctx remote          <span class="c"># one time, creates it on the server</span>
+keepctx sync            <span class="c"># two-way. mostly automatic after this</span></code></pre>
     </li>
     <li>
       <h3>Your teammates</h3>
-<pre><code>ctx clone your-org:your-context</code></pre>
+<pre><code>keepctx clone your-org:your-context</code></pre>
     </li>
   </ol>
 
   <h3>The commands, all of them</h3>
   <table>
-    <tr><th><code>ctx</code></th><td>status</td></tr>
-    <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
-    <tr><th><code>ctx remote</code></th><td>one-time. create this context on a server</td></tr>
-    <tr><th><code>ctx clone org:name</code></th><td>get a context you don't have</td></tr>
-    <tr><th><code>ctx sync</code></th><td>upload local changes, download remote ones</td></tr>
+    <tr><th><code>keepctx</code></th><td>status</td></tr>
+    <tr><th><code>keepctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
+    <tr><th><code>keepctx remote</code></th><td>one-time. create this context on a server</td></tr>
+    <tr><th><code>keepctx clone org:name</code></th><td>get a context you don't have</td></tr>
+    <tr><th><code>keepctx sync</code></th><td>upload local changes, download remote ones</td></tr>
   </table>
 </div></section>
 

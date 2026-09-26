@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """keepctx — context management for AI and people.
 
+Installed as `keepctx`, with `ctx` as a short alias.
+
 Local by default. A context is a list of facts in markdown; the agent reads and
 edits facts.md directly, and ctx is called only for network work.
 """

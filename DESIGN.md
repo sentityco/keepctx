@@ -41,12 +41,12 @@ already annoyed by.
 It also collapses three claims into one sentence: writes itself (capture), stays current
 between sessions (persistence), shared (team).
 
-**One precision to keep.** ctx *extends* the mechanism; it does not take over the file. Hand-
-written instructions in `AGENTS.md` survive untouched — ctx adds a pointer and the maintained
+**One precision to keep.** keepctx *extends* the mechanism; it does not take over the file. Hand-
+written instructions in `AGENTS.md` survive untouched — keepctx adds a pointer and the maintained
 knowledge lives behind it. Worth stating plainly, because "this tool manages my AGENTS.md"
 makes people fear it will eat notes they wrote carefully, and the true answer is better than
 the worry. It is also the enterprise anti-objection: nothing you wrote is overwritten, and
-removing ctx is deleting two lines.
+removing keepctx is deleting two lines.
 
 ### The benefits, strongest first
 
@@ -83,7 +83,7 @@ team already knows, which is a different and more defensible claim.
 `facts.md` directly, so nothing observes a read. Easy to promise by accident, and it is a
 claim a customer can disprove in a day.
 
-## What ctx is
+## What keepctx is
 
 A small index that an agent always sees, pointing at contexts it fetches only when the
 task needs them.
@@ -95,7 +95,7 @@ AGENTS.md                ~40 tokens     — two lines the dev owns, pointing at 
 ```
 
 Three files, and the agent reaches them with ordinary file reads. `AGENTS.md` belongs to the
-developer, so ctx adds a pointer and never writes there again.
+developer, so keepctx adds a pointer and never writes there again.
 
 Preloading an organisation's knowledge costs ~50,000 tokens a session and is ~95% waste.
 That number is the whole argument.
@@ -118,7 +118,7 @@ There is no `add`, no `commit`, no `push`, no `pull`, no `render`, and no read c
 things. That is what agents are already good at — no subprocess, no stdout to parse, no
 permission prompt on the most frequent operation in the system.
 
-**ctx is only called for network work.** Once at session start and again after recording
+**keepctx is only called for network work.** Once at session start and again after recording
 facts. Facts change on the scale of hours, so paying for a round trip on every read would buy
 freshness nobody needs.
 
@@ -167,13 +167,13 @@ both are visible:
     .ctx/repo-a/facts.md          # this repo's own
 ```
 
-From inside `repo-a`, ctx reports both — `[this project]` for its own and `[inherited]` for
+From inside `repo-a`, keepctx reports both — `[this project]` for its own and `[inherited]` for
 the team's. **Contexts stack the way `AGENTS.md` does**, general underneath and specific on
 top, which is the convention agents already follow.
 
 The obvious implementation is wrong and worth naming: returning only the *nearest* context
 makes the outer one vanish the moment the inner one is created, which is the exact opposite
-of what nesting is for. ctx walks the whole chain upward.
+of what nesting is for. keepctx walks the whole chain upward.
 
 **Three kinds, because where a fact belongs depends on it:**
 
@@ -218,7 +218,7 @@ in the layout.
 Three things about that shape are load-bearing:
 
 **`instructions.md` sits above the contexts, not inside one.** The rules for maintaining
-context are identical for every context on the machine — they are ctx's own manual, not
+context are identical for every context on the machine — they are keepctx's own manual, not
 data about your project. A copy per context directory would be N copies drifting to
 different versions the moment clones arrive.
 
@@ -269,7 +269,7 @@ This is chosen over adding a line to the project's `.gitignore` for three reason
 - **It works before git exists, and the moment git arrives.** A dev who runs `ctx init`
   today and `git init` next week is covered with no window in which `git add .` could
   swallow the context.
-- **ctx never edits a file the developer owns.** Their `.gitignore` stays theirs.
+- **keepctx never edits a file the developer owns.** Their `.gitignore` stays theirs.
 - **It removes the detection logic entirely** — no walking up for `.git`, no handling
   `.git`-as-a-file in worktrees and submodules, no deciding between root and nested
   placement, no idempotent append. None of that is needed.
@@ -283,7 +283,7 @@ friction ratio for a decision this design has already made.
 
 ### What git sees: two lines
 
-Nothing about ctx is committed except a pointer, at the top of `AGENTS.md`, that a human
+Nothing about keepctx is committed except a pointer, at the top of `AGENTS.md`, that a human
 can read, edit or delete:
 
 ```markdown
@@ -293,11 +293,11 @@ Missing? It is gitignored by design. Install ctx (https://keepctx.com), then
 ```
 
 The pointer goes at the top so an agent sees it before reasoning on the rest of the file,
-and it is phrased as an instruction rather than a notice — "this file is managed by ctx"
+and it is phrased as an instruction rather than a notice — "this file is managed by keepctx"
 tells a model nothing it can act on.
 
 **The second line exists because the first one is a dead link on a fresh clone.** There are
-two failure shapes and only one self-heals. A teammate who has ctx installed follows the
+two failure shapes and only one self-heals. A teammate who has keepctx installed follows the
 fallback and is fine. A teammate who does not has an instruction they cannot satisfy — and
 an agent handed a missing referenced file tends to either burn turns hunting for it or
 quietly invent what it probably said. Naming the install step makes the pointer resolvable
@@ -311,8 +311,8 @@ human should see that step.
 an agent *which* contexts the project used — the developer has to know the name. Free for a
 solo dev, one line in a real README for a team, and it is the price of keeping git clean.
 
-**Uninstalling is deleting two lines.** ctx never returns to `AGENTS.md` after init, so
-those lines also persist if someone abandons ctx and removes `.ctx/`. Nothing can be done
+**Uninstalling is deleting two lines.** keepctx never returns to `AGENTS.md` after init, so
+those lines also persist if someone abandons keepctx and removes `.ctx/`. Nothing can be done
 about that, and it is worth documenting plainly: a tool that is trivial to remove is easier
 to adopt.
 
@@ -321,7 +321,7 @@ to adopt.
 A context is **a list of facts**. Not a document, not prose with facts in it — a list.
 
 **A context is whatever unit of knowledge is useful to you** — one repository, one service,
-one team, one programme, one platform. ctx does not care and should never impose a shape. The
+one team, one programme, one platform. keepctx does not care and should never impose a shape. The
 examples here use `example-org:example-project` for a repo or service and
 `example-org:example-platform` for something it depends on. `example-org:example-team` for a
 team, `example-org:example-migration` for a six-month programme, or
@@ -467,12 +467,12 @@ it constant-cost as the organisation grows. Search is the escape hatch, so nothi
 unreachable, just unlisted.
 
 **3. Read — your own context, then only what you need.** Reads are plain file reads, so this
-is not something ctx can enforce. It is guidance in `instructions.md`: read your own
+is not something keepctx can enforce. It is guidance in `instructions.md`: read your own
 `facts.md`, consult the index for dependencies, and open a dependency's `facts.md` only when
 the task actually touches it.
 
 That is weaker than a mechanism and it is the right weakness. The alternative was routing reads
-through ctx so depth could be capped — which made the most common operation in the system a
+through keepctx so depth could be capped — which made the most common operation in the system a
 subprocess, to solve a problem the index already mostly solves. An agent with a good index does
 not open forty files; it opens the one it needs.
 
@@ -539,17 +539,17 @@ AGENTS.md                →  read .ctx/instructions.md          (two committed 
 .ctx/<name>/facts.md     →  the facts. the agent reads and edits this directly.
 ```
 
-Three hops, and only the middle one is ctx's. The first is a file read of two committed lines;
+Three hops, and only the middle one is keepctx's. The first is a file read of two committed lines;
 the last is a file the agent owns for the length of the session.
 
 **`instructions.md` is where the discipline lives**, because it is loaded every session and the
-agent never rewrites it. Two directives about ctx and three about what deserves recording.
+agent never rewrites it. Two directives about keepctx and three about what deserves recording.
 
 ### Reaching a session that is already running
 
 `AGENTS.md` is read into an agent's context **at session start**. A file written after that
 reaches nobody until the next session — so `ctx init` in a live session installs instructions
-the running agent never sees. This is not hypothetical: it is what happened the first time ctx
+the running agent never sees. This is not hypothetical: it is what happened the first time keepctx
 was used on a real project, and the facts file stayed empty because of it.
 
 Every command ends with one line, and which line depends on who is reading:
@@ -559,7 +559,7 @@ Every command ends with one line, and which line depends on who is reading:
 | not a tty — an agent or hook ran it | `AGENTS.md changed — re-read it.` |
 | a tty — a person typed it | `Ask your AI to re-read AGENTS.md.` |
 
-That is the whole mechanism. ctx runs as a subprocess of the agent, so its stdout lands in the
+That is the whole mechanism. keepctx runs as a subprocess of the agent, so its stdout lands in the
 agent's context as the tool result — the one channel that reaches a session already in flight.
 
 **The instruction is "re-read AGENTS.md", not a copy of the rules.** An earlier version printed
@@ -589,7 +589,7 @@ sometimes will not. The failure is soft — you read facts that are a session st
 worth accepting rather than engineering around. Every mechanism that made skipping impossible
 cost more than the staleness did.
 
-### How ctx knows what changed
+### How keepctx knows what changed
 
 It diffs `facts.md` against the last-synced copy. A new key is an add; a changed value on an
 existing key is an update.
@@ -598,7 +598,7 @@ existing key is an update.
 mark each write `add` or `update` and submit a structured claim — one more judgment for a weak
 model to get wrong, replaced by a diff that cannot be wrong.
 
-### ctx never updates itself unasked
+### keepctx never updates itself unasked
 
 The version check prints a line and stops. A tool that silently replaces its own binary — one
 that agents invoke, inside an enterprise — is a supply-chain surprise waiting to happen. Same
@@ -624,7 +624,7 @@ API references, runbooks and FAQs are all fact lists, and they are what people r
 Nobody reads a narrative page to find the deploy command; they search for it. A list with good
 keys beats prose at lookup, which is most of what wiki reads are.
 
-The server renders because the wiki needs a URL; ctx can render to `.ctx/html/` for someone who
+The server renders because the wiki needs a URL; keepctx can render to `.ctx/html/` for someone who
 never publishes. Neither needs a model, which is what keeps the server runnable on the cheapest
 box there is.
 
@@ -840,7 +840,7 @@ support eight or more agents and that is the treadmill they are on.
 agents, read natively by the major ones. Betting on the standard is one integration instead
 of N, and it is where the industry is converging anyway.
 
-What ctx does instead requires no integration: it prints to its own stdout. That works
+What keepctx does instead requires no integration: it prints to its own stdout. That works
 identically for every agent that can run a shell command, today and for anything released
 later.
 
@@ -864,8 +864,8 @@ publishing the formula, which release tooling can do on every tag.
 tools that ship outside a package manager — rustup, Deno, uv and Bun all do exactly this. The
 installer drops a binary at a known path and the tool knows how to replace it when asked.
 
-**The version check costs nothing**, which is what makes it worth having: ctx already talks to
-the server on sync, so the response carries the latest version and ctx prints a line. No extra
+**The version check costs nothing**, which is what makes it worth having: keepctx already talks to
+the server on sync, so the response carries the latest version and keepctx prints a line. No extra
 request, no telemetry, no phone-home to justify.
 
 ```
@@ -938,7 +938,7 @@ tier has to be about the hosted instance: uptime, not thinking about it, and the
 effects below. Never about a licence term.
 
 **Licensing needs deciding before contributors arrive.** Fully permissive on the server
-means a cloud provider can offer hosted ctx and out-distribute the people who built it. The
+means a cloud provider can offer hosted keepctx and out-distribute the people who built it. The
 standard defence is a permissive client with AGPL or BSL on the server. Relicensing after
 other people have committed code is painful, so this is an early decision, not a later one.
 
@@ -988,7 +988,7 @@ Things a git repo structurally cannot do, so the gate is real rather than artifi
   the server, not ctx. An earlier draft claimed read telemetry as an enterprise feature; that
   died with the decision to make reads plain file operations, and it is worth recording as a
   real cost of that choice rather than quietly dropping. Recovering it would mean routing
-  reads through ctx, which is the trade already rejected.
+  reads through keepctx, which is the trade already rejected.
 - **Access control below repo granularity.** Some contexts are sensitive in ways that do
   not map to "who can clone this".
 - **Audit.** Who changed what context, when, and who settled it.

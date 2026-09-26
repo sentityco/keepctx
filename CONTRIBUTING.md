@@ -2,7 +2,7 @@
 
 ## The shape of the thing
 
-- `src/ctx.py` — the whole client. One file, standard library only.
+- `src/keepctx.py` — the whole client. One file, standard library only.
 - `server/handler.py` — the whole server. One file, boto3 only.
 - `web/` — landing page and the org app. No build step, no framework.
 - `DESIGN.md` — why things are the way they are.
@@ -14,8 +14,8 @@ adds a dependency needs to argue for it.
 ## Running it
 
 ```sh
-python3 src/ctx.py init        # no install needed
-CTX_REMOTE=http://localhost:8000 python3 src/ctx.py sync
+python3 src/keepctx.py init        # no install needed
+CTX_REMOTE=http://localhost:8000 python3 src/keepctx.py sync
 ```
 
 ## Before you open a PR

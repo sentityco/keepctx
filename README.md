@@ -13,12 +13,15 @@ cd ~/work/example-project && ctx init
 
 That's it. Local, no account, no network. An account only matters when you want to share.
 
+The executable is `keepctx`; `ctx` is a short alias and what you'll actually type. If another
+project's `ctx` is already on your PATH the alias is skipped, and `keepctx` works the same.
+
 ---
 
 ## What it does
 
 A context is a list of facts in plain markdown. **What a context covers is up to you** — a
-repo, a service, a team, a programme, a platform. ctx doesn't impose a shape:
+repo, a service, a team, a programme, a platform. keepctx doesn't impose a shape:
 
 ```markdown
 - **deploy.command** — `make ship` from the repo root, not the platform CLI
