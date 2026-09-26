@@ -465,7 +465,7 @@ def cmd_status():
     facts_path = root / CTXDIR / name / FACTS
     facts, _ = parse_facts(facts_path.read_text() if facts_path.exists() else "")
 
-    print(f"ctx {VERSION}")
+    print(f"keepctx {VERSION}")
     print(f"  root      {root}")
     print(f"  context   {name}")
     print(f"  facts     {len(facts)}")
@@ -510,7 +510,7 @@ def read_facts(root, name):
 
 
 def usage():
-    print("ctx — context management for AI and people")
+    print("keepctx — context management for AI and people")
     print()
     print("  ctx                    Show status")
     print("  ctx init [name]        Set up here — local, no account, no network")
@@ -528,7 +528,7 @@ def main():
     if cmd in ("-h", "--help", "help"):
         return usage()
     if cmd in ("-v", "--version"):
-        print(VERSION)
+        print(f"keepctx {VERSION}")
         return 0
     if cmd == "init":
         return cmd_init(argv[1:])
