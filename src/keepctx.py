@@ -328,7 +328,6 @@ def cmd_init(argv):
     if parent:
         print(f"  requires {parent} (the context this sits inside)")
     print()
-    print("all local. `ctx remote` when you want to share it.")
     print(reread())
     return 0
 
