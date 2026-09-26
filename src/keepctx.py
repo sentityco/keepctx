@@ -268,7 +268,7 @@ def cmd_init(argv):
     if found and not here_only:
         print(f"ctx: already set up in {found}")
         print(f"     that is a parent of {here}, so every project under it shares one")
-        print("     context. for a context scoped to this directory only:")
+        print("     context. For a context scoped to this directory only:")
         name = argv[0] if argv else here.name
         print(f"       ctx init --here {name}")
         return agent_index(found)
@@ -320,7 +320,7 @@ def cmd_init(argv):
     else:
         agents.write_text(pointer)
 
-    print(f"ctx: initialised `{name}`")
+    print(f"ctx: initialized `{name}`")
     w = max(len(facts_rel), len(f"{CTXDIR}/{INSTRUCTIONS}"), len(AGENTS))
     print(f"  {facts_rel:<{w}}  your facts")
     print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent maintains them")
@@ -345,7 +345,7 @@ def cmd_remote(argv):
     name = cfg.get("name") or slugify(root.name)
     if name in GENERIC:
         print(f"ctx: `{name}` is too generic to claim on a remote.")
-        print("     pick a name: ctx remote --name <name>")
+        print("     Pick a name: ctx remote --name <name>")
         return 1
     if "--name" in argv:
         name = slugify(argv[argv.index("--name") + 1])
@@ -369,7 +369,7 @@ def cmd_remote(argv):
     save_config(root, cfg)
     (root / CTXDIR / name / BASE).write_text(facts)
 
-    print(f"ctx: {cfg['org']}:{name} is live. others can `ctx clone {cfg['org']}:{name}`")
+    print(f"ctx: {cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
     return 0
 
 
@@ -380,8 +380,8 @@ def cmd_sync(argv):
         return 1
     cfg = load_config(root)
     if not cfg.get("org"):
-        print("no remote for this context — `ctx remote` to create one")
-        print("  (everything local keeps working without it)")
+        print("No remote for this context — `ctx remote` to create one.")
+        print("Everything local keeps working without it.")
         return 1
 
     name = cfg["name"]
@@ -442,13 +442,6 @@ def cmd_clone(argv):
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
     print()
-    if sys.stdout.isatty():
-        # A person is reading this, so it was typed in a terminal and no agent
-        # saw it. If an agent ran it, this note would be noise — the brief below
-        # is already in its context.
-        print("NOTE: you ran this in a terminal, so your AI session has not seen it —")
-        print("      agents read AGENTS.md when they start. Ask your agent to run")
-        print("      `ctx init` and it will pick this up. No restart needed.")
     print(reread())
     return 0
 
@@ -489,8 +482,7 @@ def cmd_status():
 
     if not facts:
         print()
-        print()
-        print("no facts yet — your agent writes them, not ctx. " + reread())
+        print("No facts yet — your agent writes them, not keepctx. " + reread())
     return 0
 
 
@@ -518,13 +510,13 @@ def read_facts(root, name):
 def usage():
     print("ctx — context management for AI and people")
     print()
-    print("  ctx                    status")
-    print("  ctx init [name]        set up here. local, no account, no network.")
-    print("  ctx remote             one-time. create this context on a remote.")
-    print("  ctx clone <org>:<name> get a context you do not have.")
-    print("  ctx sync               upload local changes, download remote ones.")
+    print("  ctx                    Show status")
+    print("  ctx init [name]        Set up here — local, no account, no network")
+    print("  ctx remote             Create this context on a remote (one time)")
+    print("  ctx clone <org>:<name> Get a context you do not have")
+    print("  ctx sync               Upload local changes, download remote ones")
     print()
-    print("everything works locally without an account.")
+    print("Everything works locally without an account.")
     return 0
 
 
