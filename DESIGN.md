@@ -1,315 +1,119 @@
-# ctx — a context manager for AI and people
+# ctx — design
 
-Status: design sketch, nothing built yet.
+**Thesis.** Agents start every session blind. The fix is not to load more context — it is
+to make context *cheap to find, cheap to read, and cheap to write*. Everything below
+follows from that.
 
-## The problem, stated precisely
+---
 
-Two problems get conflated here, and they have different solutions.
+## What ctx is
 
-**1. Durable knowledge.** How the enterprise works. Who owns what. Why that service
-exists. The conventions your team follows and the three other teams' conventions you
-need to respect. This changes slowly, is genuinely shared, and is currently trapped in
-Confluence, Slack threads, and people's heads. An agent starting cold has none of it.
+A small index that an agent always sees, pointing at contexts it fetches only when the
+task needs them.
 
-**2. Session continuity.** What I was doing twenty minutes ago. Which files I had open,
-what I already tried, what we decided. This changes constantly and is personal.
+```
+AGENTS.md          ~1,000 tokens  — always loaded, one line per context
+ctx get <id>       ~500 tokens    — paid only when relevant
+```
 
-`ctx` should solve (1) properly. It can help with (2) but should not pretend to be a
-memory system.
+Preloading an organisation's knowledge costs ~50,000 tokens a session and is ~95% waste.
+That number is the whole argument.
 
-## The counterintuitive part
+## The unit: a context
 
-The obvious design — "pull enterprise context into my workspace so the agent has it" —
-makes token cost *worse*, not better. If you preload 200KB of organisational context
-into every session, you pay ~50K tokens before the first question, and 95% of it is
-irrelevant to the task at hand.
-
-**The win is retrieval, not preload.**
-
-The design target:
-
-| Approach | Tokens per session |
-|---|---|
-| Preload everything | ~50,000 |
-| Index only, fetch on demand | ~1,000 + ~2,000 per context actually needed |
-
-So the always-on cost is a small index. Everything else is a tool call the agent makes
-when it decides it needs something.
-
-This is the same shape as `llms.txt` for websites: a cheap index that tells a machine
-what exists and where, not a dump of the content.
-
-## Architecture
-
-### Contexts
-
-The unit is a **context**: one markdown file, one topic, with frontmatter.
+One markdown file, one topic, with frontmatter.
 
 ```markdown
 ---
-id: payments-service
-title: Payments service ownership and on-call
-scope: team:payments          # enterprise | team:<name> | project:<name>
-owner: "@ktran"
-updated: 2026-09-14
-review_by: 2026-12-14
-summary: Who owns payments, how to page them, and the two gotchas in the refund path.
-tags: [payments, on-call, services]
+id: ace
+title: Team ACE — what we own and how we ship
+scope: team:ace              # enterprise | team:<name> | project:<name>
+owner: "@jmarks"
+state: verified
+updated: 2026-09-25
+review_by: 2027-09-25
+summary: What ACE owns, how we deploy, who to ask. ONE LINE — every session pays for this.
+requires: [comcast-cf, plat-splunk]
+related:  [payments-service]
 ---
-
-Body. Kept short on purpose — a context that needs 3,000 words is two contexts.
 ```
 
-Cards are small, owned, and dated. **Wrong context is worse than no context**, so
-ownership and freshness are first-class, not metadata afterthoughts.
+Small, owned, dated. **Wrong context is worse than no context**, so ownership and
+freshness are structural, not decoration.
 
-### Sources and the cache
+## Five decisions
 
-Teams publish contexts in their own repos, under `ctx/`. The enterprise publishes a central
-repo the same way. `ctx` registers those as **sources** and syncs them into a local
-cache.
+**1. Retrieval, not preload.** The index is the product; everything else is plumbing. If
+the index is good, the agent knows what exists and fetches correctly. If it is bad, no
+amount of storage helps.
 
-```
-~/.ctx/cache/<source>/…     # synced, never edited by hand
-./.ctx/                     # workspace-local: pins, overrides, session notes — gitignored
-./ctx/                      # this repo's own published contexts — committed
-```
+**2. Three layers, one mechanism.** `enterprise`, `team:<x>`, `project:<x>` are just
+scopes on the same object. No separate systems.
 
-The instinct not to commit the pulled context is right, with one refinement: the *cache*
-is gitignored, but the *source* lives in git, per team. That gives ownership, review,
-history, and blame for free — and it means "who changed this and why" has an answer.
+**3. `requires` is loaded, `related` is not.** Hard dependencies get pulled with the
+context; pointers get listed. Depth 2 by default, cycles detected, token cost always
+printed. Without that split one fetch drags in half the company.
 
-### Two front doors, one core
-
-- **CLI** for humans and scripts: `ctx get payments-service`
-- **MCP server** for agents that support it: the same operations as tools
-
-Same index, same contexts. The CLI matters because an agent can always shell out, even with
-no MCP configured.
-
-### The AGENTS.md hook
-
-`ctx index` emits a compact index. It gets written into `AGENTS.md` between markers so it
-regenerates cleanly:
-
-```markdown
-<!-- ctx:begin -->
-## Available context
-
-Run `ctx get <id>` to load any of these. Do not guess at these topics — fetch the context.
-
-- `payments-service` — who owns payments, how to page them, refund path gotchas (team:payments, 2026-09-14)
-- `deploy-pipeline` — how code reaches prod, who can approve (enterprise, 2026-08-02)
-- `glossary` — internal acronyms and what they actually mean (enterprise, 2026-09-01)
-<!-- ctx:end -->
-```
-
-That block is the entire always-on cost. Roughly 15 words per context, so 50 contexts is about
-1,000 tokens. The agent reads AGENTS.md automatically, sees what exists, and fetches only
-what the task needs.
-
-## Write-back: context that maintains itself
-
-The failure mode of every wiki is that nobody updates it. The fix is to let the agent
-capture context as a side effect of work that is already happening. But an agent writing
-straight into the trusted store is how you get compounding fiction: a wrong context becomes
-a fact, the next session builds on it, and six weeks later nobody can find the origin.
-
-So writes land in a **staging state**, not the trusted store. Every context carries a trust
-state, and the index shows it:
+**4. Agents propose, humans verify.** Write-back is how this survives contact with
+reality — every wiki dies of neglect, and capture-as-a-side-effect is the only known
+cure. But proposals land in a staging state, never straight into the trusted store, or
+a wrong context silently becomes a fact and the next session builds on it.
 
 | State | Meaning |
 |---|---|
-| `verified` | A human owner signed off. Treat as fact. |
+| `verified` | An owner signed off. Treat as fact. |
 | `proposed` | Agent-written, unreviewed. Useful, unconfirmed. |
-| `confirmed` | Used successfully N times, never contradicted. |
-| `disputed` | Someone hit a contradiction. Read the dispute before trusting. |
+| `disputed` | Someone hit a contradiction. Read that first. |
 | `stale` | Past `review_by`. Age is a claim about accuracy. |
 
-Promotion is one command (`ctx verify <id>`), so capture stays frictionless and readers
-still know what they are getting.
+The index shows state, so a reader always knows what it is trusting.
 
-### When the agent should write
+**5. No server required, ever.** Contexts are plain markdown; the index is a plain file.
+A team can run this out of a git repo forever. ctxhub adds hosting, discovery, usage
+signal and a review queue — it must never be the thing that makes `ctx` work, or this is
+a SaaS with a CLI rather than a format with a host.
 
-The seed instructions matter more than the mechanism. Most "interesting" things are not
-worth a context. The high-signal triggers are narrow:
+## When an agent writes back
 
-- **A correction.** The human corrected the agent about how something actually works.
-  This is the single most valuable signal available — it means the existing context was
-  wrong or missing, and you now have the right answer in hand.
-- **A discovery that cost effort.** Something that took reading four repos to establish.
-  If it was expensive once it will be expensive again.
-- **A decision and its reason.** We chose A over B because C. Decisions decay fastest
-  because the reasoning never gets written down.
+The instructions matter more than the mechanism. Most interesting things are not worth
+keeping. Three triggers only:
 
-And explicitly not: anything task-specific, anything the agent inferred rather than
-verified, anything already covered by an existing context (update that one instead).
+- **A human corrected you.** Highest signal available — existing context was wrong or
+  missing, and the right answer is in hand.
+- **Something cost real effort to establish.** Expensive once means expensive again.
+- **A decision and its reasoning.** Decisions decay fastest because the why never gets
+  written down.
 
-### Confirmation instead of review
+Never for task-specific detail, never for something inferred rather than verified, never
+when an existing context covers it — update that one instead.
 
-When an agent uses a `proposed` context and the work succeeds, it calls `ctx confirm <id>`.
-Several confirmations with no disputes makes a context eligible for promotion. That is an
-observed signal rather than an assigned one, and it attaches to the context.
+## Explicitly rejected
 
-## On weighting by person
+**Scoring people and weighting "smarter" users more.** Expertise is domain-scoped, not
+scalar — the best distributed-systems engineer is not authoritative on the refund path.
+Every proxy an LLM can compute (tenure, volume, confident phrasing) rewards the wrong
+thing. The social cost of a tool that silently ranks colleagues is disqualifying. And it
+addresses a rare problem.
 
-The instinct is right — some claims should carry more weight than others — but scoring
-people is the wrong lever, for four reasons.
+What that idea actually wants is *whose claim wins* and *how much to trust this*. Both
+come from scoring the **context**: ownership decides conflicts, state decides trust,
+usage decides quality.
 
-**Expertise is domain-scoped, not scalar.** The best distributed-systems engineer in the
-building is not authoritative about the payments refund path. The person who owns it is,
-regardless of seniority.
+**Session memory.** Continuity between sessions is a real problem and a different one.
+`ctx` should not pretend to solve it.
 
-**Any computable proxy measures the wrong thing.** Tenure, commit volume, verbosity,
-confidence of phrasing — these are what an LLM can actually observe, and they reward
-people who sound certain. That is the opposite of what you want.
+## Build order
 
-**The social cost is disqualifying.** A tool that silently ranks colleagues and
-discounts some of them is a political grenade, and people will find out. "The AI decided
-your input counts less" ends adoption on the day it is discovered.
+1. **Local only.** Built. Use it on a real repo for a fortnight.
+2. **Git backend.** One team. The question it answers: does anyone but the author ever
+   write a context?
+3. **ctxhub.** Only if step 2 produced anything worth hosting.
 
-**It solves a rare problem.** Genuinely conflicting context from two people is uncommon
-on a small team. Do not build a ranking system for the edge case.
+Building the hub first is a platform with nothing on it and no evidence anyone wants to
+put anything there.
 
-What you actually want from scoring is two things: whose claim wins in a conflict, and
-how much to trust a given context. Both are better served by scoring **the context, not the
-people**:
+## The thing that decides whether this works
 
-- **Ownership decides conflicts.** Cards have an owner; for their domain, their version
-  wins. This is `CODEOWNERS` logic, which organisations already accept.
-- **Provenance and state decide trust.** Who wrote it, when, whether anyone confirmed or
-  disputed it.
-- **Usage decides quality.** A context fetched often and never corrected is probably good.
-
-Same benefit, none of the politics.
-
-## ctxhub
-
-A hosted home for context — what GitHub is to git. Teams publish contexts there, discover
-each other's, and review the proposal queue in a browser. The `ctx` CLI is the client.
-
-### The rule that decides whether this works
-
-**The format and the CLI must be fully useful with no server at all.**
-
-GitHub won because git already worked. You could clone, branch and merge on a laptop
-with no account, and GitHub added collaboration on top of something already valuable.
-If `ctx` only functions when pointed at ctxhub, you do not have a protocol with a host —
-you have a SaaS with a CLI attached, which is a far harder thing to get into an
-enterprise and a far easier thing to be locked out of by a security review.
-
-So: contexts are plain markdown files. The index is a plain file. A team can run the whole
-thing out of a git repo forever and never create an account.
-
-### Backends
-
-One interface, three backends, chosen per source:
-
-| Backend | Use |
-|---|---|
-| `local` | A directory. Works offline, no setup, good for a single user. |
-| `git` | A repo. Ownership, review and history for free. Good for one org. |
-| `ctxhub` | Hosted. Discovery, usage data, access control, web editing. |
-
-`ctx sync` treats all three the same. Adding ctxhub later must not require changing a
-single context.
-
-### What ctxhub adds that git genuinely cannot
-
-Worth being strict here, because anything git can do should stay in git.
-
-- **Usage telemetry.** The context-scoring model above needs aggregate signal: which contexts
-  get fetched, which get disputed, which get fetched and then contradicted. A git repo
-  cannot see reads. This is the strongest argument for a hub.
-- **Cross-team discovery.** Searching across thirty repos you may not have cloned, or
-  may not have access to.
-- **The review queue.** Auto-capture produces proposals; proposals need draining. A
-  queue that lives in a web UI with notifications gets drained. A queue that requires
-  `git pull` does not.
-- **Non-engineer contributors.** Support, PM and ops hold some of the best context in a
-  company and will not author markdown in a pull request.
-- **Access control finer than repo permissions.** Some contexts are sensitive in ways that
-  do not map to "who can read this repo".
-
-### Build order
-
-Hub last. The sequence that de-risks it:
-
-1. Local-only CLI, real contexts, use it personally for a fortnight.
-2. Git backend, one team, see whether anyone but you writes a context.
-3. ctxhub, only if step 2 produced contexts worth hosting.
-
-Building the hub first is the classic failure: a platform with nothing on it, and no
-evidence anyone wants to put anything there.
-
-## Dependencies
-
-A context can declare what it requires. Team ACE cannot be understood without knowing
-about Cloud Foundry and Splunk, so:
-
-```yaml
-requires: [comcast-cf, plat-splunk, oncall-rota]   # auto-loaded with this one
-related:  [payments-service]                        # listed, never auto-loaded
-```
-
-Two relationships, deliberately. `requires` is a hard dependency and gets pulled;
-`related` is a pointer and does not. Without that split, one fetch transitively drags in
-half the organisation — the exact token blowup this design exists to avoid.
-
-Three further guards:
-
-- `ctx get` follows `requires` to **depth 2 by default**; `--depth N` or `--no-deps` to
-  change it. Anything cut off is named in a comment so the agent knows it exists.
-- Cycles are detected, not followed.
-- Every multi-context fetch prints its token cost, and `ctx deps <id>` shows the tree
-  and the total before you pay for it.
-
-```
-$ ctx deps ace
-ace  — Team ACE: what we own, how we deploy, who to ask [15t]
-├ comcast-cf  — Comcast Cloud Foundry: spaces, quotas, how to get a route [15t]
-├ plat-splunk  — Platform Splunk: indexes we can read, how to get access [15t]
-└ oncall-rota  — Who is on call and how paging actually reaches them [15t]
-
-4 contexts in the closure, roughly 60 tokens
-```
-
-## Command surface (proposed)
-
-```
-ctx init                    scaffold ./ctx and ./.ctx, add gitignore entries
-ctx source add <git-url>    register a context source
-ctx sync                    pull all sources into the cache
-ctx index                   print the index; --write updates AGENTS.md
-ctx list                    list contexts; --scope --state --tag
-ctx deps <id>               dependency tree and total token cost
-ctx get <id> [<id>...]      print one or more contexts
-ctx search <query>          find contexts by summary/tags/body
-ctx new <id>                scaffold a context in this repo
-ctx stale                   list contexts past review_by, by owner
-ctx propose <id>            agent-written context, lands as `proposed`
-ctx confirm <id>            record that a context held up in practice
-ctx dispute <id> <why>      flag a contradiction
-ctx verify <id>             owner signs off; promotes to `verified`
-ctx review                  queue of proposed/disputed contexts awaiting a human
-ctx save [note]             write a session handoff note to ./.ctx/sessions/
-```
-
-## On session continuity
-
-`ctx save` writes a short handoff — what we were doing, what was decided, what is next.
-`ctx get session:last` pulls it back. That is a deliberate substitute for keeping a
-session alive for days: a 300-token note instead of a 200K-token transcript.
-
-It is not memory. It is a note you choose to write, which is also why it will be accurate.
-
-## Open questions
-
-1. **Does anyone but the author write contexts?** This is the whole bet. Step 2 of the build
-   order exists to answer it cheaply, before ctxhub is built.
-2. **Access control** — if some contexts are sensitive, does ctx rely on git permissions,
-   or does it need its own model? Git is right for v1.
-3. **Does the review queue get drained?** Auto-capture moves the failure mode rather than
-   removing it: instead of an empty wiki you get an unreviewed queue. Worth deciding what
-   happens to a `proposed` context nobody looks at for 90 days — expire it, or let
-   confirmations promote it without a human.
+Not the storage, the sync, or the hub. **Whether the one-line summaries are good.** A bad
+summary means the agent never fetches the context, and an unfetched context may as well
+not exist. No tooling fixes that — it is a writing problem, and it is the only real risk.
