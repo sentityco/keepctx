@@ -304,8 +304,9 @@ def cmd_init(argv):
     print()
     print("all local. `ctx remote` when you want to share it.")
     print()
-    print("NOTE: if an AI session is already open, restart it. Agents read AGENTS.md")
-    print("      when they start, so one running now will not see this until it does.")
+    print("NOTE: an AI session that is already open has not seen this — agents read")
+    print("      AGENTS.md when they start. Just tell it to run `ctx` and it will")
+    print("      catch up. Restarting the session also works.")
     print(agent_brief(name))
     return 0
 
@@ -420,8 +421,9 @@ def cmd_clone(argv):
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
     print()
-    print("NOTE: if an AI session is already open, restart it. Agents read AGENTS.md")
-    print("      when they start, so one running now will not see this until it does.")
+    print("NOTE: an AI session that is already open has not seen this — agents read")
+    print("      AGENTS.md when they start. Just tell it to run `ctx` and it will")
+    print("      catch up. Restarting the session also works.")
     print(agent_brief(name, "cloned"))
     return 0
 
@@ -460,8 +462,8 @@ def cmd_status():
     if not facts:
         print()
         print("no facts yet. ctx does not write them — your agent does, as it works.")
-        print("if nothing appears, your AI session probably started before `ctx init`")
-        print("ran. Restart it: agents read AGENTS.md when they start.")
+        print("if nothing appears, your AI session started before `ctx init` ran and")
+        print("has not seen the context. Tell it to run `ctx` and it will catch up.")
     return 0
 
 

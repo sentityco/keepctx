@@ -524,13 +524,17 @@ session already in flight. The output *is* the injection; no re-read is required
 commands are one-time, so the tokens are paid once. `ctx sync` prints no brief: it runs
 constantly and a reminder every call would be waste.
 
-**To the human, if the human ran it.** *Restart your AI session.* That is the whole answer,
-and it is better than anything clever: it needs no hook, no plugin, no per-agent config, and
-it works identically for every agent that exists or ships next year.
+**To the human, if the human ran it.** *Tell your agent to run `ctx`.* Bare `ctx` prints the
+same brief, so one command catches the session up without losing any of its working state.
+Restarting also works and is the fallback, but it throws away everything the session knows,
+which is a strange price for a setup step.
 
-The cost of that instruction is one session, once, at first setup. From the next session
-`AGENTS.md` loads normally and the pointer works. A first-run papercut does not justify an
-integration surface.
+This is why bare `ctx` prints the brief to a non-tty caller. It does double duty: the thing a
+session-start hook would run, and the thing a human tells their agent to run. Neither needs
+ctx to know anything about which agent it is talking to.
+
+That is the entire answer — no hook, no plugin, no per-agent config, and it works identically
+for every agent that exists or ships next year.
 
 ### When sync fires
 
