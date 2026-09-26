@@ -1,5 +1,17 @@
 # ctx — design
 
+**Positioning.** Context management is the new wiki: AI first, readable by humans.
+
+A wiki is written for people and machine-read as an afterthought. This inverts it —
+written to be read by an agent every session, rendered to HTML when a person wants to
+look. `ctx render` produces a static site from the same files `ctx get` serves.
+
+**Why it does not rot the way wikis do.** Wikis die of low read volume: a page nobody
+opens is a page nobody notices is wrong. An agent reads context every session, which is
+what surfaces errors — and the correction gets captured at the moment someone has the
+right answer in hand. The reading is what keeps the writing honest. That is the whole
+argument for AI-first, and it is a claim this project lives or dies on.
+
 **Thesis.** Agents start every session blind. The fix is not to load more context — it is
 to make context *cheap to find, cheap to read, and cheap to write*. Everything below
 follows from that.

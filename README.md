@@ -1,6 +1,10 @@
 # ctx
 
-A context manager for AI and people.
+**Context management is the new wiki — AI first, readable by humans.**
+
+A wiki is written for people and scraped by machines as an afterthought. `ctx` inverts
+that: contexts are written to be read by an agent every session, and rendered to HTML
+when a person wants to look.
 
 Every new AI session starts blind. The usual workarounds are to keep one session alive
 for days, or to paste the same background in again — both of which burn tokens on
@@ -19,6 +23,21 @@ ctx propose <id>    # write something back
 ctx push            # send it upstream for the owner to review
 ctx status          # totals, and what the index costs per session
 ```
+
+## Why this does not die the way wikis die
+
+Wikis rot because nobody reads them. A page nobody opens is a page nobody notices is
+wrong, and the error sits there for years.
+
+An agent reads context on **every session**. High read volume is what surfaces errors —
+and when the agent is corrected, `ctx propose` captures the correction while someone has
+the right answer in hand. The reading is what keeps the writing honest.
+
+```sh
+ctx render          # every context as static HTML, for humans
+```
+
+Same files either way. The agent reads the markdown; a person reads the page.
 
 ## Why an index instead of a dump
 
