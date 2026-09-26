@@ -31,7 +31,7 @@ The design target:
 | Approach | Tokens per session |
 |---|---|
 | Preload everything | ~50,000 |
-| Index only, fetch on demand | ~1,000 + ~2,000 per card actually needed |
+| Index only, fetch on demand | ~1,000 + ~2,000 per context actually needed |
 
 So the always-on cost is a small index. Everything else is a tool call the agent makes
 when it decides it needs something.
@@ -41,9 +41,9 @@ what exists and where, not a dump of the content.
 
 ## Architecture
 
-### Context cards
+### Contexts
 
-The unit is a **card**: one markdown file, one topic, with frontmatter.
+The unit is a **context**: one markdown file, one topic, with frontmatter.
 
 ```markdown
 ---
@@ -57,7 +57,7 @@ summary: Who owns payments, how to page them, and the two gotchas in the refund 
 tags: [payments, on-call, services]
 ---
 
-Body. Kept short on purpose — a card that needs 3,000 words is two cards.
+Body. Kept short on purpose — a context that needs 3,000 words is two contexts.
 ```
 
 Cards are small, owned, and dated. **Wrong context is worse than no context**, so
@@ -65,14 +65,14 @@ ownership and freshness are first-class, not metadata afterthoughts.
 
 ### Sources and the cache
 
-Teams publish cards in their own repos, under `ctx/`. The enterprise publishes a central
+Teams publish contexts in their own repos, under `ctx/`. The enterprise publishes a central
 repo the same way. `ctx` registers those as **sources** and syncs them into a local
 cache.
 
 ```
 ~/.ctx/cache/<source>/…     # synced, never edited by hand
 ./.ctx/                     # workspace-local: pins, overrides, session notes — gitignored
-./ctx/                      # this repo's own published cards — committed
+./ctx/                      # this repo's own published contexts — committed
 ```
 
 The instinct not to commit the pulled context is right, with one refinement: the *cache*
@@ -84,7 +84,7 @@ history, and blame for free — and it means "who changed this and why" has an a
 - **CLI** for humans and scripts: `ctx get payments-service`
 - **MCP server** for agents that support it: the same operations as tools
 
-Same index, same cards. The CLI matters because an agent can always shell out, even with
+Same index, same contexts. The CLI matters because an agent can always shell out, even with
 no MCP configured.
 
 ### The AGENTS.md hook
@@ -96,7 +96,7 @@ regenerates cleanly:
 <!-- ctx:begin -->
 ## Available context
 
-Run `ctx get <id>` to load any of these. Do not guess at these topics — fetch the card.
+Run `ctx get <id>` to load any of these. Do not guess at these topics — fetch the context.
 
 - `payments-service` — who owns payments, how to page them, refund path gotchas (team:payments, 2026-09-14)
 - `deploy-pipeline` — how code reaches prod, who can approve (enterprise, 2026-08-02)
@@ -104,7 +104,7 @@ Run `ctx get <id>` to load any of these. Do not guess at these topics — fetch 
 <!-- ctx:end -->
 ```
 
-That block is the entire always-on cost. Roughly 15 words per card, so 50 cards is about
+That block is the entire always-on cost. Roughly 15 words per context, so 50 contexts is about
 1,000 tokens. The agent reads AGENTS.md automatically, sees what exists, and fetches only
 what the task needs.
 
@@ -112,10 +112,10 @@ what the task needs.
 
 The failure mode of every wiki is that nobody updates it. The fix is to let the agent
 capture context as a side effect of work that is already happening. But an agent writing
-straight into the trusted store is how you get compounding fiction: a wrong card becomes
+straight into the trusted store is how you get compounding fiction: a wrong context becomes
 a fact, the next session builds on it, and six weeks later nobody can find the origin.
 
-So writes land in a **staging state**, not the trusted store. Every card carries a trust
+So writes land in a **staging state**, not the trusted store. Every context carries a trust
 state, and the index shows it:
 
 | State | Meaning |
@@ -132,7 +132,7 @@ still know what they are getting.
 ### When the agent should write
 
 The seed instructions matter more than the mechanism. Most "interesting" things are not
-worth a card. The high-signal triggers are narrow:
+worth a context. The high-signal triggers are narrow:
 
 - **A correction.** The human corrected the agent about how something actually works.
   This is the single most valuable signal available — it means the existing context was
@@ -143,13 +143,13 @@ worth a card. The high-signal triggers are narrow:
   because the reasoning never gets written down.
 
 And explicitly not: anything task-specific, anything the agent inferred rather than
-verified, anything already covered by an existing card (update that one instead).
+verified, anything already covered by an existing context (update that one instead).
 
 ### Confirmation instead of review
 
-When an agent uses a `proposed` card and the work succeeds, it calls `ctx confirm <id>`.
-Several confirmations with no disputes makes a card eligible for promotion. That is an
-observed signal rather than an assigned one, and it attaches to the card.
+When an agent uses a `proposed` context and the work succeeds, it calls `ctx confirm <id>`.
+Several confirmations with no disputes makes a context eligible for promotion. That is an
+observed signal rather than an assigned one, and it attaches to the context.
 
 ## On weighting by person
 
@@ -172,20 +172,20 @@ your input counts less" ends adoption on the day it is discovered.
 on a small team. Do not build a ranking system for the edge case.
 
 What you actually want from scoring is two things: whose claim wins in a conflict, and
-how much to trust a given card. Both are better served by scoring **the context, not the
+how much to trust a given context. Both are better served by scoring **the context, not the
 people**:
 
 - **Ownership decides conflicts.** Cards have an owner; for their domain, their version
   wins. This is `CODEOWNERS` logic, which organisations already accept.
 - **Provenance and state decide trust.** Who wrote it, when, whether anyone confirmed or
   disputed it.
-- **Usage decides quality.** A card fetched often and never corrected is probably good.
+- **Usage decides quality.** A context fetched often and never corrected is probably good.
 
 Same benefit, none of the politics.
 
 ## ctxhub
 
-A hosted home for context — what GitHub is to git. Teams publish cards there, discover
+A hosted home for context — what GitHub is to git. Teams publish contexts there, discover
 each other's, and review the proposal queue in a browser. The `ctx` CLI is the client.
 
 ### The rule that decides whether this works
@@ -198,7 +198,7 @@ If `ctx` only functions when pointed at ctxhub, you do not have a protocol with 
 you have a SaaS with a CLI attached, which is a far harder thing to get into an
 enterprise and a far easier thing to be locked out of by a security review.
 
-So: cards are plain markdown files. The index is a plain file. A team can run the whole
+So: contexts are plain markdown files. The index is a plain file. A team can run the whole
 thing out of a git repo forever and never create an account.
 
 ### Backends
@@ -212,13 +212,13 @@ One interface, three backends, chosen per source:
 | `ctxhub` | Hosted. Discovery, usage data, access control, web editing. |
 
 `ctx sync` treats all three the same. Adding ctxhub later must not require changing a
-single card.
+single context.
 
 ### What ctxhub adds that git genuinely cannot
 
 Worth being strict here, because anything git can do should stay in git.
 
-- **Usage telemetry.** The card-scoring model above needs aggregate signal: which cards
+- **Usage telemetry.** The context-scoring model above needs aggregate signal: which contexts
   get fetched, which get disputed, which get fetched and then contradicted. A git repo
   cannot see reads. This is the strongest argument for a hub.
 - **Cross-team discovery.** Searching across thirty repos you may not have cloned, or
@@ -228,19 +228,51 @@ Worth being strict here, because anything git can do should stay in git.
   `git pull` does not.
 - **Non-engineer contributors.** Support, PM and ops hold some of the best context in a
   company and will not author markdown in a pull request.
-- **Access control finer than repo permissions.** Some cards are sensitive in ways that
+- **Access control finer than repo permissions.** Some contexts are sensitive in ways that
   do not map to "who can read this repo".
 
 ### Build order
 
 Hub last. The sequence that de-risks it:
 
-1. Local-only CLI, real cards, use it personally for a fortnight.
-2. Git backend, one team, see whether anyone but you writes a card.
-3. ctxhub, only if step 2 produced cards worth hosting.
+1. Local-only CLI, real contexts, use it personally for a fortnight.
+2. Git backend, one team, see whether anyone but you writes a context.
+3. ctxhub, only if step 2 produced contexts worth hosting.
 
 Building the hub first is the classic failure: a platform with nothing on it, and no
 evidence anyone wants to put anything there.
+
+## Dependencies
+
+A context can declare what it requires. Team ACE cannot be understood without knowing
+about Cloud Foundry and Splunk, so:
+
+```yaml
+requires: [comcast-cf, plat-splunk, oncall-rota]   # auto-loaded with this one
+related:  [payments-service]                        # listed, never auto-loaded
+```
+
+Two relationships, deliberately. `requires` is a hard dependency and gets pulled;
+`related` is a pointer and does not. Without that split, one fetch transitively drags in
+half the organisation — the exact token blowup this design exists to avoid.
+
+Three further guards:
+
+- `ctx get` follows `requires` to **depth 2 by default**; `--depth N` or `--no-deps` to
+  change it. Anything cut off is named in a comment so the agent knows it exists.
+- Cycles are detected, not followed.
+- Every multi-context fetch prints its token cost, and `ctx deps <id>` shows the tree
+  and the total before you pay for it.
+
+```
+$ ctx deps ace
+ace  — Team ACE: what we own, how we deploy, who to ask [15t]
+├ comcast-cf  — Comcast Cloud Foundry: spaces, quotas, how to get a route [15t]
+├ plat-splunk  — Platform Splunk: indexes we can read, how to get access [15t]
+└ oncall-rota  — Who is on call and how paging actually reaches them [15t]
+
+4 contexts in the closure, roughly 60 tokens
+```
 
 ## Command surface (proposed)
 
@@ -249,15 +281,17 @@ ctx init                    scaffold ./ctx and ./.ctx, add gitignore entries
 ctx source add <git-url>    register a context source
 ctx sync                    pull all sources into the cache
 ctx index                   print the index; --write updates AGENTS.md
-ctx get <id> [<id>...]      print one or more cards
-ctx search <query>          find cards by summary/tags/body
-ctx new <id>                scaffold a card in this repo
-ctx stale                   list cards past review_by, by owner
-ctx propose <id>            agent-written card, lands as `proposed`
-ctx confirm <id>            record that a card held up in practice
+ctx list                    list contexts; --scope --state --tag
+ctx deps <id>               dependency tree and total token cost
+ctx get <id> [<id>...]      print one or more contexts
+ctx search <query>          find contexts by summary/tags/body
+ctx new <id>                scaffold a context in this repo
+ctx stale                   list contexts past review_by, by owner
+ctx propose <id>            agent-written context, lands as `proposed`
+ctx confirm <id>            record that a context held up in practice
 ctx dispute <id> <why>      flag a contradiction
 ctx verify <id>             owner signs off; promotes to `verified`
-ctx review                  queue of proposed/disputed cards awaiting a human
+ctx review                  queue of proposed/disputed contexts awaiting a human
 ctx save [note]             write a session handoff note to ./.ctx/sessions/
 ```
 
@@ -271,11 +305,11 @@ It is not memory. It is a note you choose to write, which is also why it will be
 
 ## Open questions
 
-1. **Does anyone but the author write cards?** This is the whole bet. Step 2 of the build
+1. **Does anyone but the author write contexts?** This is the whole bet. Step 2 of the build
    order exists to answer it cheaply, before ctxhub is built.
-2. **Access control** — if some cards are sensitive, does ctx rely on git permissions,
+2. **Access control** — if some contexts are sensitive, does ctx rely on git permissions,
    or does it need its own model? Git is right for v1.
 3. **Does the review queue get drained?** Auto-capture moves the failure mode rather than
    removing it: instead of an empty wiki you get an unreviewed queue. Worth deciding what
-   happens to a `proposed` card nobody looks at for 90 days — expire it, or let
+   happens to a `proposed` context nobody looks at for 90 days — expire it, or let
    confirmations promote it without a human.

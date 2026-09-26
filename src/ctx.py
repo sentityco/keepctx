@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """ctx — a context manager for AI and people.
 
-Cards are plain markdown with frontmatter. The index is a plain file. Everything
+Contexts are plain markdown with frontmatter. The index is a plain file. Everything
 works with no server; a hosted backend is an option, never a requirement.
 """
 import argparse, datetime, json, os, pathlib, re, sys, textwrap
 
-PUBLISHED = "ctx"      # committed: cards this repo owns
+PUBLISHED = "ctx"      # committed: contexts this repo owns
 WORKING   = ".ctx"     # gitignored: cache, proposals, session notes
 AGENTS    = "AGENTS.md"
 BEGIN, END = "<!-- ctx:begin -->", "<!-- ctx:end -->"
@@ -14,7 +14,7 @@ BEGIN, END = "<!-- ctx:begin -->", "<!-- ctx:end -->"
 STATES = ("verified", "confirmed", "proposed", "disputed", "stale")
 
 
-# ---------- card parsing ----------
+# ---------- parsing ----------
 
 def parse(path):
     text = path.read_text()
@@ -27,6 +27,9 @@ def parse(path):
             continue
         k, v = line.split(":", 1)
         meta[k.strip()] = v.strip().strip('"').strip("'")
+    for key in ("requires", "related", "tags"):
+        raw = meta.get(key, "")
+        meta[key] = [x.strip() for x in raw.strip("[]").split(",") if x.strip()]
     meta["_path"], meta["_body"] = path, body
     meta.setdefault("id", path.stem)
     meta.setdefault("state", "proposed")
@@ -35,19 +38,45 @@ def parse(path):
 
 
 def load_all(root):
-    cards = {}
+    ctxs = {}
     for base in (root / PUBLISHED, root / WORKING / "cache", root / WORKING / "proposed"):
         if not base.exists():
             continue
         for p in sorted(base.rglob("*.md")):
             c = parse(p)
             if c:
-                cards[c["id"]] = c
-    for c in cards.values():
+                ctxs[c["id"]] = c
+    for c in ctxs.values():
         rb = c.get("review_by")
         if rb and rb < datetime.date.today().isoformat() and c["state"] == "verified":
             c["state"] = "stale"
-    return cards
+    return ctxs
+
+
+def tokens(c):
+    """Rough token cost of a context's body."""
+    return int(len(c["_body"].split()) * 1.4)
+
+
+def resolve(ctxs, ids, depth=2):
+    """Requires-closure, breadth-first, cycle-safe. Returns (ordered ids, missing, cut)."""
+    seen, order, missing, cut = set(), [], [], []
+    frontier = [(i, 0) for i in ids]
+    while frontier:
+        cid, d = frontier.pop(0)
+        if cid in seen:
+            continue
+        seen.add(cid)
+        c = ctxs.get(cid)
+        if not c:
+            missing.append(cid)
+            continue
+        order.append(cid)
+        if d >= depth:
+            cut.extend(r for r in c["requires"] if r not in seen)
+            continue
+        frontier.extend((r, d + 1) for r in c["requires"] if r not in seen)
+    return order, missing, sorted(set(cut))
 
 
 def root_dir():
@@ -81,37 +110,37 @@ scope: team
 owner: "{os.environ.get('USER', 'unknown')}"
 state: verified
 updated: {datetime.date.today()}
-summary: What ctx is, when to read a card, and when to write one back.
+summary: What ctx is, when to read a context, and when to write one back.
 tags: [meta, ctx]
 ---
 
-Context lives in `{PUBLISHED}/` as small markdown cards, one topic each. `{WORKING}/` is a
+Contexts live in `{PUBLISHED}/` as small markdown files, one topic each. `{WORKING}/` is a
 working directory and is not committed.
 
-Read a card with `ctx get <id>`. The index in {AGENTS} lists what exists — that index is
+Read one with `ctx get <id>`. The index in {AGENTS} lists what exists — that index is
 the only thing loaded every session, so keep summaries to one line.
 
-Write a card back when, and only when, one of these happens:
+Write one back when, and only when, one of these happens:
 
 - Someone corrects you about how something actually works.
 - You establish something that took real digging.
 - A decision gets made and the reasoning would otherwise be lost.
 
 Not for anything task-specific, anything you inferred rather than verified, or anything
-an existing card already covers — update that one instead.
+an existing context already covers — update that one instead.
 """)
 
     write_index(root)
     print(f"initialised ctx in {root}")
-    print(f"  {PUBLISHED}/       cards this repo owns (commit these)")
+    print(f"  {PUBLISHED}/       contexts this repo owns (commit these)")
     print(f"  {WORKING}/      working dir (gitignored)")
     print(f"  {AGENTS}      index + write-back instructions")
     print(f"\nnext: ctx new <id>   ·   ctx status")
 
 
-def index_lines(cards):
+def index_lines(ctxs):
     out = []
-    for c in sorted(cards.values(), key=lambda c: (c.get("scope", ""), c["id"])):
+    for c in sorted(ctxs.values(), key=lambda c: (c.get("scope", ""), c["id"])):
         mark = {"verified": "", "confirmed": " ~confirmed", "proposed": " ~unverified",
                 "disputed": " ~disputed", "stale": " ~stale"}.get(c["state"], "")
         out.append(f"- `{c['id']}` — {c.get('summary','(no summary)')} "
@@ -120,21 +149,21 @@ def index_lines(cards):
 
 
 def write_index(root):
-    cards = load_all(root)
+    ctxs = load_all(root)
     block = "\n".join([
         BEGIN,
-        "## Context available to you",
+        "## Contexts available to you",
         "",
-        "Fetch with `ctx get <id>` — do not guess at these topics. Cards marked",
+        "Fetch with `ctx get <id>` — do not guess at these topics. Contexts marked",
         "`~unverified` were written by an agent and not yet reviewed; `~stale` means the",
         "owner has not confirmed it recently. Weight them accordingly.",
         "",
-        *index_lines(cards),
+        *index_lines(ctxs),
         "",
         "Write context back with `ctx propose <id>` when someone corrects you, when you",
         "establish something that took real digging, or when a decision is made whose",
         "reasoning would otherwise be lost. Not for task-specific detail, not for things",
-        "you inferred rather than verified, and not when an existing card covers it.",
+        "you inferred rather than verified, and not when an existing context covers it.",
         END,
     ])
     p = root / AGENTS
@@ -144,17 +173,17 @@ def write_index(root):
     else:
         text = text.rstrip() + "\n\n" + block + "\n"
     p.write_text(text)
-    return len(cards)
+    return len(ctxs)
 
 
 def cmd_index(args):
     root = root_dir()
     n = write_index(root) if args.write else None
-    cards = load_all(root)
+    ctxs = load_all(root)
     if args.write:
-        print(f"wrote {n} cards into {AGENTS}")
+        print(f"wrote {n} contexts into {AGENTS}")
     else:
-        print("\n".join(index_lines(cards)) or "no cards yet — try: ctx new <id>")
+        print("\n".join(index_lines(ctxs)) or "no contexts yet — try: ctx new <id>")
 
 
 def cmd_new(args):
@@ -173,26 +202,42 @@ state: verified
 updated: {today}
 review_by: {today.replace(year=today.year + 1) if today.month != 2 or today.day != 29 else today}
 summary: {args.summary or 'ONE LINE — this is what every session pays for.'}
+requires: [{args.requires or ''}]
+related: [{args.related or ''}]
 tags: []
 ---
 
-Body. If this needs three thousand words it is two cards.
+Body. If this needs three thousand words it is two contexts.
 """)
     write_index(root)
     print(f"created {path.relative_to(root)}")
 
 
 def cmd_get(args):
-    cards = load_all(root_dir())
-    for cid in args.ids:
-        c = cards.get(cid)
-        if not c:
-            print(f"# {cid}\n\nno such card. `ctx index` lists what exists.\n")
-            continue
-        print(f"# {c.get('title', cid)}")
+    ctxs = load_all(root_dir())
+    if args.no_deps:
+        order, missing, cut = [i for i in args.ids if i in ctxs], \
+                              [i for i in args.ids if i not in ctxs], []
+    else:
+        order, missing, cut = resolve(ctxs, args.ids, args.depth)
+
+    for cid in order:
+        c = ctxs[cid]
+        why = "" if cid in args.ids else "  (required by a context you asked for)"
+        print(f"# {c.get('title', cid)}{why}")
         print(f"<!-- {c['state']} · {c.get('scope')} · owner {c.get('owner')} · "
               f"updated {c.get('updated')} -->\n")
         print(c["_body"] + "\n")
+        if c["related"]:
+            print(f"Related, not loaded: {', '.join('`'+r+'`' for r in c['related'])}\n")
+
+    for cid in missing:
+        print(f"# {cid}\n\nno such context. `ctx index` lists what exists.\n")
+    if cut:
+        print(f"<!-- depth {args.depth} reached; not loaded: {', '.join(cut)} -->")
+    if len(order) > 1:
+        total = sum(tokens(ctxs[c]) for c in order)
+        print(f"<!-- {len(order)} contexts, roughly {total} tokens -->")
 
 
 def cmd_search(args):
@@ -221,6 +266,8 @@ state: proposed
 updated: {datetime.date.today()}
 summary: {args.summary or 'proposed by an agent — needs a one-line summary'}
 source: agent
+requires: [{args.requires or ''}]
+related: [{args.related or ''}]
 tags: []
 ---
 
@@ -231,8 +278,8 @@ tags: []
 
 
 def cmd_review(args):
-    cards = load_all(root_dir())
-    queue = [c for c in cards.values() if c["state"] in ("proposed", "disputed", "stale")]
+    ctxs = load_all(root_dir())
+    queue = [c for c in ctxs.values() if c["state"] in ("proposed", "disputed", "stale")]
     if not queue:
         print("nothing awaiting review")
         return
@@ -243,10 +290,10 @@ def cmd_review(args):
 
 def cmd_verify(args):
     root = root_dir()
-    cards = load_all(root)
-    c = cards.get(args.id)
+    ctxs = load_all(root)
+    c = ctxs.get(args.id)
     if not c:
-        sys.exit(f"no card {args.id}")
+        sys.exit(f"no context {args.id}")
     src = c["_path"]
     text = src.read_text()
     text = re.sub(r"^state:.*$", "state: verified", text, count=1, flags=re.M)
@@ -260,16 +307,60 @@ def cmd_verify(args):
     print(f"verified {args.id} → {dest.relative_to(root)}")
 
 
+def cmd_deps(args):
+    ctxs = load_all(root_dir())
+    if args.id not in ctxs:
+        sys.exit(f"no context {args.id}")
+
+    def walk(cid, prefix="", seen=()):
+        c = ctxs.get(cid)
+        if not c:
+            print(f"{prefix}{cid}  (missing)")
+            return
+        loop = " ↺ cycle" if cid in seen else ""
+        print(f"{prefix}{cid}  — {c.get('summary','')[:52]} [{tokens(c)}t]{loop}")
+        if loop:
+            return
+        kids = c["requires"]
+        for i, k in enumerate(kids):
+            last = i == len(kids) - 1
+            walk(k, prefix[:-2].replace("└", " ").replace("├", "│") +
+                 ("  " if prefix else "") + ("└ " if last else "├ "), seen + (cid,))
+
+    walk(args.id)
+    order, missing, _ = resolve(ctxs, [args.id], depth=99)
+    total = sum(tokens(ctxs[c]) for c in order if c in ctxs)
+    print(f"\n{len(order)} contexts in the closure, roughly {total} tokens")
+    if missing:
+        print(f"missing: {', '.join(missing)}")
+
+
+def cmd_list(args):
+    ctxs = load_all(root_dir())
+    rows = [c for c in ctxs.values()
+            if (not args.scope or c.get("scope", "").startswith(args.scope))
+            and (not args.state or c["state"] == args.state)
+            and (not args.tag or args.tag in c["tags"])]
+    if not rows:
+        print("no contexts match")
+        return
+    for c in sorted(rows, key=lambda c: (c.get("scope",""), c["id"])):
+        dep = f"  →{len(c['requires'])}" if c["requires"] else ""
+        print(f"  {c['state']:9} {c.get('scope',''):16} {c['id']:24} "
+              f"{c.get('summary','')[:46]}{dep}")
+    print(f"\n{len(rows)} of {len(ctxs)} contexts")
+
+
 def cmd_status(args):
     root = root_dir()
-    cards = load_all(root)
-    if not cards:
-        print("no cards yet. run: ctx init")
+    ctxs = load_all(root)
+    if not ctxs:
+        print("no contexts yet. run: ctx init")
         return
-    counts = {s: sum(1 for c in cards.values() if c["state"] == s) for s in STATES}
-    idx_tokens = sum(len(l.split()) for l in index_lines(cards)) * 1.4
+    counts = {s: sum(1 for c in ctxs.values() if c["state"] == s) for s in STATES}
+    idx_tokens = sum(len(l.split()) for l in index_lines(ctxs)) * 1.4
     print(f"{root}")
-    print(f"  {len(cards)} cards · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))
+    print(f"  {len(ctxs)} contexts · " + " · ".join(f"{n} {s}" for s, n in counts.items() if n))
     print(f"  index costs roughly {int(idx_tokens)} tokens per session")
     q = counts["proposed"] + counts["disputed"] + counts["stale"]
     if q:
@@ -282,17 +373,30 @@ def main():
 
     sub.add_parser("init", help="scaffold ctx in this repo").set_defaults(fn=cmd_init)
     sub.add_parser("status", help="what exists and what it costs").set_defaults(fn=cmd_status)
-    sub.add_parser("review", help="cards awaiting a human").set_defaults(fn=cmd_review)
+    sub.add_parser("review", help="contexts awaiting a human").set_defaults(fn=cmd_review)
 
     p = sub.add_parser("index", help="print the index");  p.add_argument("--write", action="store_true"); p.set_defaults(fn=cmd_index)
-    p = sub.add_parser("get", help="print cards");        p.add_argument("ids", nargs="+"); p.set_defaults(fn=cmd_get)
-    p = sub.add_parser("search", help="find cards");      p.add_argument("query"); p.set_defaults(fn=cmd_search)
+    p = sub.add_parser("get", help="print a context and what it requires")
+    p.add_argument("ids", nargs="+")
+    p.add_argument("--depth", type=int, default=2, help="how far to follow requires (default 2)")
+    p.add_argument("--no-deps", action="store_true", help="just the contexts named")
+    p.set_defaults(fn=cmd_get)
+
+    p = sub.add_parser("deps", help="show what a context requires, and the total cost")
+    p.add_argument("id"); p.set_defaults(fn=cmd_deps)
+
+    p = sub.add_parser("list", help="list contexts, filtered")
+    p.add_argument("--scope"); p.add_argument("--state"); p.add_argument("--tag")
+    p.set_defaults(fn=cmd_list)
+    p = sub.add_parser("search", help="find contexts");      p.add_argument("query"); p.set_defaults(fn=cmd_search)
     p = sub.add_parser("verify", help="owner signs off"); p.add_argument("id"); p.set_defaults(fn=cmd_verify)
 
     for name, fn in (("new", cmd_new), ("propose", cmd_propose)):
-        p = sub.add_parser(name, help=f"{name} a card")
+        p = sub.add_parser(name, help=f"{name} a context")
         p.add_argument("id"); p.add_argument("--title"); p.add_argument("--summary")
         p.add_argument("--scope", default="team")
+        p.add_argument("--requires", help="ids this context cannot be understood without")
+        p.add_argument("--related", help="comma-separated ids worth knowing about, not auto-loaded")
         if name == "propose":
             p.add_argument("--body")
         p.set_defaults(fn=fn)
