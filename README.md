@@ -21,7 +21,7 @@ ctx get <id>        # print it, plus whatever it requires
 ctx deps <id>       # what it pulls in, and what that costs
 ctx propose <id>    # write something back
 ctx push            # send it upstream for the owner to review
-ctx status          # totals, and what the index costs per session
+ctx status          # totals, index cost, and where to browse it
 ```
 
 ## Why this does not die the way wikis die
@@ -33,11 +33,10 @@ An agent reads context on **every session**. High read volume is what surfaces e
 and when the agent is corrected, `ctx propose` captures the correction while someone has
 the right answer in hand. The reading is what keeps the writing honest.
 
-```sh
-ctx render          # every context as static HTML, for humans
-```
+There is no render command. HTML regenerates on every change, so the human-readable view
+is always current and nobody has to remember it exists. `ctx status` prints the path.
 
-Same files either way. The agent reads the markdown; a person reads the page.
+Same files either way. The agent reads the markdown; a person opens the page.
 
 ## Why an index instead of a dump
 

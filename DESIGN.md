@@ -4,7 +4,9 @@
 
 A wiki is written for people and machine-read as an afterthought. This inverts it —
 written to be read by an agent every session, rendered to HTML when a person wants to
-look. `ctx render` produces a static site from the same files `ctx get` serves.
+look. There is no render step: HTML regenerates on every write, so the human view is a
+byproduct rather than a chore. A documentation site that requires a command to rebuild is
+a documentation site that is out of date.
 
 **Why it does not rot the way wikis do.** Wikis die of low read volume: a page nobody
 opens is a page nobody notices is wrong. An agent reads context every session, which is
