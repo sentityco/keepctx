@@ -355,10 +355,14 @@ def cmd_init(argv):
         print(f"  requires {parent} (the context this sits inside)")
     print()
     print("all local. `ctx remote` when you want to share it.")
-    print()
-    print("NOTE: an AI session that is already open has not seen this — agents read")
-    print("      AGENTS.md when they start. Just tell it to run `ctx` and it will")
-    print("      catch up. Restarting the session also works.")
+    if sys.stdout.isatty():
+        print()
+        # A person is reading this, so it was typed in a terminal and no agent
+        # saw it. If an agent ran it, this note would be noise — the brief below
+        # is already in its context.
+        print("NOTE: you ran this in a terminal, so your AI session has not seen it —")
+        print("      agents read AGENTS.md when they start. Ask your agent to run")
+        print("      `ctx init` and it will pick this up. No restart needed.")
     print(agent_brief(name))
     return 0
 
@@ -473,9 +477,13 @@ def cmd_clone(argv):
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
     print()
-    print("NOTE: an AI session that is already open has not seen this — agents read")
-    print("      AGENTS.md when they start. Just tell it to run `ctx` and it will")
-    print("      catch up. Restarting the session also works.")
+    if sys.stdout.isatty():
+        # A person is reading this, so it was typed in a terminal and no agent
+        # saw it. If an agent ran it, this note would be noise — the brief below
+        # is already in its context.
+        print("NOTE: you ran this in a terminal, so your AI session has not seen it —")
+        print("      agents read AGENTS.md when they start. Ask your agent to run")
+        print("      `ctx init` and it will pick this up. No restart needed.")
     print(agent_brief(name, "cloned"))
     return 0
 

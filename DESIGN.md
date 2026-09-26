@@ -570,10 +570,16 @@ in a teammate's message, by an agent following instructions. If it only orients 
 run, the second person to type it gets a refusal and no context, which is the worst possible
 outcome for the one command everyone reaches for.
 
-**To the human, if the human ran it.** *Tell your agent to run `ctx`.* Bare `ctx` prints the
-same brief, so one command catches the session up without losing any of its working state.
-Restarting also works and is the fallback, but it throws away everything the session knows,
-which is a strange price for a setup step.
+**To the human, if the human ran it.** *Ask your agent to run `ctx init`.* The same command
+they just typed — one to remember, not two — and because init orients on every run it works
+whether or not the project was already set up. No restart, so the session keeps everything it
+knows.
+
+That note prints **only on a tty**, since a person is reading it; an agent that ran the
+command does not need to be told to ask its agent. The brief, by contrast, prints
+unconditionally. The failure modes are not symmetric: a human seeing an agent-addressed block
+is mildly odd, but an agent not receiving the brief breaks the entire mechanism, and tty
+detection is not reliable enough to gate the thing that matters.
 
 This is why bare `ctx` prints the brief to a non-tty caller. It does double duty: the thing a
 session-start hook would run, and the thing a human tells their agent to run. Neither needs
