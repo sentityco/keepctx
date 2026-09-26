@@ -557,14 +557,19 @@ Every command ends with one line, and which line depends on who is reading:
 | stdout | Line |
 |---|---|
 | not a tty — an agent or hook ran it | `AGENTS.md changed — re-read it.` |
-| a tty — a person typed it | ``Run `ctx` in your AI session so it picks this up.`` |
+| a tty — a person typed it | `Tell your AI to re-read AGENTS.md.` |
 
 That is the whole mechanism. keepctx runs as a subprocess of the agent, so its stdout lands in the
 agent's context as the tool result — the one channel that reaches a session already in flight.
 
-One line each, one option each. The human is pointed at bare `ctx`, not at `ctx init`: telling
-someone to re-run `init` reads as "it did not work", and the second run initialises nothing —
-the verb would be lying. Bare `ctx` claims only to report, which is what it does.
+One line each, one option each, and both point at the same file rather than at a command.
+
+**Reading a file is the one capability every agent has.** Running a shell command is not —
+a restricted or browser-based agent may have file access and nothing else. An instruction the
+human relays in plain English works everywhere; "have it run `ctx`" does not.
+
+It is also the shorter path. `ctx` answers with "read AGENTS.md" regardless, so routing a human
+through the command adds a hop to reach the same place.
 
 `ctx init` stays idempotent anyway, because people will type it, and refusing with nothing
 useful is the worse failure.

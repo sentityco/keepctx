@@ -246,7 +246,7 @@ def reread(tty=None):
     in command output only creates a second copy to keep in step."""
     tty = sys.stdout.isatty() if tty is None else tty
     if tty:
-        return "Run `ctx` in your AI session so it picks this up."
+        return "Tell your AI to re-read AGENTS.md."
     # the agent already read AGENTS.md at session start, so say why to read it
     # again — otherwise the instruction looks like a no-op.
     return "AGENTS.md changed — re-read it."
