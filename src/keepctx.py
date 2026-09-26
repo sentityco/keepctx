@@ -269,19 +269,52 @@ REMOTE_STEPS = """
 """
 
 
+PARENT_STEPS = """
+This project sits inside {which}. Read {them} too:
+{lines}
+
+Facts about this project go in your own facts file above. A fact really about
+a wider scope goes in that context's facts file instead.
+"""
+
+
+def parent_contexts(root):
+    """-> [(ancestor_root, name)] for the authored contexts above root, nearest
+    first. Clones are left out: they are someone else's, not a parent."""
+    out = []
+    for ancestor in find_roots(root.parent) if root.parent != root else []:
+        name = load_config(ancestor).get("name")
+        if name and (ancestor / CTXDIR / name / FACTS).exists():
+            out.append((ancestor, name))
+    return out
+
+
 def write_instructions(root, name, has_remote):
     """ctx owns this file and the agent never writes it, so ctx keeps it current
     — including on a later run, so an old setup does not keep stale rules."""
     facts_path = f"{CTXDIR}/{name}/{FACTS}"
     steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
+    # an agent started here reads this file and nothing above it, so name the
+    # contexts it inherits — otherwise the team context is invisible from a repo.
+    parents = parent_contexts(root)
+    if parents:
+        lines = "\n".join(
+            f"- `{os.path.relpath(a / CTXDIR / n / FACTS, root)}` — `{n}`"
+            for a, n in parents)
+        one = len(parents) == 1
+        steps += "\n" + PARENT_STEPS.format(
+            which="another context" if one else "other contexts",
+            them="it" if one else "them", lines=lines).rstrip()
     (root / CTXDIR / INSTRUCTIONS).write_text(
         INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps))
 
 
 def cmd_init(argv):
-    here_only = "--here" in argv
-    argv = [a for a in argv if a != "--here"]
     here = pathlib.Path.cwd().resolve()
+    if CTXDIR in here.parts:
+        err(f"error: {here} is inside keepctx's own {CTXDIR}/ directory.")
+        err("       Run `ctx init` from the project directory instead.")
+        return 1
     found = find_root()
 
     # Already initialised is not a failure. `ctx init` is what people will be
@@ -290,17 +323,21 @@ def cmd_init(argv):
         cfg = load_config(found)
         if cfg.get("name"):
             write_instructions(found, cfg["name"], has_remote=bool(cfg.get("org")))
-        return cmd_status()
-    if found and not here_only:
-        print(f"Already set up in {found}")
-        print(f"     that is a parent of {here}, so every project under it shares one")
-        print("     context. For a context scoped to this directory only:")
-        name = argv[0] if argv else here.name
-        print(f"       ctx init --here {name}")
-        return cmd_status()
+        cmd_status()
+        if sys.stdout.isatty():   # piped status already ends with reread()
+            print()
+            print(reread())
+        return 0
 
-    root = pathlib.Path.cwd()
+    # Inside an existing context is not a conflict: this makes a nested one,
+    # which stacks on top of the context above it and records it as a parent.
+    root = here
     name = slugify(argv[0]) if argv else slugify(root.name)
+    parents = parent_contexts(root)
+    if name in {n for _, n in parents}:
+        err(f"error: `{name}` is already the name of a context above this one.")
+        err("       Pick another: ctx init <name>")
+        return 1
 
     ctxdir = root / CTXDIR
     (ctxdir / name).mkdir(parents=True, exist_ok=True)
@@ -319,12 +356,7 @@ def cmd_init(argv):
     # Nesting is a filesystem fact and does not survive a clone, so record the
     # parent explicitly. Locally it changes nothing; when this context is
     # published and cloned elsewhere, the dependency travels with it.
-    parent = None
-    for ancestor in find_roots(root.parent) if root.parent != root else []:
-        pcfg = load_config(ancestor)
-        if pcfg.get("name"):
-            parent = pcfg["name"]
-            break
+    parent = parents[0][1] if parents else None
 
     save_config(root, {"name": name, "org": None, "remote": None,
                        "token": None, "version": 0,
@@ -505,10 +537,6 @@ def cmd_status():
               if p.is_dir() and p.name != name]
     if others:
         print(f"  cloned    {', '.join(others)}")
-
-    if not facts:
-        print()
-        print("No facts yet — your agent writes them, not keepctx. " + reread())
     return 0
 
 

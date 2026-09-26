@@ -186,6 +186,20 @@ of what nesting is for. keepctx walks the whole chain upward.
 An agent is told this explicitly: write facts about this project here, and a fact really
 about the team belongs in the team's context instead.
 
+**The telling happens in `instructions.md`, because that is all an agent started in `repo-a`
+reads.** It loads `repo-a/AGENTS.md`, follows the pointer to `repo-a/.ctx/instructions.md`, and
+stops. Nothing there would lead it up to `~/work/.ctx/`, so a nested context's instructions list
+every context above it, with relative paths to their facts files, and say which kind of fact goes
+where. Running `ctx` would show the chain too, but an instruction that depends on the agent
+happening to run a command is one that usually does not fire.
+
+**Creating a nested context is plain `ctx init`.** An earlier version refused inside an existing
+context and asked for `ctx init --here`, to guard against making a second context by accident.
+The guard cost more than the accident: nesting is the point of the feature, and a flag that
+unlocks the ordinary case is one people have to be told about. Two cases still refuse, because
+both are always mistakes — running it inside a `.ctx/` directory, and reusing the name of a
+context above, which would make the two indistinguishable in every listing.
+
 **Nesting alone does not survive a clone.** It is a filesystem relationship, so a teammate
 who clones only the inner repository gets no parent directory and no team context. So
 `ctx init` inside an existing context records the parent as an explicit `requires`. Locally
@@ -563,7 +577,8 @@ reaches nobody until the next session — so `ctx init` in a live session instal
 the running agent never sees. This is not hypothetical: it is what happened the first time keepctx
 was used on a real project, and the facts file stayed empty because of it.
 
-Every command ends with one line, and which line depends on who is reading:
+`ctx init`, `ctx clone`, and `ctx` run by an agent end with one line, and which line depends on
+who is reading:
 
 | stdout | Line |
 |---|---|
@@ -575,12 +590,16 @@ agent's context as the tool result — the one channel that reaches a session al
 
 One line each, one option each, and both point at the same file rather than at a command.
 
+`ctx` typed by a person is a status readout and prints no line. `init` and `clone` are what change
+`AGENTS.md`, and they already say so; repeating it on every status check, including an earlier
+"No facts yet" nudge, was noise.
+
 **Reading a file is the one capability every agent has.** Running a shell command is not —
 a restricted or browser-based agent may have file access and nothing else. An instruction the
 human relays in plain English works everywhere; "have it run `ctx`" does not.
 
-It is also the shorter path. `ctx` answers with "read AGENTS.md" regardless, so routing a human
-through the command adds a hop to reach the same place.
+It is also the shorter path. `ctx` run by an agent answers with "re-read AGENTS.md" anyway, so
+routing a human through the command adds a hop to reach the same place.
 
 `ctx init` stays idempotent anyway, because people will type it, and refusing with nothing
 useful is the worse failure.
