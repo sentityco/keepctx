@@ -208,10 +208,51 @@ Do not record who wrote a fact or when. That is kept for you in version history.
 """
 
 
+
+def agent_brief(name, cloned=False):
+    """Printed by init and clone.
+
+    ctx runs as a subprocess of the agent, so whatever this prints lands in the
+    agent's context as the tool result. That is the only way to reach a session
+    that is *already running* — AGENTS.md is read at session start, so a file
+    written afterwards reaches nobody until the next session.
+    """
+    facts = f"{CTXDIR}/{name}/{FACTS}"
+    verb = "cloned" if cloned else "created"
+    return f"""
+--- for the AI agent that ran this command -------------------------------
+A context was just {verb} at {facts}. It did not exist when this
+session started, so nothing in your loaded context mentions it. From now on:
+
+  1. READ  {facts} before answering questions about this project.
+  2. WRITE facts to it as you learn them — when a human corrects you, when
+     something took real effort to establish, or when a decision gets made.
+     One fact per line:  - **key** — value
+     Use a relationship arrow for dependencies:  - **a.depends-on** -> b
+  3. RUN   `ctx sync` after writing, so the facts leave this machine.
+
+Full rules: {CTXDIR}/{INSTRUCTIONS}
+Do not record task-specific detail, or anything you inferred but did not
+verify. Do not record who wrote a fact or when — that is kept for you.
+--------------------------------------------------------------------------
+"""
+
+
 def cmd_init(argv):
-    if find_root():
-        root = find_root()
-        print(f"ctx: already set up in {root}")
+    here_only = "--here" in argv
+    argv = [a for a in argv if a != "--here"]
+    here = pathlib.Path.cwd().resolve()
+    found = find_root()
+
+    if found == here:
+        print(f"ctx: already set up in {here}")
+        return 1
+    if found and not here_only:
+        print(f"ctx: already set up in {found}")
+        print(f"     that is a parent of {here}, so every project under it shares one")
+        print("     context. for a context scoped to this directory only:")
+        name = argv[0] if argv else here.name
+        print(f"       ctx init --here {name}")
         return 1
 
     root = pathlib.Path.cwd()
@@ -257,6 +298,7 @@ def cmd_init(argv):
     print(f"  {AGENTS:<{w}}  pointer added at the top")
     print()
     print("all local. `ctx remote` when you want to share it.")
+    print(agent_brief(name))
     return 0
 
 
@@ -369,6 +411,7 @@ def cmd_clone(argv):
     print(f"ctx: cloned {org}:{name} ({got.get('count', 0)} facts)")
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
+    print(agent_brief(name, cloned=True))
     return 0
 
 
@@ -394,6 +437,12 @@ def cmd_status():
               if p.is_dir() and p.name != name]
     if others:
         print(f"  cloned    {', '.join(others)}")
+
+    if not facts:
+        print()
+        print("no facts yet. ctx does not write them — your agent does, as it works.")
+        print(f"if nothing appears, the agent has not read {CTXDIR}/{INSTRUCTIONS}.")
+        print("point it there explicitly, or start a fresh session so AGENTS.md loads.")
     return 0
 
 

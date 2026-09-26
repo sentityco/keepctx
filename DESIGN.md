@@ -508,6 +508,30 @@ the last is a file the agent owns for the length of the session.
 **`instructions.md` is where the discipline lives**, because it is loaded every session and the
 agent never rewrites it. Two directives about ctx and three about what deserves recording.
 
+### Reaching a session that is already running
+
+`AGENTS.md` is read into an agent's context **at session start**. A file written after that
+reaches nobody until the next session — so `ctx init` in a live session installs instructions
+that the agent running right now will never see. This is not hypothetical; it is what happened
+the first time ctx was used on a real project, and the facts file stayed empty because of it.
+
+The fix uses the one channel that does reach a running agent: **ctx runs as its subprocess, so
+whatever ctx prints lands in the agent's context as the tool result.** The agent invoked the
+command, so ctx gets to answer.
+
+So `ctx init` and `ctx clone` print a short brief addressed to the agent — read this file,
+write facts to it in this format, run sync afterwards. No re-read is required because the
+output *is* the injection. Both commands are one-time, so the token cost is paid once.
+
+`ctx sync` prints nothing extra; it runs constantly and a reminder on every call would be
+waste.
+
+**The honest limit:** this only reaches an agent that *ran the command*. A human running
+`ctx init` in a separate terminal reaches no agent at all, and there is nothing ctx can do
+about that from inside a subprocess. For that case the answer is a session-start hook where
+the harness offers one, or simply the next session. Worth stating plainly rather than
+implying the brief closes the gap completely.
+
 ### When sync fires
 
 **Before a read**, so you start from what your teammates learned. **After a write**, so a
