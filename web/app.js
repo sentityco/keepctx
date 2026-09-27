@@ -129,7 +129,7 @@ async function recheck() {
 async function showApp() {
   await refreshOrgs();
   $("auth").hidden = true;
-  $("signout").hidden = false;
+  signedIn(true);
 
   if (!session.orgs.length) return showOrgChooser();
   $("no-org").hidden = true;
@@ -281,11 +281,16 @@ async function openContext(name) {
   });
 }
 
+// Same menu as the rest of the site; the last link is Sign in or Sign out.
+function signedIn(yes) {
+  $("account").textContent = yes ? "Sign out" : "Sign in";
+}
+
 function showAuth() {
   $("auth").hidden = false;
   $("app").hidden = true;
   $("no-org").hidden = true;
-  $("signout").hidden = true;
+  signedIn(false);
   setMode(location.hash === "#register" ? "register" : "login");
 }
 
@@ -295,7 +300,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("back").onclick = () => {
     $("detail").hidden = true; $("list").hidden = false; $("people").hidden = false;
   };
-  $("signout").onclick = (e) => { e.preventDefault(); clearSession(); showAuth(); };
+  $("account").onclick = (e) => {
+    if (!session) return;            // signed out: it's just a link to this page
+    e.preventDefault();
+    clearSession();
+    showAuth();
+  };
   $("org-pick").onchange = (e) => { session.current = e.target.value; saveSession(session); showApp(); };
   $("new-org").onclick = () => { setTab("create"); showOrgChooser(); };
   $("back-to-app").onclick = () => showApp();
