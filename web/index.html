@@ -110,7 +110,7 @@
     <li>
       <h3>Install</h3>
       <p>Python 3.9 or newer, no dependencies. The app is <code>keepctx</code>, and it also
-      installs <code>ctx</code> as a short alias — every command below works with either. If
+      installs <code>ctx</code> as a short alias, which is what the examples below use. If
       another <code>ctx</code> is already on your PATH the alias is skipped and
       <code>keepctx</code> works the same.</p>
 <pre><code>curl -fsSL https://keepctx.com/install.sh | sh</code></pre>
@@ -120,7 +120,7 @@
       <p>Creates <code>.ctx/</code>, adds two lines to <code>AGENTS.md</code>, and ignores itself
       in git. The name defaults to your directory.</p>
 <pre><code>cd ~/work/example-project
-keepctx init
+ctx init
 
 <span class="c">Initialized `example-project`</span>
 <span class="c">  .ctx/example-project/facts.md  your facts</span>
@@ -136,25 +136,25 @@ keepctx init
     </li>
     <li>
       <h3>Share it, when you want to</h3>
-      <p>Local works forever with no account. <code>keepctx remote</code> puts it on a server so
+      <p>Local works forever with no account. <code>ctx remote</code> puts it on a server so
       your team gets it — and so it survives a dead laptop.</p>
-<pre><code>keepctx remote          <span class="c"># one time, creates it on the server</span>
-keepctx sync            <span class="c"># two-way. mostly automatic after this</span></code></pre>
+<pre><code>ctx remote   <span class="c"># one time, creates it on the server</span>
+ctx sync     <span class="c"># two-way. mostly automatic after this</span></code></pre>
     </li>
     <li>
       <h3>Your teammates</h3>
-<pre><code>keepctx clone your-org:your-context</code></pre>
+<pre><code>ctx clone your-org:your-context</code></pre>
     </li>
   </ol>
 
   <h3>The commands, all of them</h3>
-  <p class="sub">Shown as <code>keepctx</code>; <code>ctx</code> is the same thing, shorter.</p>
+  <p class="sub">Shown as <code>ctx</code>; <code>keepctx</code> works the same everywhere.</p>
   <table>
-    <tr><th><code>keepctx</code></th><td>status</td></tr>
-    <tr><th><code>keepctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
-    <tr><th><code>keepctx remote</code></th><td>one-time. create this context on a server</td></tr>
-    <tr><th><code>keepctx clone org:name</code></th><td>get a context you don't have</td></tr>
-    <tr><th><code>keepctx sync</code></th><td>upload local changes, download remote ones</td></tr>
+    <tr><th><code>ctx</code></th><td>status</td></tr>
+    <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
+    <tr><th><code>ctx remote</code></th><td>one-time. create this context on a server</td></tr>
+    <tr><th><code>ctx clone org:name</code></th><td>get a context you don't have</td></tr>
+    <tr><th><code>ctx sync</code></th><td>upload local changes, download remote ones</td></tr>
   </table>
 </div></section>
 
