@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>keepctx — context management for AI and people</title>
-<meta name="description" content="Your AGENTS.md, except it writes itself — and your team shares it. Open-source context management for AI coding agents." />
+<meta name="description" content="Your AGENTS.md, except it writes itself — kept across sessions, across Claude and Codex, and across your team. Open-source context management for AI agents." />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -13,6 +13,7 @@
   <a class="logo" href="/">keepctx</a>
   <nav>
     <a href="#why">Why</a>
+    <a href="#what">What goes in</a>
     <a href="#how">How it works</a>
     <a href="#quickstart">Quickstart</a>
     <a href="app.html">Sign in</a>
@@ -21,9 +22,9 @@
 
 <div class="hero"><div class="wrap">
   <h1>Your AGENTS.md,<br />except it writes itself.</h1>
-  <p class="lede">Today, what your team <em>shares</em> is hand-written, and what your agent
-  <em>learns</em> is stuck on one laptop. keepctx joins them: context captured as your agent
-  works, kept current, and shared with everyone.</p>
+  <p class="lede">What your agent learns shouldn't die with the session, stay locked in one AI
+  tool, or live on one laptop. keepctx keeps it — across sessions, across Claude and Codex, and
+  across your team.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="app.html">Create an org</a>
@@ -38,6 +39,12 @@
   session reads automatically.</p>
 
   <div class="grid">
+    <div class="card">
+      <h3>Claude and Codex share one memory</h3>
+      <p>Correct Claude on Monday and Codex knows on Tuesday. Context is plain markdown behind
+      <code>AGENTS.md</code> — the file both already read — so there's no plugin per tool and
+      nothing to migrate when you switch.</p>
+    </div>
     <div class="card">
       <h3>Corrections stick</h3>
       <p>When you correct your agent, it records the correction. The next session — yours or a
@@ -67,6 +74,47 @@
       <h3>Plain markdown, open source</h3>
       <p>Facts are readable text. Run our server or your own. Uninstalling is deleting two
       lines from a file.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="what"><div class="wrap">
+  <h2>What goes in a context</h2>
+  <p class="sub">Everything you'd tell a sharp new teammate on day one. Your agent fills it in as
+  it learns, in whatever order the work turns things up.</p>
+
+  <table>
+    <tr><th>Purpose</th><td>why this exists, and who it's for</td></tr>
+    <tr><th>Parts</th><td>what it's made of — components, stack, tools</td></tr>
+    <tr><th>Where</th><td>where things run and live, and where to look — logs, dashboards, files</td></tr>
+    <tr><th>How</th><td>the routines, done the way <em>this</em> place does them — deploy, operate, maintain</td></tr>
+    <tr><th>Vocabulary</th><td>internal names no model could guess</td></tr>
+    <tr><th>Gotchas</th><td>what looks wrong but is intentional, and what looks right but breaks</td></tr>
+    <tr><th>Sources of truth</th><td>which doc wins when two disagree</td></tr>
+    <tr><th>Decisions</th><td>what was chosen, why, and what was ruled out — so it stops being re-suggested</td></tr>
+    <tr><th>Rules</th><td>standards, compliance, budgets, never-do-X</td></tr>
+    <tr><th>People &amp; access</th><td>who owns what, who to ask, and how to get in — never the credentials themselves</td></tr>
+  </table>
+
+  <h3>Not just code</h3>
+  <p class="sub">Anything you keep explaining to an AI is a context.</p>
+  <div class="grid">
+    <div class="card">
+      <h3>Investing</h3>
+      <p>Your thesis, entry criteria, sizing rules, which account holds what for tax reasons,
+      sources you trust — and what you've ruled out, and why.</p>
+    </div>
+    <div class="card">
+      <h3>Writing a book</h3>
+      <p>Characters, voice rules, the timeline, what's canon and what got cut.</p>
+    </div>
+    <div class="card">
+      <h3>Running a business</h3>
+      <p>Customers, pricing logic, vendors, tone of voice, the promises you've made.</p>
+    </div>
+    <div class="card">
+      <h3>Research</h3>
+      <p>Sources, what's been ruled out, and the questions still open.</p>
     </div>
   </div>
 </div></section>

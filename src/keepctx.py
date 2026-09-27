@@ -192,6 +192,30 @@ Only three things are worth recording:
 Never record task-specific detail, and never record something you inferred
 rather than verified.
 
+## What a context covers
+
+The rules above decide *when* to write. This decides *what* a good context ends
+up answering — for software or anything else (investing, a book, a business):
+
+- **Purpose** — why this exists, and who it is for.
+- **Parts** — what it is made of: components, stack, tools.
+- **Where** — where things live and run, and where to look (logs, dashboards, files).
+- **How** — the routines, done the way this place does them: deploy, operate, maintain.
+- **Relationships** — what depends on what.
+- **Vocabulary** — internal names nobody outside would know.
+- **Gotchas** — what looks wrong but is intentional, or looks right but breaks.
+- **Failure modes** — how it usually breaks, and the first thing to check.
+- **Sources of truth** — which doc or dashboard wins when two disagree.
+- **Decisions** — what was chosen, why, and what was ruled out.
+- **Rules** — constraints: standards, compliance, budgets, never-do-X.
+- **People** — who owns what, and who to ask.
+- **Access** — how to get into things. Never the credentials themselves.
+
+Keys stay `thing.property` (`api.runs-on`, `logs.location`). When a fact is not
+about one thing, the topic is the thing: `purpose.users`, `vocab.orion`,
+`gotcha.staging-db`, `decision.no-kafka`. This is a map, not a form: never fill
+a gap by guessing. A missing topic is better than an invented one.
+
 **Record relationships, not just properties.** `gateway.depends-on → example-platform`
 is worth more than three facts about its configuration, because it is what
 nobody writes down and everybody needs.

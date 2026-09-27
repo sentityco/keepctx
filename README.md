@@ -1,10 +1,12 @@
 # keepctx
 
-**Your AGENTS.md, except it writes itself — and your team shares it.**
+**Your AGENTS.md, except it writes itself — shared across sessions, across AI tools, and
+across your team.**
 
-Every AI session starts blind. You re-explain the same things — which queue you use, why
-the docs are wrong, what actually deploys. `ctx` captures that as your agent works, keeps
-it current, and shares it with your team.
+Every AI session starts blind. You re-explain the same things — how to log in to your
+servers, where the logs live, what runs where. `ctx` captures that as your agent works and
+keeps it current. Next session remembers it, Codex knows what Claude learned, and your team
+gets it too.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
@@ -21,7 +23,7 @@ project's `ctx` is already on your PATH the alias is skipped, and `keepctx` work
 ## What it does
 
 A context is a list of facts in plain markdown. **What a context covers is up to you** — a
-repo, a service, a team, a programme, a platform. keepctx doesn't impose a shape:
+repo, a service, a team, a platform, or something that isn't software at all:
 
 ```markdown
 - **prod.access** — SSO, then jump host `bastion.example.com`, then `aws --profile prod-ro`. Never direct SSH.  `[verified]`
@@ -35,8 +37,34 @@ Your agent reads and edits that file directly, using the same tools it uses for 
 file. There's no write command to forget and no ceremony to skip — which is exactly why
 capture actually happens.
 
+Because it's plain markdown behind `AGENTS.md`, every agent that reads that file — Claude
+Code and Codex among them — shares the same context. Switch tools and nothing is lost.
+
 `ctx init` adds two lines to the top of your `AGENTS.md` pointing at the rules, and
 **nothing you wrote there is touched.** Uninstalling is deleting those two lines.
+
+## What goes in a context
+
+Everything you'd tell a sharp new teammate on day one:
+
+| | |
+|---|---|
+| **Purpose** | why this exists, and who it's for |
+| **Parts** | what it's made of — components, stack, tools |
+| **Where** | where things run and live, and where to look — logs, dashboards, files |
+| **How** | the routines, done the way *this* place does them — deploy, operate, maintain |
+| **Vocabulary** | internal names no model could guess |
+| **Gotchas** | what looks wrong but is intentional, and what looks right but breaks |
+| **Sources of truth** | which doc wins when two disagree |
+| **Decisions** | what was chosen, why, and what was ruled out |
+| **Rules** | standards, compliance, budgets, never-do-X |
+| **People & access** | who owns what, who to ask, how to get in — never the credentials |
+
+It isn't only for code. An investing context holds your thesis, sizing rules and what you've
+ruled out; a book's holds characters, voice and what's canon; a business's holds customers,
+pricing and tone. Anything you keep re-explaining to an AI is a context.
+
+The agent's rules for this live in `.ctx/instructions.md`, which `ctx init` writes.
 
 ## Why not just a wiki
 
