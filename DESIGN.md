@@ -51,8 +51,8 @@ removing keepctx is deleting two lines.
 ### The benefits, strongest first
 
 **1. Stop re-explaining the same thing.** The felt version of persistence. "Context survives
-between sessions" is a mechanism; "I have told it three times we use Kinesis, not Kafka" is a
-pain people recognise instantly. Corrections stick.
+between sessions" is a mechanism; "every session I re-explain how to log in to our servers,
+where the logs live, and what runs where" is a pain people recognise instantly. Corrections stick.
 
 **2. It costs less per session.** Preloading an organisation's knowledge runs ~50,000 tokens
 and is ~95% waste. The index is ~1,200, and a context is paid for only when the task touches
@@ -336,7 +336,7 @@ related:  [payments-service]
 - **gateway-1.ip** — 10.2.3.5
 - **gateway.routes-to** → portal tier, chosen by source IP
 - **gateway.depends-on** → example-platform, for session validation
-- **event.transport** — Kinesis, not Kafka. Inherited, and not changing.  `[verified]`
+- **api.runs-on** → Cloud Foundry (`cf logs api --recent`), not Kubernetes  `[verified]`
 - **deploy.process** — three steps:
     - build with `make`
     - push to staging

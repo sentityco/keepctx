@@ -24,10 +24,11 @@ A context is a list of facts in plain markdown. **What a context covers is up to
 repo, a service, a team, a programme, a platform. keepctx doesn't impose a shape:
 
 ```markdown
-- **deploy.command** — `make ship` from the repo root, not the platform CLI
-- **logging.index** — `app_prod_v2`. The docs still say app-prod; they're wrong.  `[verified]`
-- **gateway.depends-on** → example-platform, for session validation
-- **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it.  `[verified]`
+- **prod.access** — SSO, then jump host `bastion.example.com`, then `aws --profile prod-ro`. Never direct SSH.  `[verified]`
+- **network.proxy** — internal hosts only resolve through the corporate proxy; set `HTTPS_PROXY` first
+- **logs.location** — Splunk, index `app_prod`. Not CloudWatch, whatever the old runbook says.
+- **api.runs-on** → Cloud Foundry (`cf logs api --recent`), not Kubernetes
+- **api.depends-on** → auth-service, for session validation
 ```
 
 Your agent reads and edits that file directly, using the same tools it uses for any other

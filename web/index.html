@@ -32,7 +32,8 @@
 
 <section id="why"><div class="wrap">
   <h2>Stop re-explaining the same thing</h2>
-  <p class="sub">You told it three times that you use Kinesis, not Kafka. It still guesses Kafka.
+  <p class="sub">Every session, you re-explain how to log in to your servers, where the logs
+  live, and what runs where. Every next session, it's forgotten.
   The fix isn't a bigger context window — it's writing things down once, in a place the next
   session reads automatically.</p>
 
@@ -49,8 +50,8 @@
     </div>
     <div class="card">
       <h3>Onboarding on day one</h3>
-      <p>A new hire clones the repo and their agent already knows the deploy command, the real
-      index name, and which docs are lying.</p>
+      <p>A new hire clones the repo and their agent already knows how to get into prod, where
+      the logs are, and which docs are lying.</p>
     </div>
     <div class="card">
       <h3>Nothing gets wrecked</h3>
@@ -77,10 +78,11 @@
 
 <pre><code><span class="c"># .ctx/example-project/facts.md</span>
 
-- **deploy.command** — <span class="k">`make ship`</span> from the repo root, not the platform CLI
-- **logging.index** — <span class="k">`app_prod_v2`</span>. The docs still say app-prod; they're wrong. `[verified]`
-- **gateway.depends-on** → example-platform, for session validation
-- **event.transport** — Kinesis, not Kafka. Inherited, and we're not changing it. `[verified]`</code></pre>
+- **prod.access** — SSO, then jump host <span class="k">`bastion.example.com`</span>, then <span class="k">`aws --profile prod-ro`</span>. Never direct SSH. `[verified]`
+- **network.proxy** — internal hosts only resolve through the corporate proxy; set <span class="k">`HTTPS_PROXY`</span> first
+- **logs.location** — Splunk, index <span class="k">`app_prod`</span>. Not CloudWatch, whatever the old runbook says.
+- **api.runs-on** → Cloud Foundry (<span class="k">`cf logs api --recent`</span>), not Kubernetes
+- **api.depends-on** → auth-service, for session validation</code></pre>
 
   <h3>Reads and writes are just files</h3>
   <p class="sub">Your agent opens <code>facts.md</code> with the same tools it uses for any
@@ -107,9 +109,10 @@
   <ol class="steps">
     <li>
       <h3>Install</h3>
-      <p>Python 3.9 or newer, no dependencies. The executable is <code>keepctx</code>;
-      <code>keepctx</code> is a short alias and what you'll type. If another <code>keepctx</code> is
-      already on your PATH the alias is skipped and <code>keepctx</code> works the same.</p>
+      <p>Python 3.9 or newer, no dependencies. The app is <code>keepctx</code>, and it also
+      installs <code>ctx</code> as a short alias — every command below works with either. If
+      another <code>ctx</code> is already on your PATH the alias is skipped and
+      <code>keepctx</code> works the same.</p>
 <pre><code>curl -fsSL https://keepctx.com/install.sh | sh</code></pre>
     </li>
     <li>
@@ -119,10 +122,12 @@
 <pre><code>cd ~/work/example-project
 keepctx init
 
-<span class="c">keepctx: initialised `example-project`</span>
-<span class="c">  .ctx/example-project/facts.md      your facts</span>
-<span class="c">  .ctx/instructions.md   how the agent maintains them</span>
-<span class="c">  AGENTS.md              pointer added at the top</span></code></pre>
+<span class="c">Initialized `example-project`</span>
+<span class="c">  .ctx/example-project/facts.md  your facts</span>
+<span class="c">  .ctx/instructions.md           how the agent maintains them</span>
+<span class="c">  AGENTS.md                      pointer added at the top</span>
+
+<span class="c">Tell your AI to re-read AGENTS.md.</span></code></pre>
     </li>
     <li>
       <h3>Work</h3>
@@ -143,6 +148,7 @@ keepctx sync            <span class="c"># two-way. mostly automatic after this</
   </ol>
 
   <h3>The commands, all of them</h3>
+  <p class="sub">Shown as <code>keepctx</code>; <code>ctx</code> is the same thing, shorter.</p>
   <table>
     <tr><th><code>keepctx</code></th><td>status</td></tr>
     <tr><th><code>keepctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
