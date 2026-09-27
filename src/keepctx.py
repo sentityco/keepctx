@@ -169,7 +169,13 @@ def api(cfg, method, path, body=None, token=None):
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             raw = r.read().decode()
+        try:
             return json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            # something between us and the API answered instead (a proxy, a CDN
+            # error page) — say so, rather than dying on a parse error
+            raise SystemExit(f"ctx: {base} sent back something that isn't the keepctx API. "
+                             "Check CTX_REMOTE, or try again in a minute.")
     except urllib.error.HTTPError as e:
         detail = e.read().decode()
         try:

@@ -255,7 +255,7 @@ def create_org(claims, body):
 
 def list_members(claims, org):
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     r = tbl.query(KeyConditionExpression=Key("pk").eq(f"ORG#{org}")
                   & Key("sk").begins_with("MEMBER#"))
     owner = (get_org(org) or {}).get("owner")
@@ -307,7 +307,7 @@ def create_context(claims, body):
     if not org:
         return err(400, "say which org this goes in")
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     name = (body.get("name") or "").strip().lower()
     if not NAME_RE.match(name):
         return err(400, "name must be 3-40 chars, lowercase letters, digits and dashes")
@@ -337,7 +337,7 @@ def can_write(email, org, item):
 def read_context(claims, org, name):
     # a context holds hostnames, access steps and internal names: members only
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     item = get_context(org, name)
     if not item:
         return err(404, f"{org}:{name} not found")
@@ -352,7 +352,7 @@ def read_context(claims, org, name):
 
 def sync_context(claims, org, name, body):
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     item = get_context(org, name)
     if not item:
         return err(404, f"{org}:{name} not found")
@@ -390,7 +390,7 @@ def sync_context(claims, org, name, body):
 
 def list_contexts(claims, org):
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     r = tbl.query(KeyConditionExpression=Key("pk").eq(f"ORG#{org}")
                   & Key("sk").begins_with("CTX#"))
     out = []
@@ -405,7 +405,7 @@ def list_contexts(claims, org):
 
 def list_versions(claims, org, name):
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     r = tbl.query(KeyConditionExpression=Key("pk").eq(f"CTX#{org}#{name}")
                   & Key("sk").begins_with("V#"),
                   ScanIndexForward=False, Limit=50)
@@ -417,7 +417,7 @@ def list_versions(claims, org, name):
 
 def revert(claims, org, name, body):
     if not role_in(claims["sub"], org):
-        return err(403, "not your org")
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
     if not can_write(claims["sub"], org, get_context(org, name) or {}):
         return err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
     want = int(body.get("version", 0))
