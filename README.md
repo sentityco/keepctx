@@ -5,8 +5,8 @@ across your team.**
 
 Every AI session starts blind. You re-explain the same things — how to log in to your
 servers, where the logs live, what runs where. `ctx` captures that as your agent works and
-keeps it current. Next session remembers it, Codex knows what Claude learned, and your team
-gets it too.
+keeps it current. Next session remembers it, Codex and your other AI agents know what Claude
+learned, and your team gets it too.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
@@ -37,8 +37,8 @@ Your agent reads and edits that file directly, using the same tools it uses for 
 file. There's no write command to forget and no ceremony to skip — which is exactly why
 capture actually happens.
 
-Because it's plain markdown behind `AGENTS.md`, every agent that reads that file — Claude
-Code and Codex among them — shares the same context. Switch tools and nothing is lost.
+Because it's plain markdown behind `AGENTS.md`, every AI agent that reads that file — Claude
+Code, Codex and the rest — shares the same context. Switch tools and nothing is lost.
 
 `ctx init` adds a short pointer to the top of your `AGENTS.md`, and **nothing you wrote
 there is touched.** To uninstall, delete `.ctx/`. The pointer can stay: it tells agents to
