@@ -1,10 +1,3 @@
-<!-- ctx -->
-AI context for this project lives in `.ctx/instructions.md` — read it first.
-No `.ctx/`? Carry on without it, and don't flag it: it is gitignored, so it may not
-be cloned here yet, or it was removed on purpose. To set it up, install ctx
-(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.
-<!-- /ctx -->
-
 # keepctx
 
 Context management for AI agents and people. See `DESIGN.md` for why things are
@@ -13,7 +6,7 @@ useful half.
 
 ## Constraints that are not negotiable
 
-- **`src/ctx.py` is one file, standard library only.** No dependencies. This is
+- **`src/keepctx.py` is one file, standard library only.** No dependencies. This is
   what makes the installer a `curl` and the code readable in one sitting.
 - **`server/handler.py` is one file, boto3 only**, and is deliberately
   model-free: storage, a keyed merge, version history. Nothing in it needs
@@ -33,5 +26,10 @@ reasoning is welcome; re-proposing it without reading is not.
 
 ## Testing
 
-There are no automated tests yet, which is honest but not good. Behaviour is
-verified by hand. Adding tests is the single most useful contribution.
+```sh
+python3 tests/test_server.py   # accounts, orgs, membership, who can read and write
+python3 tests/test_cli.py      # the CLI end to end, against the handler served locally
+```
+
+No AWS and no network: `tests/fakes.py` stands in for DynamoDB and serves the real
+handler on a local port. Run both before pushing; add a check for anything you change.

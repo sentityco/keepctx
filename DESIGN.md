@@ -400,24 +400,39 @@ worth reading.
 **Wrong context is worse than no context**, so ownership and freshness are structural rather
 than decoration.
 
-## One role: everyone reads, everyone writes
+## Who writes: the owner, for now
 
-There is no publisher class. Anyone who consumes context can improve it, and the fastest
-person to spot that a context is wrong is the newest person on the team — they are the one
-hitting it cold.
+**For the first version, a context is written by whoever created it — its owner — and by the
+org's admins. Every other member reads it.** Their copy is read-only, `ctx sync` keeps it
+current, and their agent is told not to edit it but to tell the user what it should say.
 
-A correction trapped on one laptop is worth nothing; the value is entirely in the next
-person not hitting the same wall. That is why write-back goes upstream by default, and why
-the local-only build is only step one.
+This is a deliberate simplification, not the end state. The case for everyone writing is
+real: the fastest person to spot that a context is wrong is the newest person on the team,
+and a correction trapped on one laptop is worth nothing. But one writer is far easier to
+reason about while the product finds its shape, and it still delivers the main team
+benefit — your teammates' agents know what you know, and stay current.
+
+Nothing here closes the door. The server already merges per key, because the owner's own
+copies need it: the same person on two machines is two writers. Opening writes to the whole
+org later is a permission change, not a rebuild.
+
+**How a directory gets its context:**
+
+- `ctx init` — a new one, local, yours.
+- `ctx clone org:name` in a directory with no context — the shared one, writable if you
+  maintain it (owner or admin), read-only otherwise. This is how the owner gets a second
+  copy and how a teammate gets theirs.
+- `ctx clone org:name` beside an existing context — a read-only reference, refreshed by
+  `ctx sync`. This is the dependency case below.
 
 ### Membership is the one thing an admin does
 
 Everyone has an account; not everyone makes an org. Most people join one: an admin adds
 them by email, before or after they sign up, and the org appears for them as soon as it
 exists on both sides. An account can be in several orgs. "Admin" means exactly one thing —
-you can add and remove people. It is not a publisher class: inside the org, every member
-reads and writes every context. Whoever creates an org is its first admin and cannot be
-removed.
+you can add and remove people, and write to any context in the org. Everyone else writes
+only the contexts they created, and reads the rest. Whoever creates an org is its first admin
+and cannot be removed.
 
 Tokens carry identity only. Which orgs you're in is looked up on each request, so being
 added or removed takes effect immediately, without logging in again.
@@ -571,8 +586,8 @@ reaches nobody until the next session — so `ctx init` in a live session instal
 the running agent never sees. This is not hypothetical: it is what happened the first time keepctx
 was used on a real project, and the facts file stayed empty because of it.
 
-`ctx init`, `ctx clone`, and `ctx` run by an agent end with one line, and which line depends on
-who is reading:
+`ctx init` and `ctx clone` end with one line — and a re-run `ctx init` only when the rules just
+changed — and which line depends on who is reading:
 
 | stdout | Line |
 |---|---|

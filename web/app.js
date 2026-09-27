@@ -179,7 +179,8 @@ async function showContexts() {
     open.onclick = () => openContext(c.name);
     row.appendChild(open);
     const facts = c.facts === 1 ? "1 fact" : `${c.facts} facts`;
-    row.appendChild(el("span", "meta", `${facts} · v${c.version} · ${ago(c.updated)}`));
+    const who = c.can_write ? "" : ` · read-only, by ${c.owner}`;
+    row.appendChild(el("span", "meta", `${facts} · v${c.version} · ${ago(c.updated)}${who}`));
     list.appendChild(row);
   });
 }
@@ -214,8 +215,8 @@ async function showMembers() {
   $("add-member").hidden = !isAdmin;
   $("add-hint").hidden = !isAdmin;
   $("people-sub").textContent = isAdmin
-    ? "Everyone here reads and writes every context in this org. As an admin, you choose who's in it."
-    : "Everyone here reads and writes every context in this org. An admin adds and removes people.";
+    ? "Everyone here can read every context in this org. Each context is written by whoever created it and by admins. As an admin, you choose who's in the org."
+    : "Everyone here can read every context in this org. Each context is written by whoever created it and by admins, who also add and remove people.";
 }
 
 async function addMember() {
@@ -269,7 +270,7 @@ async function openContext(name) {
     row.appendChild(el("span", "v", `v${ver.version}`));
     row.appendChild(el("span", "", `${ver.facts} facts`));
     row.appendChild(el("span", "by", `${ver.by} · ${ago(ver.at)}`));
-    if (i > 0) {
+    if (i > 0 && c.can_write) {
       const b = el("button", "link-btn", "revert to this");
       b.onclick = async () => {
         if (!confirm(`Revert ${name} to v${ver.version}? This creates a new version — nothing is lost.`)) return;

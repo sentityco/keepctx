@@ -47,16 +47,18 @@ def find_root(start=None):
 def contexts_in_scope(start=None):
     """-> [(root, name, kind)] for the nearest context and its clones.
 
-      "own"    the context here. the one the agent writes to.
-      "clone"  someone else's, synced from a remote. read-only.
+      "own"       the context here. the one the agent writes to.
+      "readonly"  the context here, but someone else maintains it.
+      "clone"     another context brought in beside it. read-only.
     """
     root = find_root(start)
     if not root:
         return []
-    name = load_config(root).get("name")
+    cfg = load_config(root)
+    name = cfg.get("name")
     out = []
     if name and (root / CTXDIR / name / FACTS).exists():
-        out.append((root, name, "own"))
+        out.append((root, name, "readonly" if cfg.get("readonly") else "own"))
     for d in sorted((root / CTXDIR).iterdir()):
         if d.is_dir() and d.name != name and (d / FACTS).exists():
             out.append((root, d.name, "clone"))
@@ -74,7 +76,8 @@ def load_config(root):
 
 
 def save_config(root, cfg):
-    (root / CTXDIR / CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")
+    keep = {k: v for k, v in cfg.items() if not k.startswith("_")}
+    (root / CTXDIR / CONFIG).write_text(json.dumps(keep, indent=2) + "\n")
 
 
 def slugify(name):
@@ -143,6 +146,15 @@ def merge_facts(local_text, incoming):
     return text.rstrip() + "\n"
 
 
+def remove_facts(text, keys):
+    """Drop whole blocks by key — for facts deleted in another copy."""
+    facts, _ = parse_facts(text)
+    for key in keys:
+        if key in facts:
+            text = text.replace(facts[key] + "\n", "", 1).replace(facts[key], "", 1)
+    return text.rstrip() + "\n"
+
+
 # --------------------------------------------------------------------- http
 
 def api(cfg, method, path, body=None, token=None):
@@ -164,7 +176,18 @@ def api(cfg, method, path, body=None, token=None):
             detail = json.loads(detail).get("error", detail)
         except json.JSONDecodeError:
             pass
-        raise SystemExit(f"ctx: server said {e.code}: {detail}")
+        if e.code == 401 and tok and not path.startswith("/v1/auth/"):
+            # sign-ins last 30 days. a person can just sign in again; an agent
+            # can't type a password, so it gets told who can.
+            if not (sys.stdin.isatty() and sys.stdout.isatty()):
+                raise SystemExit("ctx: the keepctx sign-in here has expired. "
+                                 "Run `ctx sync` in a terminal to sign in again.")
+            print("Your keepctx sign-in has expired. Sign in again:")
+            cfg["token"] = login(cfg)[0]["token"]
+            cfg["_signed_in"] = True          # caller saves it
+            return api(cfg, method, path, body)
+        raise SystemExit(f"ctx: {detail}" if e.code in (401, 403, 404, 409)
+                         else f"ctx: server said {e.code}: {detail}")
     except urllib.error.URLError as e:
         raise SystemExit(f"ctx: cannot reach {base} ({e.reason})")
 
@@ -282,12 +305,25 @@ REMOTE_STEPS = """
    takes its findings with it.
 """
 
+READONLY_STEPS = """
+1. **Before reading context, run `ctx sync`.** Brings in the latest version.
+2. **Read `{facts_path}`** for what is known about this project.
+3. **Don't edit it.** Its owner and org admins maintain this context; it is
+   read-only for this account, and `ctx sync` replaces local edits with the
+   latest version. When you learn something it should say, tell the user, so
+   they can pass it on to whoever maintains it.
 
-def write_instructions(root, name, has_remote):
+The rules below are how its maintainers keep it. They are here so you know what
+the facts mean and what kind of thing is worth passing on.
+"""
+
+
+def write_instructions(root, name, has_remote, readonly=False):
     """ctx owns this file and the agent never writes it, so ctx keeps it current
     — including on a later run, so an old setup does not keep stale rules."""
     facts_path = f"{CTXDIR}/{name}/{FACTS}"
-    steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
+    template = READONLY_STEPS if readonly else REMOTE_STEPS if has_remote else LOCAL_STEPS
+    steps = template.format(facts_path=facts_path).rstrip()
     text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps)
     path = root / CTXDIR / INSTRUCTIONS
     if path.exists() and path.read_text() == text:
@@ -306,7 +342,8 @@ def refresh_instructions():
     cfg = load_config(root)
     if not cfg.get("name"):
         return False
-    return write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")))
+    return write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")),
+                              readonly=bool(cfg.get("readonly")))
 
 
 POINTER = (
@@ -346,9 +383,10 @@ def cmd_init(argv, refreshed=False):
             print()
         cmd_status()
         # nothing an agent reads changed, unless the rules just got updated
-        if refreshed and sys.stdout.isatty():   # piped status already ends with reread()
+        if refreshed:
             print()
-            print("keepctx's rules for your agent were updated. " + reread())
+            tty = sys.stdout.isatty()
+            print(("keepctx's rules for your agent were updated. " if tty else "") + reread())
         return 0
 
     # A context further up is no obstacle: contexts are independent, so this
@@ -461,11 +499,23 @@ def cmd_sync(argv):
         err("error: no context here. Run `ctx init` first.")
         return 1
     cfg = load_config(root)
-    if not cfg.get("org"):
+    if not cfg.get("org") and not cfg.get("clones"):
         print("No remote for this context — `ctx remote` to create one.")
         print("Everything local keeps working without it.")
         return 1
 
+    if cfg.get("org"):
+        (pull_context if cfg.get("readonly") else push_pull)(root, cfg)
+    for name, org in sorted((cfg.get("clones") or {}).items()):
+        pull_clone(root, cfg, org, name)
+
+    save_config(root, cfg)
+    return 0
+
+
+def push_pull(root, cfg):
+    """A context you maintain: send what changed here, take what changed in
+    your other copies. Merged per key; the later write of one key wins."""
     name = cfg["name"]
     facts_path = root / CTXDIR / name / FACTS
     base_path = root / CTXDIR / name / BASE
@@ -477,54 +527,93 @@ def cmd_sync(argv):
               {"changes": changes, "version": cfg.get("version", 0)})
 
     incoming = out.get("facts", {})
-    if incoming:
-        merged = merge_facts(local, incoming)
-        facts_path.write_text(merged)
-        base_path.write_text(merged)
-    else:
-        base_path.write_text(local)
-
+    merged = merge_facts(local, incoming) if incoming else local
+    gone = []
+    if "keys" in out:              # deleted in another copy: drop them here too
+        server = set(out["keys"])
+        gone = [k for k in parse_facts(merged)[1] if k not in server]
+        merged = remove_facts(merged, gone)
+    facts_path.write_text(merged)
+    base_path.write_text(merged)
     cfg["version"] = out["version"]
-    save_config(root, cfg)
 
-    sent, got = len(changes), len(incoming)
-    if sent or got:
-        parts = []
-        if sent:
-            parts.append(f"{sent} up")
-        if got:
-            parts.append(f"{got} down")
-        print(f"{name}  {', '.join(parts)}  (v{out['version']})")
-    else:
-        print(f"{name}  unchanged  (v{out['version']})")
-    return 0
+    sent, got = len(changes), len(incoming) + len(gone)
+    parts = [f"{sent} up"] * bool(sent) + [f"{got} down"] * bool(got)
+    print(f"{name}  {', '.join(parts) or 'unchanged'}  (v{out['version']})")
+
+
+def pull_context(root, cfg):
+    """A context this account reads but doesn't maintain: take the latest."""
+    name = cfg["name"]
+    got = api(cfg, "GET", f"/v1/contexts/{cfg['org']}/{name}")
+    (root / CTXDIR / name / FACTS).write_text(got["facts"])
+    (root / CTXDIR / name / BASE).write_text(got["facts"])
+    was, cfg["version"] = cfg.get("version", 0), got["version"]
+    state = "unchanged" if was == got["version"] else f"updated from v{was}"
+    print(f"{name}  {state}  (v{got['version']}, read-only)")
+
+
+def pull_clone(root, cfg, org, name):
+    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
+    d = root / CTXDIR / name
+    d.mkdir(parents=True, exist_ok=True)
+    before = (d / FACTS).read_text() if (d / FACTS).exists() else None
+    (d / FACTS).write_text(got["facts"])
+    state = "unchanged" if before == got["facts"] else "updated"
+    print(f"{name}  {state}  (v{got['version']}, from {org}, read-only)")
 
 
 def cmd_clone(argv):
+    """Bring a remote context here. In a directory with no context of its own it
+    becomes this directory's context — writable if you maintain it (its owner or
+    an org admin), read-only otherwise. Beside an existing context it's a
+    read-only reference. Either way, `ctx sync` keeps it current."""
     if not argv or ":" not in argv[0]:
         err("error: usage: ctx clone <org>:<name>")
         return 1
     org, _, name = argv[0].partition(":")
-    root = find_root() or pathlib.Path.cwd()
-    if not (root / CTXDIR).exists():
-        (root / CTXDIR).mkdir(parents=True)
-        (root / CTXDIR / ".gitignore").write_text("*\n")
-
+    here = pathlib.Path.cwd().resolve()
+    if CTXDIR in here.parts:
+        err(f"error: {here} is inside keepctx's own {CTXDIR}/ directory.")
+        return 1
+    root = find_root() or here
     cfg = load_config(root)
+    own = cfg.get("name")
+    if own == name and cfg.get("org") == org:
+        print(f"{org}:{name} is already this directory's context — `ctx sync` to update it.")
+        return 0
+
     cfg.setdefault("remote", os.environ.get("CTX_REMOTE", DEFAULT_REMOTE))
-    token = cfg.get("token")
-    if not token:   # contexts are members-only, so reading one needs a sign-in
+    if not cfg.get("remote"):
+        cfg["remote"] = DEFAULT_REMOTE
+    if not cfg.get("token"):   # contexts are members-only, so reading one needs a sign-in
         print(f"Sign in to read {org}:{name} (no account? make one at {APP_URL})")
-        token = login(cfg)[0]["token"]
-    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}", token=token)
+        cfg["token"] = login(cfg)[0]["token"]
+    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
 
-    d = root / CTXDIR / name
-    d.mkdir(parents=True, exist_ok=True)
-    (d / FACTS).write_text(got["facts"])
-    (d / BASE).write_text(got["facts"])
-    (d / ".readonly").write_text("cloned — edits here are not synced upstream\n")
+    ctxdir = root / CTXDIR
+    (ctxdir / name).mkdir(parents=True, exist_ok=True)
+    (ctxdir / ".gitignore").write_text("*\n")
+    (ctxdir / name / FACTS).write_text(got["facts"])
 
-    print(f"Cloned {org}:{name} ({got.get('count', 0)} facts)")
+    if own:
+        cfg.setdefault("clones", {})[name] = org
+        save_config(root, cfg)
+        print(f"Cloned {org}:{name} beside `{own}` ({got.get('count', 0)} facts, read-only)")
+        print("`ctx sync` keeps it current.")
+    else:
+        readonly = not got.get("can_write")
+        (ctxdir / name / BASE).write_text(got["facts"])
+        cfg.update({"name": name, "org": org, "version": got["version"], "readonly": readonly})
+        save_config(root, cfg)
+        write_instructions(root, name, has_remote=True, readonly=readonly)
+        write_pointer(root)
+        print(f"Cloned {org}:{name} ({got.get('count', 0)} facts)")
+        if readonly:
+            print(f"Read-only: {got.get('owner') or 'its owner'} and {org}'s admins maintain it.")
+            print("`ctx sync` brings in their updates.")
+        else:
+            print("You maintain it: edits here sync with your other copies on `ctx sync`.")
     for dep in got.get("requires", []):
         print(f"  requires {dep} — `ctx clone {dep}`")
     print()
@@ -554,14 +643,14 @@ def cmd_status(with_usage=False):
     print(f"  context   {name}")
     print(f"  facts     {len(facts)}")
     if cfg.get("org"):
-        print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)}")
+        ro = ", read-only" if cfg.get("readonly") else ""
+        print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)}{ro}")
     else:
         print("  remote    none — `ctx remote` to share this")
 
-    others = [p.name for p in (root / CTXDIR).iterdir()
-              if p.is_dir() and p.name != name]
-    if others:
-        print(f"  cloned    {', '.join(others)}")
+    clones = cfg.get("clones") or {}
+    if clones:
+        print(f"  cloned    {', '.join(f'{o}:{n}' for n, o in sorted(clones.items()))}")
     if with_usage:            # plain `ctx`: a person asking what this is and what it does
         print()
         usage()
@@ -577,10 +666,9 @@ def agent_index(root):
     bits = []
     for r, n, kind in scope:
         _, order = read_facts(r, n)
-        tag = {"own": "", "clone": ", read-only"}[kind]
+        tag = "" if kind == "own" else ", read-only"
         bits.append(f"{n} ({len(order)} facts{tag})")
     print("Contexts: " + ", ".join(bits))
-    print(reread())
     return 0
 
 
@@ -595,8 +683,8 @@ def usage():
     print("  ctx                    Show status")
     print("  ctx init [name]        Set up here — local, no account, no network")
     print("  ctx remote             Put this on a remote — shares it and backs it up")
-    print("  ctx clone <org>:<name> Get a remote context you do not have")
-    print("  ctx sync               Upload local changes, download remote ones")
+    print("  ctx clone <org>:<name> Bring a context here from the remote")
+    print("  ctx sync               Send your changes, bring in the latest")
     print()
     print("Everything works locally without an account.")
     return 0

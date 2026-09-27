@@ -183,6 +183,9 @@ ctx sync     <span class="c"># two-way. mostly automatic after this</span></code
     </li>
     <li>
       <h3>Your teammates</h3>
+      <p>Add them to your org in the console. In their checkout, one command gets them the same
+      context — kept current by <code>ctx sync</code>. You and your org's admins write it;
+      everyone else reads it. The same command gives you a writable copy on another machine.</p>
 <pre><code>ctx clone your-org:your-context</code></pre>
     </li>
   </ol>
@@ -193,8 +196,8 @@ ctx sync     <span class="c"># two-way. mostly automatic after this</span></code
     <tr><th><code>ctx</code></th><td>status</td></tr>
     <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
     <tr><th><code>ctx remote</code></th><td>one-time. create this context on a server</td></tr>
-    <tr><th><code>ctx clone org:name</code></th><td>get a context you don't have</td></tr>
-    <tr><th><code>ctx sync</code></th><td>upload local changes, download remote ones</td></tr>
+    <tr><th><code>ctx clone org:name</code></th><td>bring a context here from the remote</td></tr>
+    <tr><th><code>ctx sync</code></th><td>send your changes, bring in the latest</td></tr>
   </table>
 </div></section>
 

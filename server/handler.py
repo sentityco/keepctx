@@ -326,6 +326,14 @@ def create_context(claims, body):
     return resp(200, {"org": org, "name": name, "version": 1})
 
 
+def can_write(email, org, item):
+    """For now a context has one writer — whoever created it — plus the org's
+    admins. Every other member reads it. The per-key merge below already copes
+    with many writers (the same owner on two machines is exactly that), so
+    opening writes to the whole org later is a permission change, not a rebuild."""
+    return item.get("owner") == email or role_in(email, org) == "admin"
+
+
 def read_context(claims, org, name):
     # a context holds hostnames, access steps and internal names: members only
     if not role_in(claims["sub"], org):
@@ -337,6 +345,8 @@ def read_context(claims, org, name):
     return resp(200, {"org": org, "name": name, "facts": facts,
                       "version": int(item.get("version", 0)),
                       "count": len(parse_facts(facts)),
+                      "owner": item.get("owner", ""),
+                      "can_write": can_write(claims["sub"], org, item),
                       "requires": item.get("requires", [])})
 
 
@@ -346,6 +356,8 @@ def sync_context(claims, org, name, body):
     item = get_context(org, name)
     if not item:
         return err(404, f"{org}:{name} not found")
+    if not can_write(claims["sub"], org, item):
+        return err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
 
     server_facts = item.get("facts", "")
     server_version = int(item.get("version", 0))
@@ -371,7 +383,9 @@ def sync_context(claims, org, name, body):
         theirs = parse_facts(apply_changes("", changes)) if changes else {}
         down = {k: v for k, v in mine.items() if theirs.get(k) != v}
 
-    return resp(200, {"version": version, "facts": down})
+    # every key the server has, so a copy can drop facts deleted elsewhere
+    return resp(200, {"version": version, "facts": down,
+                      "keys": list(parse_facts(updated).keys())})
 
 
 def list_contexts(claims, org):
@@ -384,7 +398,8 @@ def list_contexts(claims, org):
         out.append({"name": it["name"], "version": int(it.get("version", 0)),
                     "facts": len(parse_facts(it.get("facts", ""))),
                     "updated": int(it.get("updated", 0)),
-                    "owner": it.get("owner", "")})
+                    "owner": it.get("owner", ""),
+                    "can_write": can_write(claims["sub"], org, it)})
     return resp(200, {"org": org, "contexts": sorted(out, key=lambda c: c["name"])})
 
 
@@ -403,6 +418,8 @@ def list_versions(claims, org, name):
 def revert(claims, org, name, body):
     if not role_in(claims["sub"], org):
         return err(403, "not your org")
+    if not can_write(claims["sub"], org, get_context(org, name) or {}):
+        return err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
     want = int(body.get("version", 0))
     r = tbl.get_item(Key={"pk": f"CTX#{org}#{name}", "sk": f"V#{want:09d}"})
     old = r.get("Item")
@@ -429,8 +446,11 @@ def handler(event, _context=None):
         return resp(200, {})
 
     try:
-        body = json.loads(event.get("body") or "{}")
-    except json.JSONDecodeError:
+        raw = event.get("body") or "{}"
+        if event.get("isBase64Encoded"):     # API Gateway does this for non-JSON content types
+            raw = base64.b64decode(raw).decode()
+        body = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
         return err(400, "body is not JSON")
 
     auth = (event.get("headers") or {}).get("authorization", "")

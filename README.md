@@ -83,12 +83,29 @@ merge conflict neither can resolve from a diff.
 So `.ctx/` ignores itself — it contains a `.gitignore` holding `*`, which works whether or
 not git exists yet, and keeps working if you run `git init` next week.
 
+## Sharing
+
+A context on the remote is **written by its owner** — whoever ran `ctx remote` — **and the
+org's admins. Everyone else in the org reads it.** Add teammates to your org in the
+[console](https://keepctx.com/app.html); then, in their checkout:
+
+```sh
+ctx clone your-org:your-context
+```
+
+They get a read-only copy that `ctx sync` keeps current. The same command gives you a
+writable copy on another machine. Run beside an existing context, it brings the other one in
+as a read-only reference.
+
+Opening writes to the whole team is planned; for now, one writer keeps it simple.
+
 ## Conflicts
 
-Changes sync **per key, not per file**.
+Your copies sync **per key, not per file**.
 
-- Two people learn different things → both land.
-- Two people change the same fact → the later one wins.
+- Two copies change different facts → both land.
+- Two copies change the same fact → the later sync wins.
+- A fact deleted in one copy is deleted in the others.
 - Every sync is a version on the server → a bad change is one revert away.
 
 That's the whole conflict model. Nothing is ever destroyed, so nobody has to arbitrate.
@@ -100,8 +117,8 @@ That's the whole conflict model. Nothing is ever destroyed, so nobody has to arb
 | `ctx` | status |
 | `ctx init [name]` | set up here. local, no account, no network |
 | `ctx remote` | put this on a remote — shares it and backs it up |
-| `ctx clone org:name` | get a remote context you don't have |
-| `ctx sync` | upload local changes, download remote ones |
+| `ctx clone org:name` | bring a context here from the remote |
+| `ctx sync` | send your changes, bring in the latest |
 
 The name defaults to your directory, slugified. It only has to be unique when you run
 `ctx remote`, which is where it gets validated.

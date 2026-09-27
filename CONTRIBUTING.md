@@ -18,6 +18,16 @@ python3 src/keepctx.py init        # no install needed
 CTX_REMOTE=http://localhost:8000 python3 src/keepctx.py sync
 ```
 
+## Tests
+
+```sh
+python3 tests/test_server.py
+python3 tests/test_cli.py
+```
+
+Neither needs AWS or a network: `tests/fakes.py` stands in for DynamoDB and serves the real
+handler locally. Add a check for anything you change.
+
 ## Before you open a PR
 
 Read the **Explicitly rejected** section of `DESIGN.md` first. Several reasonable-sounding
@@ -36,7 +46,7 @@ than around it.
   hand to strangers. See *Language is a distribution decision* in `DESIGN.md`.
 - **The HTML render of a context.** Facts are a reference document; the mechanical render
   is grouping plus markdown-to-HTML and needs no model.
-- **Tests.** There are none yet, which is honest but not good.
+- **More tests.** The server and the CLI's main flows are covered; the web app isn't.
 
 ## Style
 
