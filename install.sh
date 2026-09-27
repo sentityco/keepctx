@@ -36,10 +36,9 @@ else
 fi
 
 echo
+echo "Installed: $PREFIX/keepctx"
 if [ -n "$SHORT" ]; then
-  echo "Installed: $PREFIX/ctx (and keepctx)"
-else
-  echo "Installed: $PREFIX/keepctx"
+  echo "  with the short alias \`ctx\` — use that day to day."
 fi
 
 case ":$PATH:" in
