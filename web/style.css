@@ -85,3 +85,13 @@ white-space:pre-wrap;line-height:1.7;max-height:400px;overflow:auto}
 .link-btn{background:none;border:0;color:var(--acc);cursor:pointer;font-size:13.5px;padding:0;font-family:inherit}
 .link-btn:hover{text-decoration:underline}
 @media(max-width:620px){h1{font-size:31px}.hero{padding:52px 0 44px}header nav a:nth-child(-n+2){display:none}}
+select{padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;
+font-family:inherit;background:#fff;color:var(--ink)}
+.panel h3{font-size:15px;margin:24px 0 4px}
+.inline-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 0}
+.inline-form input{flex:1;min-width:200px;width:auto}
+.inline-form .msg{flex-basis:100%;margin-top:0}
+#people{margin-top:34px}
+.mrow{display:flex;gap:12px;align-items:baseline;font-size:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.mrow .em{font-family:var(--mono);font-size:13.5px}
+.mrow .right{font-size:13px;color:var(--dim)}

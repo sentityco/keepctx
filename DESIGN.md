@@ -411,6 +411,18 @@ A correction trapped on one laptop is worth nothing; the value is entirely in th
 person not hitting the same wall. That is why write-back goes upstream by default, and why
 the local-only build is only step one.
 
+### Membership is the one thing an admin does
+
+Everyone has an account; not everyone makes an org. Most people join one: an admin adds
+them by email, before or after they sign up, and the org appears for them as soon as it
+exists on both sides. An account can be in several orgs. "Admin" means exactly one thing —
+you can add and remove people. It is not a publisher class: inside the org, every member
+reads and writes every context. Whoever creates an org is its first admin and cannot be
+removed.
+
+Tokens carry identity only. Which orgs you're in is looked up on each request, so being
+added or removed takes effect immediately, without logging in again.
+
 ## The model: org and context
 
 Two levels, and that is the whole namespace.

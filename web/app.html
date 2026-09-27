@@ -29,13 +29,6 @@
     <label for="password">Password</label>
     <input id="password" type="password" autocomplete="current-password" />
 
-    <div id="org-field" hidden>
-      <label for="org">Organization</label>
-      <input id="org" type="text" placeholder="example-org" autocomplete="off" />
-      <p class="hint">Lowercase letters, digits and dashes. This becomes the namespace your
-      contexts live under — <code>example-org:example-project</code>.</p>
-    </div>
-
     <button class="btn" id="submit">Sign in</button>
     <div class="msg" id="msg"></div>
     <p class="switch" id="switch">
@@ -44,17 +37,63 @@
   </div>
 </div>
 
+<!-- signed in, in no org yet -->
+<div id="no-org" class="wrap" hidden>
+  <div class="panel">
+    <h2>You're in</h2>
+    <p class="sub">Signed in as <strong id="no-org-email">—</strong>. You're not in an org yet.</p>
+
+    <h3>Joining a team?</h3>
+    <p class="hint">Ask an admin of your org to add <strong id="no-org-email-2">—</strong>.
+    It shows up here as soon as they do.</p>
+    <button class="link-btn" id="recheck">Check again</button>
+
+    <h3>Starting one?</h3>
+    <label for="first-org">Org name</label>
+    <input id="first-org" type="text" placeholder="example-org" autocomplete="off" />
+    <p class="hint">Lowercase letters, digits and dashes. Contexts live under it —
+    <code>example-org:example-project</code>. You'll be its admin.</p>
+    <button class="btn" id="make-first-org">Create org</button>
+    <div class="msg" id="no-org-msg"></div>
+  </div>
+</div>
+
 <!-- signed in -->
 <div id="app" class="wrap" hidden>
   <div class="bar">
     <h2 id="org-name">—</h2>
+    <select id="org-pick" hidden aria-label="Switch org"></select>
     <span class="tag" id="who">—</span>
     <div class="right">
       <span class="tag" id="count">—</span>
+      <button class="link-btn" id="new-org">+ new org</button>
     </div>
   </div>
 
+  <div id="new-org-form" class="inline-form" hidden>
+    <input id="new-org-name" type="text" placeholder="another-org" autocomplete="off" />
+    <button class="btn" id="make-org">Create</button>
+    <div class="msg" id="new-org-msg"></div>
+  </div>
+
   <div id="list"></div>
+
+  <div id="people">
+    <h3>People</h3>
+    <p class="sub" id="people-sub">Everyone here reads and writes every context in this org.</p>
+    <div id="members"></div>
+    <div id="add-member" class="inline-form" hidden>
+      <input id="member-email" type="email" placeholder="teammate@example.com" autocomplete="off" />
+      <select id="member-role" aria-label="Role">
+        <option value="member">member</option>
+        <option value="admin">admin</option>
+      </select>
+      <button class="btn" id="add">Add</button>
+      <div class="msg" id="member-msg"></div>
+    </div>
+    <p class="hint" id="add-hint" hidden>They don't need an account yet — the org appears for
+    them as soon as they sign up with that email. Admins can also add and remove people.</p>
+  </div>
 
   <div id="detail" hidden>
     <div class="bar">

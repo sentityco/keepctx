@@ -381,6 +381,27 @@ def cmd_init(argv):
     return 0
 
 
+def choose_org(cfg, orgs, email):
+    """Which org a new remote context goes in. Joining an org is something an
+    admin does for you, on the website; ctx can only offer to start a new one."""
+    mine = [o["org"] for o in orgs]
+    if mine:
+        print("Your orgs: " + ", ".join(mine))
+    hint = f" [{mine[0]}]" if len(mine) == 1 else ""
+    org = input(f"org{hint}: ").strip().lower() or (mine[0] if len(mine) == 1 else "")
+    if not org:
+        err("error: pick an org.")
+        return None
+    if org in mine:
+        return org
+    if input(f"You're not in `{org}`. Create it, with you as admin? [y/N] ").strip().lower() != "y":
+        err(f"If `{org}` already exists, ask one of its admins to add {email} at")
+        err("https://keepctx.com/app.html, then run `ctx remote` again.")
+        return None
+    api(cfg, "POST", "/v1/orgs", {"org": org})
+    return org
+
+
 def cmd_remote(argv):
     root = find_root()
     if not root:
@@ -403,17 +424,18 @@ def cmd_remote(argv):
     print(f"Remote: {remote}")
     email = input("email: ").strip()
     password = getpass.getpass("password: ")
-    org = input("org (new or existing): ").strip().lower()
 
     cfg["remote"] = remote
-    out = api(cfg, "POST", "/v1/auth/login",
-              {"email": email, "password": password, "org": org})
+    out = api(cfg, "POST", "/v1/auth/login", {"email": email, "password": password})
     cfg["token"] = out["token"]
-    cfg["org"] = out["org"]
+    org = choose_org(cfg, out.get("orgs") or [], email)
+    if not org:
+        return 1
+    cfg["org"] = org
     cfg["name"] = name
 
     facts = (root / CTXDIR / name / FACTS).read_text()
-    made = api(cfg, "POST", "/v1/contexts", {"name": name, "facts": facts})
+    made = api(cfg, "POST", "/v1/contexts", {"name": name, "facts": facts, "org": org})
     cfg["version"] = made["version"]
     save_config(root, cfg)
     (root / CTXDIR / name / BASE).write_text(facts)

@@ -38,8 +38,10 @@ def b64u_dec(s):
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
-def make_token(email, org):
-    body = {"sub": email, "org": org, "exp": int(time.time()) + TTL}
+def make_token(email):
+    # identity only. which orgs you're in is looked up per request, so being
+    # added to or removed from an org takes effect without logging in again.
+    body = {"sub": email, "exp": int(time.time()) + TTL}
     head = b64u(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
     payload = b64u(json.dumps(body).encode())
     sig = b64u(hmac.new(SECRET, f"{head}.{payload}".encode(), hashlib.sha256).digest())
@@ -148,46 +150,170 @@ def put_version(org, name, facts, version, by):
     })
 
 
+# ---------------------------------------------------------------- membership
+#
+# Everyone has an account; not everyone makes an org. An org's admins add people
+# by email — before or after that person signs up — and an account can belong
+# to several orgs. Inside an org there is one role for contexts: everyone reads,
+# everyone writes. "admin" only means you can manage who is in the org.
+#
+#   ORG#<org>   / MEMBER#<email>   role, added_by, at
+#   USER#<email>/ ORG#<org>        role              (the same fact, indexed by user)
+
+def get_user(email):
+    return tbl.get_item(Key={"pk": f"USER#{email}", "sk": "PROFILE"}).get("Item")
+
+
+def get_org(org):
+    return tbl.get_item(Key={"pk": f"ORG#{org}", "sk": "META"}).get("Item")
+
+
+def put_member(org, email, role, by):
+    now = int(time.time())
+    tbl.put_item(Item={"pk": f"ORG#{org}", "sk": f"MEMBER#{email}",
+                       "email": email, "role": role, "added_by": by, "at": now})
+    tbl.put_item(Item={"pk": f"USER#{email}", "sk": f"ORG#{org}",
+                       "org": org, "role": role})
+
+
+def role_in(email, org):
+    """-> "admin" | "member" | None. An org's owner is always an admin — which
+    also covers orgs created before membership rows existed."""
+    it = tbl.get_item(Key={"pk": f"ORG#{org}", "sk": f"MEMBER#{email}"}).get("Item")
+    if it:
+        return it.get("role", "member")
+    meta = get_org(org)
+    return "admin" if meta and meta.get("owner") == email else None
+
+
+def orgs_of(email):
+    r = tbl.query(KeyConditionExpression=Key("pk").eq(f"USER#{email}")
+                  & Key("sk").begins_with("ORG#"))
+    out = {it["org"]: it.get("role", "member") for it in r.get("Items", [])}
+    legacy = (get_user(email) or {}).get("org")      # accounts from before membership
+    if legacy and legacy not in out and role_in(email, legacy):
+        out[legacy] = "admin"
+    return [{"org": o, "role": out[o]} for o in sorted(out)]
+
+
+def new_org(email, org):
+    if not NAME_RE.match(org):
+        return err(400, "org must be 3-40 chars, lowercase letters, digits and dashes")
+    if get_org(org):
+        return err(409, f"org `{org}` is taken — if it's yours, ask its admin to add you")
+    tbl.put_item(Item={"pk": f"ORG#{org}", "sk": "META",
+                       "owner": email, "created": int(time.time())})
+    put_member(org, email, "admin", email)
+    return None
+
+
+def session(email):
+    orgs = orgs_of(email)
+    # "org" is for clients from before multiple orgs: they read a single one
+    return {"token": make_token(email), "email": email, "orgs": orgs,
+            "org": orgs[0]["org"] if orgs else None}
+
+
 # -------------------------------------------------------------------- routes
 
 def register(body):
     email = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
-    org = (body.get("org") or "").strip().lower()
+    org = (body.get("org") or "").strip().lower()      # optional: make one now
     if not email or "@" not in email:
         return err(400, "a real email, please")
     if len(password) < 8:
         return err(400, "password needs at least 8 characters")
-    if not NAME_RE.match(org):
+    if org and not NAME_RE.match(org):
         return err(400, "org must be 3-40 chars, lowercase letters, digits and dashes")
-
-    if tbl.get_item(Key={"pk": f"USER#{email}", "sk": "PROFILE"}).get("Item"):
+    if get_user(email):
         return err(409, "that email is already registered — log in instead")
-
-    existing = tbl.get_item(Key={"pk": f"ORG#{org}", "sk": "META"}).get("Item")
-    if existing:
-        return err(409, f"org `{org}` is taken")
+    if org and get_org(org):
+        return err(409, f"org `{org}` is taken — if it's yours, ask its admin to add you")
 
     tbl.put_item(Item={"pk": f"USER#{email}", "sk": "PROFILE",
-                       "pw": hash_pw(password), "org": org,
-                       "created": int(time.time())})
-    tbl.put_item(Item={"pk": f"ORG#{org}", "sk": "META",
-                       "owner": email, "created": int(time.time())})
-    return resp(200, {"token": make_token(email, org), "org": org, "email": email})
+                       "pw": hash_pw(password), "created": int(time.time())})
+    if org:
+        new_org(email, org)
+    return resp(200, session(email))
 
 
 def login(body):
     email = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
-    item = tbl.get_item(Key={"pk": f"USER#{email}", "sk": "PROFILE"}).get("Item")
+    item = get_user(email)
     if not item or not check_pw(password, item["pw"]):
         return err(401, "email or password is wrong")
-    return resp(200, {"token": make_token(email, item["org"]),
-                      "org": item["org"], "email": email})
+    return resp(200, session(email))
+
+
+def me(claims):
+    email = claims["sub"]
+    return resp(200, {"email": email, "orgs": orgs_of(email)})
+
+
+def create_org(claims, body):
+    email = claims["sub"]
+    org = (body.get("org") or "").strip().lower()
+    problem = new_org(email, org)
+    return problem or resp(200, {"org": org, "role": "admin", "orgs": orgs_of(email)})
+
+
+def list_members(claims, org):
+    if not role_in(claims["sub"], org):
+        return err(403, "not your org")
+    r = tbl.query(KeyConditionExpression=Key("pk").eq(f"ORG#{org}")
+                  & Key("sk").begins_with("MEMBER#"))
+    owner = (get_org(org) or {}).get("owner")
+    rows = {it["email"]: it for it in r.get("Items", [])}
+    if owner and owner not in rows:
+        rows[owner] = {"email": owner, "role": "admin"}
+    out = [{"email": e, "role": it.get("role", "member"), "owner": e == owner,
+            "account": bool(get_user(e))} for e, it in rows.items()]
+    return resp(200, {"org": org, "members": sorted(out, key=lambda m: m["email"])})
+
+
+def add_member(claims, org, body):
+    if role_in(claims["sub"], org) != "admin":
+        return err(403, "only an org admin can add people")
+    email = (body.get("email") or "").strip().lower()
+    role = body.get("role") or "member"
+    if not email or "@" not in email:
+        return err(400, "a real email, please")
+    if role not in ("admin", "member"):
+        return err(400, "role is admin or member")
+    # no account needed yet: they see the org as soon as they sign up
+    put_member(org, email, role, claims["sub"])
+    return list_members(claims, org)
+
+
+def remove_member(claims, org, body):
+    if role_in(claims["sub"], org) != "admin":
+        return err(403, "only an org admin can remove people")
+    email = (body.get("email") or "").strip().lower()
+    if email == (get_org(org) or {}).get("owner"):
+        return err(400, "the org's owner can't be removed")
+    tbl.delete_item(Key={"pk": f"ORG#{org}", "sk": f"MEMBER#{email}"})
+    tbl.delete_item(Key={"pk": f"USER#{email}", "sk": f"ORG#{org}"})
+    return list_members(claims, org)
+
+
+def pick_org(claims, body):
+    """The org a new context goes in. Clients from before multiple orgs don't
+    send one, which is fine as long as you're only in one."""
+    org = (body.get("org") or "").strip().lower()
+    if org:
+        return org
+    mine = orgs_of(claims["sub"])
+    return mine[0]["org"] if len(mine) == 1 else None
 
 
 def create_context(claims, body):
-    org = claims["org"]
+    org = pick_org(claims, body)
+    if not org:
+        return err(400, "say which org this goes in")
+    if not role_in(claims["sub"], org):
+        return err(403, "not your org")
     name = (body.get("name") or "").strip().lower()
     if not NAME_RE.match(name):
         return err(400, "name must be 3-40 chars, lowercase letters, digits and dashes")
@@ -218,7 +344,7 @@ def read_context(org, name):
 
 
 def sync_context(claims, org, name, body):
-    if claims["org"] != org:
+    if not role_in(claims["sub"], org):
         return err(403, "not your org")
     item = get_context(org, name)
     if not item:
@@ -252,7 +378,7 @@ def sync_context(claims, org, name, body):
 
 
 def list_contexts(claims, org):
-    if claims["org"] != org:
+    if not role_in(claims["sub"], org):
         return err(403, "not your org")
     r = tbl.query(KeyConditionExpression=Key("pk").eq(f"ORG#{org}")
                   & Key("sk").begins_with("CTX#"))
@@ -266,7 +392,7 @@ def list_contexts(claims, org):
 
 
 def list_versions(claims, org, name):
-    if claims["org"] != org:
+    if not role_in(claims["sub"], org):
         return err(403, "not your org")
     r = tbl.query(KeyConditionExpression=Key("pk").eq(f"CTX#{org}#{name}")
                   & Key("sk").begins_with("V#"),
@@ -278,7 +404,7 @@ def list_versions(claims, org, name):
 
 
 def revert(claims, org, name, body):
-    if claims["org"] != org:
+    if not role_in(claims["sub"], org):
         return err(403, "not your org")
     want = int(body.get("version", 0))
     r = tbl.get_item(Key={"pk": f"CTX#{org}#{name}", "sk": f"V#{want:09d}"})
@@ -324,7 +450,21 @@ def handler(event, _context=None):
         if parts == ["auth", "login"] and method == "POST":
             return login(body)
         if parts == ["me"] and method == "GET":
-            return err(401, "log in") if not claims else resp(200, claims)
+            return err(401, "log in") if not claims else me(claims)
+
+        if parts == ["orgs"] and method == "POST":
+            return err(401, "log in") if not claims else create_org(claims, body)
+
+        if len(parts) >= 3 and parts[0] == "orgs" and parts[2] == "members":
+            if not claims:
+                return err(401, "log in")
+            org = parts[1]
+            if len(parts) == 3 and method == "GET":
+                return list_members(claims, org)
+            if len(parts) == 3 and method == "POST":
+                return add_member(claims, org, body)
+            if parts[3:] == ["remove"] and method == "POST":
+                return remove_member(claims, org, body)
 
         if parts == ["contexts"] and method == "POST":
             return err(401, "log in") if not claims else create_context(claims, body)

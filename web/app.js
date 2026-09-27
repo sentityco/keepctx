@@ -3,7 +3,7 @@ const KEY = "ctx.session";
 
 const $ = (id) => document.getElementById(id);
 let mode = "login";
-let session = null;
+let session = null;   // { token, email, orgs: [{org, role}], current }
 
 function saveSession(s) {
   session = s;
@@ -26,22 +26,29 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
   return data;
 }
+const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body) });
 
-function say(text, good) {
-  const m = $("msg");
+function say(text, good, where = "msg") {
+  const m = $(where);
   m.textContent = text;
   m.className = "msg " + (good ? "good" : "bad");
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
 
 function setMode(next) {
   mode = next;
   const isReg = mode === "register";
-  $("auth-title").textContent = isReg ? "Create your org" : "Sign in";
+  $("auth-title").textContent = isReg ? "Create your account" : "Sign in";
   $("auth-sub").textContent = isReg
-    ? "Free for individuals and small teams."
+    ? "Free for individuals and small teams. Start an org or get added to one after."
     : "Manage your org's contexts.";
-  $("submit").textContent = isReg ? "Create org" : "Sign in";
-  $("org-field").hidden = !isReg;
+  $("submit").textContent = isReg ? "Create account" : "Sign in";
   $("switch").innerHTML = isReg
     ? 'Already have an account? <button class="link-btn" id="toggle">Sign in</button>'
     : 'No account? <button class="link-btn" id="toggle">Create one</button>';
@@ -52,15 +59,12 @@ function setMode(next) {
 async function submit() {
   const email = $("email").value.trim();
   const password = $("password").value;
-  const org = $("org").value.trim().toLowerCase();
   if (!email || !password) return say("email and password, please");
-  if (mode === "register" && !org) return say("pick an org name");
 
   $("submit").disabled = true;
   try {
-    const body = mode === "register" ? { email, password, org } : { email, password };
-    const out = await api(`/v1/auth/${mode}`, { method: "POST", body: JSON.stringify(body) });
-    saveSession(out);
+    const out = await post(`/v1/auth/${mode}`, { email, password });
+    saveSession({ token: out.token, email: out.email, orgs: out.orgs || [] });
     await showApp();
   } catch (e) {
     say(e.message);
@@ -78,65 +82,168 @@ function ago(ts) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-async function showApp() {
-  $("auth").hidden = true;
-  $("app").hidden = false;
-  $("signout").hidden = false;
-  $("org-name").textContent = session.org;
-  $("who").textContent = session.email;
+const current = () => session.orgs.find((o) => o.org === session.current);
 
-  const out = await api(`/v1/orgs/${session.org}/contexts`);
+// Orgs come from the server every time: an admin may have added you since you
+// signed in, and that should show up without signing out and back in.
+async function refreshOrgs() {
+  const me = await api("/v1/me");
+  const orgs = me.orgs || [];
+  const keep = orgs.some((o) => o.org === session.current) ? session.current : null;
+  saveSession({ ...session, email: me.email, orgs, current: keep || (orgs[0] && orgs[0].org) });
+}
+
+async function showApp() {
+  await refreshOrgs();
+  $("auth").hidden = true;
+  $("signout").hidden = false;
+
+  if (!session.orgs.length) {
+    $("app").hidden = true;
+    $("no-org").hidden = false;
+    $("no-org-email").textContent = session.email;
+    $("no-org-email-2").textContent = session.email;
+    return;
+  }
+  $("no-org").hidden = true;
+  $("app").hidden = false;
+  $("detail").hidden = true;
+  $("list").hidden = false;
+  $("people").hidden = false;
+  $("who").textContent = session.email;
+  $("org-name").textContent = session.current;
+
+  const pick = $("org-pick");
+  pick.hidden = session.orgs.length < 2;
+  $("org-name").hidden = !pick.hidden;
+  pick.innerHTML = "";
+  session.orgs.forEach((o) => {
+    const opt = el("option", "", o.org);
+    opt.value = o.org;
+    opt.selected = o.org === session.current;
+    pick.appendChild(opt);
+  });
+
+  await Promise.all([showContexts(), showMembers()]);
+}
+
+async function showContexts() {
+  const org = session.current;
+  const out = await api(`/v1/orgs/${org}/contexts`);
   const list = $("list");
   $("count").textContent =
     out.contexts.length === 1 ? "1 context" : `${out.contexts.length} contexts`;
 
+  list.innerHTML = "";
   if (!out.contexts.length) {
-    list.innerHTML = `<div class="empty">
-      <p>No contexts yet.</p>
-      <p>Run <code>ctx init</code> then <code>ctx remote</code> in a project to create one.</p>
-    </div>`;
+    const empty = el("div", "empty");
+    empty.appendChild(el("p", "", "No contexts yet."));
+    const how = el("p");
+    how.innerHTML = "Run <code>ctx init</code> then <code>ctx remote</code> in a project to create one.";
+    empty.appendChild(how);
+    list.appendChild(empty);
     return;
   }
-
-  list.innerHTML = "";
   out.contexts.forEach((c) => {
-    const row = document.createElement("div");
-    row.className = "ctx-row";
+    const row = el("div", "ctx-row");
+    row.appendChild(el("span", "nm", `${org}:${c.name}`));
+    const open = el("button", "link-btn", "open");
+    open.onclick = () => openContext(c.name);
+    row.appendChild(open);
     const facts = c.facts === 1 ? "1 fact" : `${c.facts} facts`;
-    row.innerHTML = `<span class="nm">${session.org}:${c.name}</span>
-      <button class="link-btn">open</button>
-      <span class="meta">${facts} · v${c.version} · ${ago(c.updated)}</span>`;
-    row.querySelector("button").onclick = () => openContext(c.name);
+    row.appendChild(el("span", "meta", `${facts} · v${c.version} · ${ago(c.updated)}`));
     list.appendChild(row);
   });
 }
 
-async function openContext(name) {
-  $("list").hidden = true;
-  $("detail").hidden = false;
-  $("d-name").textContent = `${session.org}:${name}`;
+async function showMembers() {
+  const org = session.current;
+  const isAdmin = current() && current().role === "admin";
+  const out = await api(`/v1/orgs/${org}/members`);
+  const box = $("members");
+  box.innerHTML = "";
+  out.members.forEach((m) => {
+    const row = el("div", "mrow");
+    row.appendChild(el("span", "em", m.email));
+    row.appendChild(el("span", "tag", m.owner ? "owner" : m.role));
+    const right = el("span", "right");
+    if (!m.account) right.appendChild(el("span", "", "no account yet"));
+    if (isAdmin && !m.owner) {
+      const rm = el("button", "link-btn", "remove");
+      rm.onclick = async () => {
+        if (!confirm(`Remove ${m.email} from ${org}? They lose access right away.`)) return;
+        try {
+          await post(`/v1/orgs/${org}/members/remove`, { email: m.email });
+          if (m.email === session.email) return showApp();
+          showMembers();
+        } catch (e) { say(e.message, false, "member-msg"); }
+      };
+      right.appendChild(rm);
+    }
+    row.appendChild(right);
+    box.appendChild(row);
+  });
+  $("add-member").hidden = !isAdmin;
+  $("add-hint").hidden = !isAdmin;
+  $("people-sub").textContent = isAdmin
+    ? "Everyone here reads and writes every context in this org. As an admin, you choose who's in it."
+    : "Everyone here reads and writes every context in this org. An admin adds and removes people.";
+}
 
-  const c = await api(`/v1/contexts/${session.org}/${name}`);
+async function addMember() {
+  const email = $("member-email").value.trim();
+  if (!email) return say("an email, please", false, "member-msg");
+  $("add").disabled = true;
+  try {
+    await post(`/v1/orgs/${session.current}/members`, { email, role: $("member-role").value });
+    $("member-email").value = "";
+    $("member-msg").className = "msg";
+    await showMembers();
+  } catch (e) {
+    say(e.message, false, "member-msg");
+  } finally {
+    $("add").disabled = false;
+  }
+}
+
+async function createOrg(input, msg) {
+  const org = $(input).value.trim().toLowerCase();
+  if (!org) return say("pick an org name", false, msg);
+  try {
+    await post("/v1/orgs", { org });
+    $(input).value = "";
+    $("new-org-form").hidden = true;
+    session.current = org;
+    await showApp();
+  } catch (e) {
+    say(e.message, false, msg);
+  }
+}
+
+async function openContext(name) {
+  const org = session.current;
+  $("list").hidden = true;
+  $("people").hidden = true;
+  $("detail").hidden = false;
+  $("d-name").textContent = `${org}:${name}`;
+
+  const c = await api(`/v1/contexts/${org}/${name}`);
   $("d-version").textContent = `v${c.version} · ${c.count} facts`;
   $("d-facts").textContent = c.facts || "(empty)";
 
-  const v = await api(`/v1/contexts/${session.org}/${name}/versions`);
+  const v = await api(`/v1/contexts/${org}/${name}/versions`);
   const box = $("d-versions");
   box.innerHTML = "";
   v.versions.forEach((ver, i) => {
-    const row = document.createElement("div");
-    row.className = "vrow";
-    row.innerHTML = `<span class="v">v${ver.version}</span>
-      <span>${ver.facts} facts</span>
-      <span class="by">${ver.by} · ${ago(ver.at)}</span>`;
+    const row = el("div", "vrow");
+    row.appendChild(el("span", "v", `v${ver.version}`));
+    row.appendChild(el("span", "", `${ver.facts} facts`));
+    row.appendChild(el("span", "by", `${ver.by} · ${ago(ver.at)}`));
     if (i > 0) {
-      const b = document.createElement("button");
-      b.className = "link-btn";
-      b.textContent = "revert to this";
+      const b = el("button", "link-btn", "revert to this");
       b.onclick = async () => {
         if (!confirm(`Revert ${name} to v${ver.version}? This creates a new version — nothing is lost.`)) return;
-        await api(`/v1/contexts/${session.org}/${name}/revert`,
-          { method: "POST", body: JSON.stringify({ version: ver.version }) });
+        await post(`/v1/contexts/${org}/${name}/revert`, { version: ver.version });
         openContext(name);
       };
       row.appendChild(b);
@@ -148,6 +255,7 @@ async function openContext(name) {
 function showAuth() {
   $("auth").hidden = false;
   $("app").hidden = true;
+  $("no-org").hidden = true;
   $("signout").hidden = true;
   setMode("login");
 }
@@ -155,8 +263,17 @@ function showAuth() {
 document.addEventListener("DOMContentLoaded", async () => {
   $("submit").onclick = submit;
   $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-  $("back").onclick = () => { $("detail").hidden = true; $("list").hidden = false; };
+  $("back").onclick = () => {
+    $("detail").hidden = true; $("list").hidden = false; $("people").hidden = false;
+  };
   $("signout").onclick = (e) => { e.preventDefault(); clearSession(); showAuth(); };
+  $("org-pick").onchange = (e) => { session.current = e.target.value; saveSession(session); showApp(); };
+  $("new-org").onclick = () => { $("new-org-form").hidden = !$("new-org-form").hidden; };
+  $("make-org").onclick = () => createOrg("new-org-name", "new-org-msg");
+  $("make-first-org").onclick = () => createOrg("first-org", "no-org-msg");
+  $("recheck").onclick = () => showApp();
+  $("add").onclick = addMember;
+  $("member-email").addEventListener("keydown", (e) => { if (e.key === "Enter") addMember(); });
 
   session = loadSession();
   if (session && session.token) {
