@@ -282,6 +282,9 @@ def cmd_init(argv):
         cfg = load_config(found)
         if cfg.get("name"):
             write_instructions(found, cfg["name"], has_remote=bool(cfg.get("org")))
+        if sys.stdout.isatty():   # a person ran init again; say nothing was reset
+            print(f"Already initialized `{cfg.get('name', '?')}` here.")
+            print()
         cmd_status()
         if sys.stdout.isatty():   # piped status already ends with reread()
             print()
