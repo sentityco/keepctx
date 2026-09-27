@@ -93,18 +93,45 @@ async function refreshOrgs() {
   saveSession({ ...session, email: me.email, orgs, current: keep || (orgs[0] && orgs[0].org) });
 }
 
+function setTab(which) {
+  const create = which === "create";
+  $("tab-create").setAttribute("aria-selected", String(create));
+  $("tab-join").setAttribute("aria-selected", String(!create));
+  $("pane-create").hidden = !create;
+  $("pane-join").hidden = create;
+  $("no-org-msg").className = "msg";
+}
+
+// The create-or-join screen: the only screen until you're in an org, and
+// reachable afterwards from "+ create or join an org".
+function showOrgChooser() {
+  const inOne = session.orgs.length > 0;
+  $("app").hidden = true;
+  $("no-org").hidden = false;
+  $("orgs-title").textContent = inOne ? "Create or join another org" : "Create or join an org";
+  $("orgs-back").hidden = !inOne;
+  $("no-org-email").textContent = session.email;
+  $("no-org-email-2").textContent = session.email;
+}
+
+async function recheck() {
+  const before = session.orgs.map((o) => o.org);
+  await refreshOrgs();
+  const added = session.orgs.find((o) => !before.includes(o.org));
+  if (added) {
+    session.current = added.org;
+    saveSession(session);
+    return showApp();
+  }
+  say("Not yet — nobody has added you to a new org so far.", false, "no-org-msg");
+}
+
 async function showApp() {
   await refreshOrgs();
   $("auth").hidden = true;
   $("signout").hidden = false;
 
-  if (!session.orgs.length) {
-    $("app").hidden = true;
-    $("no-org").hidden = false;
-    $("no-org-email").textContent = session.email;
-    $("no-org-email-2").textContent = session.email;
-    return;
-  }
+  if (!session.orgs.length) return showOrgChooser();
   $("no-org").hidden = true;
   $("app").hidden = false;
   $("detail").hidden = true;
@@ -206,17 +233,19 @@ async function addMember() {
   }
 }
 
-async function createOrg(input, msg) {
-  const org = $(input).value.trim().toLowerCase();
-  if (!org) return say("pick an org name", false, msg);
+async function createOrg() {
+  const org = $("first-org").value.trim().toLowerCase();
+  if (!org) return say("pick an org name", false, "no-org-msg");
+  $("make-first-org").disabled = true;
   try {
     await post("/v1/orgs", { org });
-    $(input).value = "";
-    $("new-org-form").hidden = true;
+    $("first-org").value = "";
     session.current = org;
     await showApp();
   } catch (e) {
-    say(e.message, false, msg);
+    say(e.message, false, "no-org-msg");
+  } finally {
+    $("make-first-org").disabled = false;
   }
 }
 
@@ -268,10 +297,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   $("signout").onclick = (e) => { e.preventDefault(); clearSession(); showAuth(); };
   $("org-pick").onchange = (e) => { session.current = e.target.value; saveSession(session); showApp(); };
-  $("new-org").onclick = () => { $("new-org-form").hidden = !$("new-org-form").hidden; };
-  $("make-org").onclick = () => createOrg("new-org-name", "new-org-msg");
-  $("make-first-org").onclick = () => createOrg("first-org", "no-org-msg");
-  $("recheck").onclick = () => showApp();
+  $("new-org").onclick = () => { setTab("create"); showOrgChooser(); };
+  $("back-to-app").onclick = () => showApp();
+  $("tab-create").onclick = () => setTab("create");
+  $("tab-join").onclick = () => setTab("join");
+  $("make-first-org").onclick = createOrg;
+  $("first-org").addEventListener("keydown", (e) => { if (e.key === "Enter") createOrg(); });
+  $("recheck").onclick = recheck;
   $("add").onclick = addMember;
   $("member-email").addEventListener("keydown", (e) => { if (e.key === "Enter") addMember(); });
 

@@ -381,25 +381,33 @@ def cmd_init(argv):
     return 0
 
 
-def choose_org(cfg, orgs, email):
-    """Which org a new remote context goes in. Joining an org is something an
-    admin does for you, on the website; ctx can only offer to start a new one."""
+APP_URL = "https://keepctx.com/app.html"
+
+
+def login(cfg):
+    """Accounts are made on the website; ctx only signs in to one."""
+    email = input("email: ").strip()
+    password = getpass.getpass("password: ")
+    out = api(cfg, "POST", "/v1/auth/login", {"email": email, "password": password})
+    return out, email
+
+
+def choose_org(orgs, email):
+    """Which org a new remote context goes in. Orgs are created and joined on the
+    website, signed in — ctx only picks from the ones you're already in."""
     mine = [o["org"] for o in orgs]
-    if mine:
-        print("Your orgs: " + ", ".join(mine))
+    if not mine:
+        err(f"error: {email} isn't in an org yet.")
+        err(f"       Create one at {APP_URL}, or ask an org admin to add you.")
+        return None
+    print("Your orgs: " + ", ".join(mine))
     hint = f" [{mine[0]}]" if len(mine) == 1 else ""
     org = input(f"org{hint}: ").strip().lower() or (mine[0] if len(mine) == 1 else "")
-    if not org:
-        err("error: pick an org.")
-        return None
     if org in mine:
         return org
-    if input(f"You're not in `{org}`. Create it, with you as admin? [y/N] ").strip().lower() != "y":
-        err(f"If `{org}` already exists, ask one of its admins to add {email} at")
-        err("https://keepctx.com/app.html, then run `ctx remote` again.")
-        return None
-    api(cfg, "POST", "/v1/orgs", {"org": org})
-    return org
+    err(f"error: you're not in `{org or '?'}`.")
+    err(f"       Ask one of its admins to add {email}, or create it at {APP_URL}.")
+    return None
 
 
 def cmd_remote(argv):
@@ -422,13 +430,11 @@ def cmd_remote(argv):
 
     remote = os.environ.get("CTX_REMOTE", DEFAULT_REMOTE)
     print(f"Remote: {remote}")
-    email = input("email: ").strip()
-    password = getpass.getpass("password: ")
-
+    print(f"Sign in (no account? make one at {APP_URL})")
     cfg["remote"] = remote
-    out = api(cfg, "POST", "/v1/auth/login", {"email": email, "password": password})
+    out, email = login(cfg)
     cfg["token"] = out["token"]
-    org = choose_org(cfg, out.get("orgs") or [], email)
+    org = choose_org(out.get("orgs") or [], email)
     if not org:
         return 1
     cfg["org"] = org
@@ -502,7 +508,11 @@ def cmd_clone(argv):
 
     cfg = load_config(root)
     cfg.setdefault("remote", os.environ.get("CTX_REMOTE", DEFAULT_REMOTE))
-    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
+    token = cfg.get("token")
+    if not token:   # contexts are members-only, so reading one needs a sign-in
+        print(f"Sign in to read {org}:{name} (no account? make one at {APP_URL})")
+        token = login(cfg)[0]["token"]
+    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}", token=token)
 
     d = root / CTXDIR / name
     d.mkdir(parents=True, exist_ok=True)

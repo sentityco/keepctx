@@ -95,3 +95,8 @@ font-family:inherit;background:#fff;color:var(--ink)}
 .mrow{display:flex;gap:12px;align-items:baseline;font-size:14px;padding:10px 0;border-bottom:1px solid var(--line)}
 .mrow .em{font-family:var(--mono);font-size:13.5px}
 .mrow .right{font-size:13px;color:var(--dim)}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;padding:3px;gap:3px;margin:4px 0 6px}
+.seg button{flex:1;background:none;border:0;border-radius:6px;padding:8px 10px;font:inherit;
+font-size:14px;color:var(--dim);cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--soft);color:var(--ink);font-weight:600}
+#pane-join .facts{margin:8px 0}

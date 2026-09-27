@@ -37,24 +37,35 @@
   </div>
 </div>
 
-<!-- signed in, in no org yet -->
+<!-- signed in: create or join an org (the only screen until you're in one) -->
 <div id="no-org" class="wrap" hidden>
   <div class="panel">
-    <h2>You're in</h2>
-    <p class="sub">Signed in as <strong id="no-org-email">—</strong>. You're not in an org yet.</p>
+    <h2 id="orgs-title">Create or join an org</h2>
+    <p class="sub">Signed in as <strong id="no-org-email">—</strong>.</p>
 
-    <h3>Joining a team?</h3>
-    <p class="hint">Ask an admin of your org to add <strong id="no-org-email-2">—</strong>.
-    It shows up here as soon as they do.</p>
-    <button class="link-btn" id="recheck">Check again</button>
+    <div class="seg" role="tablist">
+      <button role="tab" id="tab-create" aria-selected="true">Create an org</button>
+      <button role="tab" id="tab-join" aria-selected="false">Join an org</button>
+    </div>
 
-    <h3>Starting one?</h3>
-    <label for="first-org">Org name</label>
-    <input id="first-org" type="text" placeholder="example-org" autocomplete="off" />
-    <p class="hint">Lowercase letters, digits and dashes. Contexts live under it —
-    <code>example-org:example-project</code>. You'll be its admin.</p>
-    <button class="btn" id="make-first-org">Create org</button>
+    <div id="pane-create">
+      <label for="first-org">Org name</label>
+      <input id="first-org" type="text" placeholder="example-org" autocomplete="off" />
+      <p class="hint">Lowercase letters, digits and dashes. Contexts live under it —
+      <code>example-org:example-project</code>. You'll be its admin, and you can add
+      your team from the People section.</p>
+      <button class="btn" id="make-first-org">Create org</button>
+    </div>
+
+    <div id="pane-join" hidden>
+      <p class="hint">An org's admin adds people by email. Send them this:</p>
+      <div class="facts" id="no-org-email-2">—</div>
+      <p class="hint">The org shows up here as soon as they add you — no need to sign out.</p>
+      <button class="btn" id="recheck">Check again</button>
+    </div>
+
     <div class="msg" id="no-org-msg"></div>
+    <p class="switch" id="orgs-back" hidden><button class="link-btn" id="back-to-app">← back to your org</button></p>
   </div>
 </div>
 
@@ -66,14 +77,8 @@
     <span class="tag" id="who">—</span>
     <div class="right">
       <span class="tag" id="count">—</span>
-      <button class="link-btn" id="new-org">+ new org</button>
+      <button class="link-btn" id="new-org">+ create or join an org</button>
     </div>
-  </div>
-
-  <div id="new-org-form" class="inline-form" hidden>
-    <input id="new-org-name" type="text" placeholder="another-org" autocomplete="off" />
-    <button class="btn" id="make-org">Create</button>
-    <div class="msg" id="new-org-msg"></div>
   </div>
 
   <div id="list"></div>

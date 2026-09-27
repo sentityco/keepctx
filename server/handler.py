@@ -217,24 +217,18 @@ def session(email):
 # -------------------------------------------------------------------- routes
 
 def register(body):
+    """An account and nothing else. Orgs are made afterwards, signed in."""
     email = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
-    org = (body.get("org") or "").strip().lower()      # optional: make one now
     if not email or "@" not in email:
         return err(400, "a real email, please")
     if len(password) < 8:
         return err(400, "password needs at least 8 characters")
-    if org and not NAME_RE.match(org):
-        return err(400, "org must be 3-40 chars, lowercase letters, digits and dashes")
     if get_user(email):
         return err(409, "that email is already registered — log in instead")
-    if org and get_org(org):
-        return err(409, f"org `{org}` is taken — if it's yours, ask its admin to add you")
 
     tbl.put_item(Item={"pk": f"USER#{email}", "sk": "PROFILE",
                        "pw": hash_pw(password), "created": int(time.time())})
-    if org:
-        new_org(email, org)
     return resp(200, session(email))
 
 
@@ -332,7 +326,10 @@ def create_context(claims, body):
     return resp(200, {"org": org, "name": name, "version": 1})
 
 
-def read_context(org, name):
+def read_context(claims, org, name):
+    # a context holds hostnames, access steps and internal names: members only
+    if not role_in(claims["sub"], org):
+        return err(403, "not your org")
     item = get_context(org, name)
     if not item:
         return err(404, f"{org}:{name} not found")
@@ -473,7 +470,7 @@ def handler(event, _context=None):
             return err(401, "log in") if not claims else list_contexts(claims, parts[1])
 
         if len(parts) == 3 and parts[0] == "contexts" and method == "GET":
-            return read_context(parts[1], parts[2])
+            return err(401, "log in") if not claims else read_context(claims, parts[1], parts[2])
 
         if len(parts) == 4 and parts[0] == "contexts":
             org, name, action = parts[1], parts[2], parts[3]
