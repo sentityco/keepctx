@@ -215,9 +215,16 @@ ctx sync     <span class="c"># two-way. mostly automatic after this</span></code
     var s = JSON.parse(localStorage.getItem("ctx.session") || "null");
     var exp = s && s.token && JSON.parse(atob(s.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp;
     if (!exp || exp * 1000 < Date.now()) return;
-    document.querySelectorAll("[data-account]").forEach(function (a) { a.textContent = "Your orgs"; });
+    document.querySelectorAll("[data-account]").forEach(function (a) {
+      a.textContent = "Sign out";
+      a.onclick = function (e) {
+        e.preventDefault();
+        try { localStorage.removeItem("ctx.session"); } catch (err) { /* ignore */ }
+        location.reload();
+      };
+    });
     var cta = document.getElementById("cta-account");
-    cta.textContent = "Open your orgs";
+    cta.textContent = "Open the app";
     cta.href = "app.html";
   } catch (e) { /* no storage, or an old session: show the signed-out links */ }
 })();
