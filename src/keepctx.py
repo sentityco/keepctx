@@ -288,8 +288,22 @@ def write_instructions(root, name, has_remote):
     — including on a later run, so an old setup does not keep stale rules."""
     facts_path = f"{CTXDIR}/{name}/{FACTS}"
     steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
-    (root / CTXDIR / INSTRUCTIONS).write_text(
-        INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps))
+    text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps)
+    path = root / CTXDIR / INSTRUCTIONS
+    if not path.exists() or path.read_text() != text:
+        path.write_text(text)
+
+
+def refresh_instructions():
+    """Every command brings instructions.md up to date, so upgrading keepctx is
+    just reinstalling it. Safe to do unasked: the file is gitignored and ctx owns
+    all of it. AGENTS.md is the opposite on both counts, so it is never touched."""
+    root = find_root()
+    if not root:
+        return
+    cfg = load_config(root)
+    if cfg.get("name"):
+        write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")))
 
 
 POINTER = (
@@ -302,21 +316,14 @@ POINTER = (
 )
 
 
-def write_pointer(root, add=True):
-    """ctx owns only what sits between its markers, so it can bring an old pointer
-    up to date without touching a word the developer wrote. add=False refreshes a
-    pointer that is there but never puts back one somebody deleted."""
+def write_pointer(root):
+    """Written once, at the top, and never again. AGENTS.md is the developer's
+    file and it is in git: rewriting it later is a diff nobody asked for, and a
+    teammate on an older ctx would write the old wording straight back."""
     agents = root / AGENTS
     existing = agents.read_text() if agents.exists() else ""
-    start, end = existing.find(BEGIN), existing.find(END)
-    if start != -1 and end > start:
-        updated = existing[:start] + POINTER.rstrip("\n") + existing[end + len(END):]
-    elif add:
-        updated = POINTER + ("\n" + existing if existing else "")
-    else:
-        return
-    if updated != existing:
-        agents.write_text(updated)
+    if BEGIN not in existing:
+        agents.write_text(POINTER + ("\n" + existing if existing else ""))
 
 
 def cmd_init(argv):
@@ -331,9 +338,6 @@ def cmd_init(argv):
     # told to run, so it must orient the agent every time — not only the first.
     if found == here:
         cfg = load_config(found)
-        if cfg.get("name"):
-            write_instructions(found, cfg["name"], has_remote=bool(cfg.get("org")))
-        write_pointer(found, add=False)
         if sys.stdout.isatty():   # a person ran init again; say nothing was reset
             print(f"Already initialized `{cfg.get('name', '?')}` here.")
             print()
@@ -567,6 +571,7 @@ def main():
     if cmd in ("-v", "--version"):
         print(f"keepctx {VERSION}")
         return 0
+    refresh_instructions()
     if cmd == "init":
         return cmd_init(argv[1:])
     if cmd == "remote":
