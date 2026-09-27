@@ -108,7 +108,6 @@ ctx sync               # upload local changes, download remote ones
 ctx init [name]        # set up here. local, no account, no network.
 ctx remote             # one-time. creates this context on a remote, settles the name.
 ctx clone org:name     # get a context you do not have, plus what it requires.
-ctx upgrade            # replace the binary. only ever when asked.
 ```
 
 There is no `add`, no `commit`, no `push`, no `pull`, no `render`, and no read command.
@@ -909,31 +908,34 @@ to rebuild is a documentation site that is out of date.
 
 ## Distribution
 
-Two install paths, and they need different answers about staying current.
+**Today there is one install path, and upgrading is reinstalling.**
 
-**Homebrew: nothing to build.** `brew upgrade ctx` is what users already expect, and Homebrew
-refreshes its formula index on most commands, so they find out on their own. The only work is
-publishing the formula, which release tooling can do on every tag.
+```sh
+curl -fsSL https://keepctx.com/install.sh | sh
+```
 
-**curl-installed: notify, plus an explicit `ctx upgrade`.** This is the settled pattern for
-tools that ship outside a package manager — rustup, Deno, uv and Bun all do exactly this. The
-installer drops a binary at a known path and the tool knows how to replace it when asked.
+The installer fetches the latest commit on `main` and replaces the installed copy, so running it
+again is the upgrade. There is no `ctx upgrade` command. Nothing else needs doing: every project
+picks up new agent rules on its next `ctx` command, because `instructions.md` refreshes itself.
 
-**The version check costs nothing**, which is what makes it worth having: keepctx already talks to
-the server on sync, so the response carries the latest version and keepctx prints a line. No extra
-request, no telemetry, no phone-home to justify.
+### Maybe later: `ctx upgrade` and a version notice
+
+We may add a `ctx upgrade` that replaces the installed copy when asked — the settled pattern for
+tools that ship outside a package manager; rustup, Deno, uv and Bun all do it — along with a
+Homebrew formula, where `brew upgrade` is what users already expect.
+
+The notice would cost nothing: keepctx already talks to the server on sync, so the response
+could carry the latest version and keepctx would print a line. No extra request, no telemetry.
 
 ```
 $ ctx sync
 example-project        2 facts updated by alex
 
-ctx 0.4.1 available (you have 0.3.2) — `ctx upgrade`
+ctx 0.4.1 available (you have 0.3.2) — reinstall to upgrade
 ```
 
-### Four guardrails on the update check
-
-This is where auto-updaters normally go wrong, so all four are requirements rather than
-niceties:
+If it is built, this is where auto-updaters normally go wrong, so all four guardrails are
+requirements rather than niceties:
 
 - **Silent when stdout is not a TTY.** An agent parsing `ctx sync` must never receive an
   upgrade nag mixed into the output it is reading.

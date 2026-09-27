@@ -619,9 +619,6 @@ def main():
         return cmd_sync(argv[1:])
     if cmd == "clone":
         return cmd_clone(argv[1:])
-    if cmd == "upgrade":
-        print("Install with brew or the install script: https://keepctx.com")
-        return 0
     if not argv:
         return cmd_status(with_usage=True)
     err(f"error: unknown command `{cmd}`")
