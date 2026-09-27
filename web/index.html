@@ -13,7 +13,6 @@
   <a class="logo" href="/">keepctx</a>
   <nav>
     <a href="#why">Why</a>
-    <a href="#what">What goes in</a>
     <a href="#how">How it works</a>
     <a href="#quickstart">Quickstart</a>
     <a href="app.html" data-account>Sign in</a>
@@ -73,8 +72,20 @@
   </div>
 </div></section>
 
-<section id="what"><div class="wrap">
-  <h2>What goes in a context</h2>
+<section id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <p class="sub">A context is a list of facts. The bolded lead is the key, and the value can be
+  an IP, a command, or a sentence.</p>
+
+<pre><code><span class="c"># .ctx/example-project/facts.md</span>
+
+- **prod.access** — SSO, then jump host <span class="k">`bastion.example.com`</span>, then <span class="k">`aws --profile prod-ro`</span>. Never direct SSH. `[verified]`
+- **network.proxy** — internal hosts only resolve through the corporate proxy; set <span class="k">`HTTPS_PROXY`</span> first
+- **logs.location** — Splunk, index <span class="k">`app_prod`</span>. Not CloudWatch, whatever the old runbook says.
+- **api.runs-on** → Cloud Foundry (<span class="k">`cf logs api --recent`</span>), not Kubernetes
+- **api.depends-on** → auth-service, for session validation</code></pre>
+
+  <h3>What goes in a context</h3>
   <p class="sub">Everything you'd tell a sharp new teammate on day one. Your agent fills it in as
   it learns, in whatever order the work turns things up.</p>
 
@@ -91,8 +102,8 @@
     <tr><th>People &amp; access</th><td>who owns what, who to ask, and how to get in — never the credentials themselves</td></tr>
   </table>
 
-  <h3>Not just code</h3>
-  <p class="sub">Anything you keep explaining to an AI is a context.</p>
+  <p class="sub" style="margin-top:26px"><strong>Not just code.</strong> Anything you keep explaining to an AI is a
+  context.</p>
   <div class="grid">
     <div class="card">
       <h3>Investing</h3>
@@ -112,20 +123,6 @@
       <p>Sources, what's been ruled out, and the questions still open.</p>
     </div>
   </div>
-</div></section>
-
-<section id="how"><div class="wrap">
-  <h2>How it works</h2>
-  <p class="sub">A context is a list of facts. The bolded lead is the key, and the value can be
-  an IP, a command, or a sentence.</p>
-
-<pre><code><span class="c"># .ctx/example-project/facts.md</span>
-
-- **prod.access** — SSO, then jump host <span class="k">`bastion.example.com`</span>, then <span class="k">`aws --profile prod-ro`</span>. Never direct SSH. `[verified]`
-- **network.proxy** — internal hosts only resolve through the corporate proxy; set <span class="k">`HTTPS_PROXY`</span> first
-- **logs.location** — Splunk, index <span class="k">`app_prod`</span>. Not CloudWatch, whatever the old runbook says.
-- **api.runs-on** → Cloud Foundry (<span class="k">`cf logs api --recent`</span>), not Kubernetes
-- **api.depends-on** → auth-service, for session validation</code></pre>
 
   <h3>Reads and writes are just files</h3>
   <p class="sub">Your agent opens <code>facts.md</code> with the same tools it uses for any
