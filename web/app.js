@@ -282,8 +282,8 @@ async function openContext(name) {
   });
 }
 
-// Same menu as the rest of the site. Its last button is "Sign in" or "Console"
-// outside; in here, signed in, it's "Sign out".
+// Same menu as the rest of the site, whose last button is always "Console". In
+// here it's "Sign out" when signed in, and "Sign in" on the sign-in form.
 function signedIn(yes) {
   $("account").textContent = yes ? "Sign out" : "Sign in";
 }
