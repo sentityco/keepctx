@@ -85,8 +85,9 @@ white-space:pre-wrap;line-height:1.7;max-height:400px;overflow:auto}
 .link-btn{background:none;border:0;color:var(--acc);cursor:pointer;font-size:13.5px;padding:0;font-family:inherit}
 .link-btn:hover{text-decoration:underline}
 @media(max-width:620px){h1{font-size:31px}.hero{padding:52px 0 44px}header nav a:nth-child(-n+2){display:none}}
-select{padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;
-font-family:inherit;background:#fff;color:var(--ink)}
+select{padding:9px 34px 9px 12px;border:1px solid var(--line);border-radius:7px;font-size:14px;
+font-family:inherit;color:var(--ink);cursor:pointer;-webkit-appearance:none;appearance:none;
+background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center}
 .panel h3{font-size:15px;margin:24px 0 4px}
 .inline-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 0}
 .inline-form input{flex:1;min-width:200px;width:auto}
