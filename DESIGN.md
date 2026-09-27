@@ -155,56 +155,32 @@ no remote for this context — `ctx remote` to create one
 
 Actions that push data outward get typed deliberately, once.
 
-## Contexts nest
+## Contexts are independent
 
-A repository can have its own context while sitting inside a team or workspace context, and
-both are visible:
+Each context stands alone. Which one applies is decided by where the agent was started:
 
 ```
 ~/work/
-  .ctx/platform-team/facts.md     # the team context
+  .ctx/platform-team/facts.md     # used by an agent started in ~/work
   repo-a/
-    .ctx/repo-a/facts.md          # this repo's own
+    .ctx/repo-a/facts.md          # used by an agent started in ~/work/repo-a
 ```
 
-From inside `repo-a`, keepctx reports both — `[this project]` for its own and `[inherited]` for
-the team's. **Contexts stack the way `AGENTS.md` does**, general underneath and specific on
-top, which is the convention agents already follow.
+An agent reads `AGENTS.md` in the directory it was started in, follows the pointer to that
+directory's `.ctx/instructions.md`, and works from that one facts file. `ctx` resolves the same
+way, using the nearest `.ctx/` from the current directory. Nothing stacks and nothing is
+inherited. `ctx init` in `repo-a` just starts a new context there; the one in `~/work` has no
+bearing on it.
 
-The obvious implementation is wrong and worth naming: returning only the *nearest* context
-makes the outer one vanish the moment the inner one is created, which is the exact opposite
-of what nesting is for. keepctx walks the whole chain upward.
+**Nesting was tried and taken out.** An earlier version stacked contexts the way `AGENTS.md`
+files stack: an agent in `repo-a` saw its own facts and the team's as "inherited", the child's
+instructions listed every context above it, and `ctx init` recorded the parent as a `requires`.
+It was a lot of machinery for a case agents do not follow reliably anyway. Whether an agent
+started at the top ever reads a subdirectory's `AGENTS.md` depends on the agent and on which
+files it happens to open. One context per starting directory is something a person can
+predict without reading the code.
 
-**Three kinds, because where a fact belongs depends on it:**
-
-| Kind | Meaning |
-|---|---|
-| own | The nearest context. The default write target. |
-| inherited | Your own context at a higher level. Writable, but only for facts actually about it. |
-| read-only | A clone of someone else's. Never written locally. |
-
-An agent is told this explicitly: write facts about this project here, and a fact really
-about the team belongs in the team's context instead.
-
-**The telling happens in `instructions.md`, because that is all an agent started in `repo-a`
-reads.** It loads `repo-a/AGENTS.md`, follows the pointer to `repo-a/.ctx/instructions.md`, and
-stops. Nothing there would lead it up to `~/work/.ctx/`, so a nested context's instructions list
-every context above it, with relative paths to their facts files, and say which kind of fact goes
-where. Running `ctx` would show the chain too, but an instruction that depends on the agent
-happening to run a command is one that usually does not fire.
-
-**Creating a nested context is plain `ctx init`.** An earlier version refused inside an existing
-context and asked for `ctx init --here`, to guard against making a second context by accident.
-The guard cost more than the accident: nesting is the point of the feature, and a flag that
-unlocks the ordinary case is one people have to be told about. Two cases still refuse, because
-both are always mistakes — running it inside a `.ctx/` directory, and reusing the name of a
-context above, which would make the two indistinguishable in every listing.
-
-**Nesting alone does not survive a clone.** It is a filesystem relationship, so a teammate
-who clones only the inner repository gets no parent directory and no team context. So
-`ctx init` inside an existing context records the parent as an explicit `requires`. Locally
-that changes nothing; when the context is published and cloned elsewhere, the dependency
-travels with it. Filesystem for convenience, `requires` for correctness.
+`ctx init` still refuses inside a `.ctx/` directory, because that is always a mistake.
 
 ## One directory, one authored context
 

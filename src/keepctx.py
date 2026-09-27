@@ -35,41 +35,31 @@ FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*(?P<rel>[—→-])\s*(?P
 # ---------------------------------------------------------------- filesystem
 
 def find_root(start=None):
-    """Nearest directory containing .ctx/. None if there isn't one."""
-    roots = find_roots(start)
-    return roots[0] if roots else None
+    """Nearest directory containing .ctx/. None if there isn't one.
 
-
-def find_roots(start=None):
-    """Every .ctx/ from here upward, nearest first.
-
-    Contexts stack the way AGENTS.md does: a repo's own context layers on top of
-    the team context it sits inside. Returning only the nearest would make the
-    outer one vanish the moment the inner one is created, which is the opposite
-    of what nesting is for.
+    Only the nearest: contexts are independent, and which one applies is
+    decided by where the agent was started. Nothing stacks or inherits.
     """
     d = pathlib.Path(start or os.getcwd()).resolve()
-    return [c for c in [d, *d.parents] if (c / CTXDIR).is_dir()]
+    return next((c for c in [d, *d.parents] if (c / CTXDIR).is_dir()), None)
 
 
 def contexts_in_scope(start=None):
-    """-> [(root, name, kind)] for every context visible from here.
+    """-> [(root, name, kind)] for the nearest context and its clones.
 
-    Three kinds, and the distinction matters for where a fact should be written:
-      "own"    the nearest context. the default target.
-      "parent" your own context at a higher level — a team or workspace context.
-               writable, but only for facts that are actually about it.
+      "own"    the context here. the one the agent writes to.
       "clone"  someone else's, synced from a remote. read-only.
     """
+    root = find_root(start)
+    if not root:
+        return []
+    name = load_config(root).get("name")
     out = []
-    for i, root in enumerate(find_roots(start)):
-        cfg = load_config(root)
-        name = cfg.get("name")
-        if name and (root / CTXDIR / name / FACTS).exists():
-            out.append((root, name, "own" if i == 0 else "parent"))
-        for d in sorted((root / CTXDIR).iterdir()):
-            if d.is_dir() and d.name != name and (d / FACTS).exists():
-                out.append((root, d.name, "clone"))
+    if name and (root / CTXDIR / name / FACTS).exists():
+        out.append((root, name, "own"))
+    for d in sorted((root / CTXDIR).iterdir()):
+        if d.is_dir() and d.name != name and (d / FACTS).exists():
+            out.append((root, d.name, "clone"))
     return out
 
 
@@ -269,42 +259,11 @@ REMOTE_STEPS = """
 """
 
 
-PARENT_STEPS = """
-This project sits inside {which}. Read {them} too:
-{lines}
-
-Facts about this project go in your own facts file above. A fact really about
-a wider scope goes in that context's facts file instead.
-"""
-
-
-def parent_contexts(root):
-    """-> [(ancestor_root, name)] for the authored contexts above root, nearest
-    first. Clones are left out: they are someone else's, not a parent."""
-    out = []
-    for ancestor in find_roots(root.parent) if root.parent != root else []:
-        name = load_config(ancestor).get("name")
-        if name and (ancestor / CTXDIR / name / FACTS).exists():
-            out.append((ancestor, name))
-    return out
-
-
 def write_instructions(root, name, has_remote):
     """ctx owns this file and the agent never writes it, so ctx keeps it current
     — including on a later run, so an old setup does not keep stale rules."""
     facts_path = f"{CTXDIR}/{name}/{FACTS}"
     steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
-    # an agent started here reads this file and nothing above it, so name the
-    # contexts it inherits — otherwise the team context is invisible from a repo.
-    parents = parent_contexts(root)
-    if parents:
-        lines = "\n".join(
-            f"- `{os.path.relpath(a / CTXDIR / n / FACTS, root)}` — `{n}`"
-            for a, n in parents)
-        one = len(parents) == 1
-        steps += "\n" + PARENT_STEPS.format(
-            which="another context" if one else "other contexts",
-            them="it" if one else "them", lines=lines).rstrip()
     (root / CTXDIR / INSTRUCTIONS).write_text(
         INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps))
 
@@ -329,15 +288,10 @@ def cmd_init(argv):
             print(reread())
         return 0
 
-    # Inside an existing context is not a conflict: this makes a nested one,
-    # which stacks on top of the context above it and records it as a parent.
+    # A context further up is no obstacle: contexts are independent, so this
+    # one simply starts here.
     root = here
     name = slugify(argv[0]) if argv else slugify(root.name)
-    parents = parent_contexts(root)
-    if name in {n for _, n in parents}:
-        err(f"error: `{name}` is already the name of a context above this one.")
-        err("       Pick another: ctx init <name>")
-        return 1
 
     ctxdir = root / CTXDIR
     (ctxdir / name).mkdir(parents=True, exist_ok=True)
@@ -353,14 +307,8 @@ def cmd_init(argv):
         facts.write_text(f"# {name}\n\n")
     (ctxdir / name / BASE).write_text("")
 
-    # Nesting is a filesystem fact and does not survive a clone, so record the
-    # parent explicitly. Locally it changes nothing; when this context is
-    # published and cloned elsewhere, the dependency travels with it.
-    parent = parents[0][1] if parents else None
-
     save_config(root, {"name": name, "org": None, "remote": None,
-                       "token": None, "version": 0,
-                       "requires": [parent] if parent else []})
+                       "token": None, "version": 0})
 
     pointer = (
         f"{BEGIN}\n"
@@ -382,8 +330,6 @@ def cmd_init(argv):
     print(f"  {facts_rel:<{w}}  your facts")
     print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent maintains them")
     print(f"  {AGENTS:<{w}}  pointer added at the top")
-    if parent:
-        print(f"  requires {parent} (the context this sits inside)")
     print()
     print(reread())
     return 0
@@ -525,9 +471,6 @@ def cmd_status():
     print(f"  root      {root}")
     print(f"  context   {name}")
     print(f"  facts     {len(facts)}")
-    req = cfg.get("requires") or []
-    if req:
-        print(f"  requires  {', '.join(req)}")
     if cfg.get("org"):
         print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)}")
     else:
@@ -549,7 +492,7 @@ def agent_index(root):
     bits = []
     for r, n, kind in scope:
         _, order = read_facts(r, n)
-        tag = {"own": "", "parent": ", inherited", "clone": ", read-only"}[kind]
+        tag = {"own": "", "clone": ", read-only"}[kind]
         bits.append(f"{n} ({len(order)} facts{tag})")
     print("Contexts: " + ", ".join(bits))
     print(reread())
