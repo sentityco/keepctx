@@ -286,7 +286,7 @@ function showAuth() {
   $("app").hidden = true;
   $("no-org").hidden = true;
   $("signout").hidden = true;
-  setMode("login");
+  setMode(location.hash === "#register" ? "register" : "login");
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
