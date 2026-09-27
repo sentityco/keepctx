@@ -282,9 +282,10 @@ async function openContext(name) {
   });
 }
 
-// Same menu as the rest of the site; the last link is Sign in or Sign out.
+// Same menu as the rest of the site. "Console" is always there and lands on the
+// console's front page, or the sign-in form; "Sign out" only when signed in.
 function signedIn(yes) {
-  $("account").textContent = yes ? "Sign out" : "Sign in";
+  $("account").hidden = !yes;
 }
 
 function showAuth() {
@@ -302,7 +303,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("detail").hidden = true; $("list").hidden = false; $("people").hidden = false;
   };
   $("account").onclick = (e) => {
-    if (!session) return;            // signed out: it's just a link to this page
     e.preventDefault();
     clearSession();
     showAuth();
