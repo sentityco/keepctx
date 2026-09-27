@@ -532,7 +532,7 @@ def cmd_clone(argv):
     return 0
 
 
-def cmd_status():
+def cmd_status(with_usage=False):
     root = find_root()
     piped = not sys.stdout.isatty()   # a hook or an agent is reading, not a person
 
@@ -562,6 +562,9 @@ def cmd_status():
               if p.is_dir() and p.name != name]
     if others:
         print(f"  cloned    {', '.join(others)}")
+    if with_usage:            # plain `ctx`: a person asking what this is and what it does
+        print()
+        usage()
     return 0
 
 
@@ -620,7 +623,7 @@ def main():
         print("Install with brew or the install script: https://keepctx.com")
         return 0
     if not argv:
-        return cmd_status()
+        return cmd_status(with_usage=True)
     err(f"error: unknown command `{cmd}`")
     return usage()
 
