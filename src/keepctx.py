@@ -290,8 +290,10 @@ def write_instructions(root, name, has_remote):
     steps = (REMOTE_STEPS if has_remote else LOCAL_STEPS).format(facts_path=facts_path).rstrip()
     text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps)
     path = root / CTXDIR / INSTRUCTIONS
-    if not path.exists() or path.read_text() != text:
-        path.write_text(text)
+    if path.exists() and path.read_text() == text:
+        return False
+    path.write_text(text)
+    return True
 
 
 def refresh_instructions():
@@ -300,10 +302,11 @@ def refresh_instructions():
     all of it. AGENTS.md is the opposite on both counts, so it is never touched."""
     root = find_root()
     if not root:
-        return
+        return False
     cfg = load_config(root)
-    if cfg.get("name"):
-        write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")))
+    if not cfg.get("name"):
+        return False
+    return write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")))
 
 
 POINTER = (
@@ -326,7 +329,7 @@ def write_pointer(root):
         agents.write_text(POINTER + ("\n" + existing if existing else ""))
 
 
-def cmd_init(argv):
+def cmd_init(argv, refreshed=False):
     here = pathlib.Path.cwd().resolve()
     if CTXDIR in here.parts:
         err(f"error: {here} is inside keepctx's own {CTXDIR}/ directory.")
@@ -342,9 +345,10 @@ def cmd_init(argv):
             print(f"Already initialized `{cfg.get('name', '?')}` here.")
             print()
         cmd_status()
-        if sys.stdout.isatty():   # piped status already ends with reread()
+        # nothing an agent reads changed, unless the rules just got updated
+        if refreshed and sys.stdout.isatty():   # piped status already ends with reread()
             print()
-            print(reread())
+            print("keepctx's rules for your agent were updated. " + reread())
         return 0
 
     # A context further up is no obstacle: contexts are independent, so this
@@ -603,9 +607,9 @@ def main():
     if cmd in ("-v", "--version"):
         print(f"keepctx {VERSION}")
         return 0
-    refresh_instructions()
+    refreshed = refresh_instructions()
     if cmd == "init":
-        return cmd_init(argv[1:])
+        return cmd_init(argv[1:], refreshed)
     if cmd == "remote":
         return cmd_remote(argv[1:])
     if cmd == "sync":
