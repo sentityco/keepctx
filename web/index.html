@@ -63,12 +63,12 @@
     <div class="card">
       <h3>Never in your git history</h3>
       <p><code>.ctx/</code> ignores itself, so context never pollutes diffs and never goes stale
-      on a branch. Your <code>AGENTS.md</code> gets two lines and nothing else.</p>
+      on a branch. Your <code>AGENTS.md</code> gets a short pointer and nothing else.</p>
     </div>
     <div class="card">
       <h3>Plain markdown, open source</h3>
-      <p>Facts are readable text. Run our server or your own. Uninstalling is deleting two
-      lines from a file.</p>
+      <p>Facts are readable text. Run our server or your own. Uninstalling is deleting
+      <code>.ctx/</code>.</p>
     </div>
   </div>
 </div></section>
@@ -160,7 +160,7 @@
     </li>
     <li>
       <h3>Set up in your project</h3>
-      <p>Creates <code>.ctx/</code>, adds two lines to <code>AGENTS.md</code>, and ignores itself
+      <p>Creates <code>.ctx/</code>, adds a short pointer to <code>AGENTS.md</code>, and ignores itself
       in git. The name defaults to your directory.</p>
 <pre><code>cd ~/work/example-project
 ctx init

@@ -46,7 +46,7 @@ written instructions in `AGENTS.md` survive untouched — keepctx adds a pointer
 knowledge lives behind it. Worth stating plainly, because "this tool manages my AGENTS.md"
 makes people fear it will eat notes they wrote carefully, and the true answer is better than
 the worry. It is also the enterprise anti-objection: nothing you wrote is overwritten, and
-removing keepctx is deleting two lines.
+removing keepctx is deleting `.ctx/`.
 
 ### The benefits, strongest first
 
@@ -89,7 +89,7 @@ A small index that an agent always sees, pointing at contexts it fetches only wh
 task needs them.
 
 ```
-AGENTS.md                ~40 tokens     — two lines the dev owns, pointing at ctx
+AGENTS.md                ~70 tokens     — a pointer the dev owns, pointing at ctx
 .ctx/instructions.md     ~1,200 tokens  — the rules, plus one line per context
 .ctx/<name>/facts.md     ~500 tokens    — read when the task touches it
 ```
@@ -189,7 +189,7 @@ You author one context. Every other context on your disk is someone else's, brou
 what a second directory is for.
 
 ```
-AGENTS.md              # the dev's file. ctx adds two lines at the top, then never returns.
+AGENTS.md              # the dev's file. ctx adds a pointer at the top, then never returns.
 .ctx/
   .gitignore           # contains `*`. see below.
   instructions.md      # the rules + the index. ctx owns it; the agent never writes it.
@@ -271,27 +271,27 @@ people sometimes want the opposite; its existence is the proof of the default.)
 A developer who deliberately wants context in git can `git add -f`. That is the right
 friction ratio for a decision this design has already made.
 
-### What git sees: two lines
+### What git sees: a pointer
 
 Nothing about keepctx is committed except a pointer, at the top of `AGENTS.md`, that a human
 can read, edit or delete:
 
 ```markdown
 AI context for this project lives in `.ctx/instructions.md` — read it first.
-Missing? It is gitignored by design. Install ctx (https://keepctx.com), then
-`ctx clone <org>:<name>` — or `ctx init` if this project has no context yet.
+No `.ctx/`? Carry on without it, and don't flag it: it is gitignored, so it may not
+be cloned here yet, or it was removed on purpose. To set it up, install ctx
+(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.
 ```
 
 The pointer goes at the top so an agent sees it before reasoning on the rest of the file,
 and it is phrased as an instruction rather than a notice — "this file is managed by keepctx"
 tells a model nothing it can act on.
 
-**The second line exists because the first one is a dead link on a fresh clone.** There are
-two failure shapes and only one self-heals. A teammate who has keepctx installed follows the
-fallback and is fine. A teammate who does not has an instruction they cannot satisfy — and
-an agent handed a missing referenced file tends to either burn turns hunting for it or
-quietly invent what it probably said. Naming the install step makes the pointer resolvable
-from any machine.
+**The rest exists because the first line is a dead link whenever `.ctx/` is absent** — on a
+fresh clone, or after someone uninstalled. An agent handed a missing referenced file tends to
+burn turns hunting for it, quietly invent what it probably said, or raise it with the user as
+a problem. So the pointer says outright that a missing `.ctx/` is normal and to carry on, and
+names the install step for the human who does want it.
 
 It links to an install page rather than inlining `curl … | sh`. A file in a repo that tells
 an agent to pipe a remote script into a shell is a pattern not worth normalising, and the
@@ -301,10 +301,10 @@ human should see that step.
 an agent *which* contexts the project used — the developer has to know the name. Free for a
 solo dev, one line in a real README for a team, and it is the price of keeping git clean.
 
-**Uninstalling is deleting two lines.** keepctx never returns to `AGENTS.md` after init, so
-those lines also persist if someone abandons keepctx and removes `.ctx/`. Nothing can be done
-about that, and it is worth documenting plainly: a tool that is trivial to remove is easier
-to adopt.
+**Uninstalling is deleting `.ctx/`.** That is what people actually do, and it should be
+enough. keepctx never returns to `AGENTS.md` after init, so the pointer stays behind — which
+is why it tells agents that a missing `.ctx/` is normal. Leaving it is harmless; deleting it
+is optional tidiness. A tool that is trivial to remove is easier to adopt.
 
 ## The unit: a context
 

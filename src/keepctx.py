@@ -340,8 +340,9 @@ def cmd_init(argv):
     pointer = (
         f"{BEGIN}\n"
         f"AI context for this project lives in `{CTXDIR}/{INSTRUCTIONS}` — read it first.\n"
-        f"Missing? It is gitignored by design. Install ctx (https://keepctx.com), then\n"
-        f"`ctx clone <org>:<name>` — or `ctx init` if this project has no context yet.\n"
+        f"No `{CTXDIR}/`? Carry on without it, and don't flag it: it is gitignored, so it may not\n"
+        f"be cloned here yet, or it was removed on purpose. To set it up, install ctx\n"
+        f"(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.\n"
         f"{END}\n"
     )
     agents = root / AGENTS

@@ -40,8 +40,9 @@ capture actually happens.
 Because it's plain markdown behind `AGENTS.md`, every agent that reads that file — Claude
 Code and Codex among them — shares the same context. Switch tools and nothing is lost.
 
-`ctx init` adds two lines to the top of your `AGENTS.md` pointing at the rules, and
-**nothing you wrote there is touched.** Uninstalling is deleting those two lines.
+`ctx init` adds a short pointer to the top of your `AGENTS.md`, and **nothing you wrote
+there is touched.** To uninstall, delete `.ctx/`. The pointer can stay: it tells agents to
+carry on without context when `.ctx/` is missing. Delete it too if you want a clean file.
 
 ## What goes in a context
 

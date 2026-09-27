@@ -1,7 +1,8 @@
 <!-- ctx -->
 AI context for this project lives in `.ctx/instructions.md` — read it first.
-Missing? It is gitignored by design. Install ctx (https://keepctx.com), then
-`ctx clone <org>:<name>` — or `ctx init` if this project has no context yet.
+No `.ctx/`? Carry on without it, and don't flag it: it is gitignored, so it may not
+be cloned here yet, or it was removed on purpose. To set it up, install ctx
+(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.
 <!-- /ctx -->
 
 # keepctx
