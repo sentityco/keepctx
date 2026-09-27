@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 
 VERSION = "0.1.0"
-DEFAULT_REMOTE = os.environ.get("CTX_REMOTE", "https://lrtkepaox4.execute-api.us-east-1.amazonaws.com")
+DEFAULT_REMOTE = os.environ.get("CTX_REMOTE", "https://keepctx.com")
 
 CTXDIR = ".ctx"
 CONFIG = "config.json"

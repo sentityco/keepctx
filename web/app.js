@@ -1,4 +1,5 @@
-const API = "https://lrtkepaox4.execute-api.us-east-1.amazonaws.com";
+// keepctx.com routes /v1/* to the API, so the app calls its own origin
+const API = "";
 const KEY = "ctx.session";
 
 const $ = (id) => document.getElementById(id);
