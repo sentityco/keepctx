@@ -101,3 +101,5 @@ background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 font-size:14px;color:var(--dim);cursor:pointer}
 .seg button[aria-selected="true"]{background:var(--soft);color:var(--ink);font-weight:600}
 #pane-join .facts{margin:8px 0}
+/* the hidden attribute must win over any display rule (e.g. .inline-form's flex) */
+[hidden]{display:none!important}
