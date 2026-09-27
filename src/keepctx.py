@@ -292,6 +292,33 @@ def write_instructions(root, name, has_remote):
         INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps))
 
 
+POINTER = (
+    f"{BEGIN}\n"
+    f"AI context for this project lives in `{CTXDIR}/{INSTRUCTIONS}` — read it first.\n"
+    f"No `{CTXDIR}/`? Carry on without it, and don't flag it: it is gitignored, so it may not\n"
+    f"be cloned here yet, or it was removed on purpose. To set it up, install ctx\n"
+    f"(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.\n"
+    f"{END}\n"
+)
+
+
+def write_pointer(root, add=True):
+    """ctx owns only what sits between its markers, so it can bring an old pointer
+    up to date without touching a word the developer wrote. add=False refreshes a
+    pointer that is there but never puts back one somebody deleted."""
+    agents = root / AGENTS
+    existing = agents.read_text() if agents.exists() else ""
+    start, end = existing.find(BEGIN), existing.find(END)
+    if start != -1 and end > start:
+        updated = existing[:start] + POINTER.rstrip("\n") + existing[end + len(END):]
+    elif add:
+        updated = POINTER + ("\n" + existing if existing else "")
+    else:
+        return
+    if updated != existing:
+        agents.write_text(updated)
+
+
 def cmd_init(argv):
     here = pathlib.Path.cwd().resolve()
     if CTXDIR in here.parts:
@@ -306,6 +333,7 @@ def cmd_init(argv):
         cfg = load_config(found)
         if cfg.get("name"):
             write_instructions(found, cfg["name"], has_remote=bool(cfg.get("org")))
+        write_pointer(found, add=False)
         if sys.stdout.isatty():   # a person ran init again; say nothing was reset
             print(f"Already initialized `{cfg.get('name', '?')}` here.")
             print()
@@ -337,21 +365,7 @@ def cmd_init(argv):
     save_config(root, {"name": name, "org": None, "remote": None,
                        "token": None, "version": 0})
 
-    pointer = (
-        f"{BEGIN}\n"
-        f"AI context for this project lives in `{CTXDIR}/{INSTRUCTIONS}` — read it first.\n"
-        f"No `{CTXDIR}/`? Carry on without it, and don't flag it: it is gitignored, so it may not\n"
-        f"be cloned here yet, or it was removed on purpose. To set it up, install ctx\n"
-        f"(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.\n"
-        f"{END}\n"
-    )
-    agents = root / AGENTS
-    if agents.exists():
-        existing = agents.read_text()
-        if BEGIN not in existing:
-            agents.write_text(pointer + "\n" + existing)
-    else:
-        agents.write_text(pointer)
+    write_pointer(root)
 
     print(f"Initialized `{name}`")
     w = max(len(facts_rel), len(f"{CTXDIR}/{INSTRUCTIONS}"), len(AGENTS))

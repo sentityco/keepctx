@@ -95,7 +95,7 @@ AGENTS.md                ~70 tokens     — a pointer the dev owns, pointing at 
 ```
 
 Three files, and the agent reaches them with ordinary file reads. `AGENTS.md` belongs to the
-developer, so keepctx adds a pointer and never writes there again.
+developer, so keepctx writes only between its own `<!-- ctx -->` markers and nowhere else.
 
 Preloading an organisation's knowledge costs ~50,000 tokens a session and is ~95% waste.
 That number is the whole argument.
@@ -189,7 +189,7 @@ You author one context. Every other context on your disk is someone else's, brou
 what a second directory is for.
 
 ```
-AGENTS.md              # the dev's file. ctx adds a pointer at the top, then never returns.
+AGENTS.md              # the dev's file. ctx owns only the marked pointer at the top.
 .ctx/
   .gitignore           # contains `*`. see below.
   instructions.md      # the rules + the index. ctx owns it; the agent never writes it.
@@ -297,13 +297,21 @@ It links to an install page rather than inlining `curl … | sh`. A file in a re
 an agent to pipe a remote script into a shell is a pattern not worth normalising, and the
 human should see that step.
 
+**`ctx init` keeps the pointer current.** When the wording improves, old installs should get
+it. ctx owns exactly what sits between `<!-- ctx -->` and `<!-- /ctx -->`, so re-running
+`ctx init` replaces that block and leaves every other byte of the file alone. An edit made
+*inside* the markers is overwritten, which is what the markers are for. A pointer someone
+deleted from an initialised project stays deleted; ctx refreshes a pointer, it does not
+reinstate one. It is refreshed on `init` only, never on `sync`: sync runs unattended, and a
+file in git changing under people who did not ask for it is how a tool earns distrust.
+
 **The trade this accepts:** because no context list is committed, a fresh clone cannot tell
 an agent *which* contexts the project used — the developer has to know the name. Free for a
 solo dev, one line in a real README for a team, and it is the price of keeping git clean.
 
 **Uninstalling is deleting `.ctx/`.** That is what people actually do, and it should be
-enough. keepctx never returns to `AGENTS.md` after init, so the pointer stays behind — which
-is why it tells agents that a missing `.ctx/` is normal. Leaving it is harmless; deleting it
+enough. Deleting `.ctx/` leaves the pointer behind — which is why it tells agents that a
+missing `.ctx/` is normal. Leaving it is harmless; deleting it
 is optional tidiness. A tool that is trivial to remove is easier to adopt.
 
 ## The unit: a context
