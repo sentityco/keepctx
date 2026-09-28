@@ -175,7 +175,7 @@ def api(cfg, method, path, body=None, token=None):
             # something between us and the API answered instead (a proxy, a CDN
             # error page) — say so, rather than dying on a parse error
             raise SystemExit(f"ctx: {base} sent back something that isn't the keepctx API. "
-                             "Check CTX_REMOTE, or try again in a minute.")
+                             "Check the server address, or try again in a minute.")
     except urllib.error.HTTPError as e:
         detail = e.read().decode()
         try:
@@ -455,7 +455,33 @@ def cmd_init(argv, refreshed=False):
     return 0
 
 
-APP_URL = "https://keepctx.com/app.html"
+def app_url(cfg):
+    """The console lives on the same server as the API, hosted or self-hosted."""
+    return (cfg.get("remote") or DEFAULT_REMOTE).rstrip("/") + "/app.html"
+
+
+def server_url(s):
+    """`https://keepctx.example.com`, or just `keepctx.example.com` — HTTPS is
+    assumed unless it's this machine, where a self-hosted server speaks HTTP."""
+    s = s.strip().rstrip("/")
+    if "://" not in s:
+        host = s.split(":")[0]
+        local = host in ("localhost", "127.0.0.1", "0.0.0.0") or host.endswith(".local")
+        s = ("http://" if local else "https://") + s
+    return s
+
+
+def pick_server(cfg, arg):
+    """The server for `remote` or `clone`: the one named on the command line,
+    else the one this directory already uses, else CTX_REMOTE or keepctx.com.
+    A directory talks to one server — its sign-in belongs to that server."""
+    have = cfg.get("remote") if (cfg.get("org") or cfg.get("clones")) else None
+    want = server_url(arg) if arg else None
+    if want and have and want != have.rstrip("/"):
+        err(f"error: this directory already syncs with {have}.")
+        err(f"       One server per directory — clone {want} contexts somewhere else.")
+        return None
+    return want or have or DEFAULT_REMOTE
 
 
 def login(cfg):
@@ -466,13 +492,13 @@ def login(cfg):
     return out, email
 
 
-def choose_org(orgs, email):
+def choose_org(orgs, email, app):
     """Which org a new remote context goes in. Orgs are created and joined on the
     website, signed in — ctx only picks from the ones you're already in."""
     mine = [o["org"] for o in orgs]
     if not mine:
         err(f"error: {email} isn't in an org yet.")
-        err(f"       Create one at {APP_URL}, or ask an org admin to add you.")
+        err(f"       Create one at {app}, or ask an org admin to add you.")
         return None
     print("Your orgs: " + ", ".join(mine))
     hint = f" [{mine[0]}]" if len(mine) == 1 else ""
@@ -480,7 +506,7 @@ def choose_org(orgs, email):
     if org in mine:
         return org
     err(f"error: you're not in `{org or '?'}`.")
-    err(f"       Ask one of its admins to add {email}, or create it at {APP_URL}.")
+    err(f"       Ask one of its admins to add {email}, or create it at {app}.")
     return None
 
 
@@ -500,15 +526,19 @@ def cmd_remote(argv):
         err("       Pick a name: ctx remote --name <name>")
         return 1
     if "--name" in argv:
-        name = slugify(argv[argv.index("--name") + 1])
+        i = argv.index("--name")
+        name = slugify(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
 
-    remote = os.environ.get("CTX_REMOTE", DEFAULT_REMOTE)
-    print(f"Remote: {remote}")
-    print(f"Sign in (no account? make one at {APP_URL})")
+    remote = pick_server(cfg, argv[0] if argv else None)
+    if not remote:
+        return 1
     cfg["remote"] = remote
+    print(f"Remote: {remote}")
+    print(f"Sign in (no account? make one at {app_url(cfg)})")
     out, email = login(cfg)
     cfg["token"] = out["token"]
-    org = choose_org(out.get("orgs") or [], email)
+    org = choose_org(out.get("orgs") or [], email, app_url(cfg))
     if not org:
         return 1
     cfg["org"] = org
@@ -601,7 +631,7 @@ def cmd_clone(argv):
     an org admin), read-only otherwise. Beside an existing context it's a
     read-only reference. Either way, `ctx sync` keeps it current."""
     if not argv or ":" not in argv[0]:
-        err("error: usage: ctx clone <org>:<name>")
+        err("error: usage: ctx clone <org>:<name> [server]")
         return 1
     org, _, name = argv[0].partition(":")
     here = pathlib.Path.cwd().resolve()
@@ -615,11 +645,13 @@ def cmd_clone(argv):
         print(f"{org}:{name} is already this directory's context — `ctx sync` to update it.")
         return 0
 
-    cfg.setdefault("remote", os.environ.get("CTX_REMOTE", DEFAULT_REMOTE))
-    if not cfg.get("remote"):
-        cfg["remote"] = DEFAULT_REMOTE
+    remote = pick_server(cfg, argv[1] if len(argv) > 1 else None)
+    if not remote:
+        return 1
+    if remote != cfg.get("remote"):
+        cfg["remote"], cfg["token"] = remote, None     # a sign-in is only good on its own server
     if not cfg.get("token"):   # contexts are members-only, so reading one needs a sign-in
-        print(f"Sign in to read {org}:{name} (no account? make one at {APP_URL})")
+        print(f"Sign in to read {org}:{name} on {remote} (no account? make one at {app_url(cfg)})")
         cfg["token"] = login(cfg)[0]["token"]
     got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
 
@@ -714,11 +746,13 @@ def usage():
     print()
     print("  ctx                    Show status")
     print("  ctx init [name]        Set up here — local, no account, no network")
-    print("  ctx remote             Put this on a remote — shares it and backs it up")
-    print("  ctx clone <org>:<name> Bring a context here from the remote")
+    print("  ctx remote [server]    Put this on a remote — shares it and backs it up")
+    print("  ctx clone <org>:<name> [server]")
+    print("                         Bring a context here from the remote")
     print("  ctx sync               Send your changes, bring in the latest")
     print()
-    print("Everything works locally without an account.")
+    print("Everything works locally without an account. The server is keepctx.com")
+    print("unless you name your own: ctx remote https://keepctx.example.com")
     return 0
 
 

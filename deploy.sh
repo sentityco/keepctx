@@ -22,6 +22,7 @@ put web/app.html   app.html    "text/html; charset=utf-8"
 put web/style.css  style.css   "text/css; charset=utf-8"
 put web/app.js     app.js      "application/javascript; charset=utf-8"
 put install.sh     install.sh  "text/x-shellscript; charset=utf-8"
+put server.sh      server.sh   "text/x-shellscript; charset=utf-8"
 
 echo "invalidating..."
 aws cloudfront create-invalidation --distribution-id "$DIST" \
@@ -39,3 +40,16 @@ else
   echo "  FAIL: install.sh points at $src which returns $code" >&2
   exit 1
 fi
+
+echo "checking the server installer's files exist..."
+files=$(curl -fsSL "https://keepctx.com/server.sh" | sed -n 's/^for f in \(.*\); do$/\1/p')
+for f in $(echo "$files" | head -1) $(echo "$files" | tail -1 | sed 's|[^ ]*|web/&|g'); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "https://raw.githubusercontent.com/sentityco/keepctx/main/$f")
+  if [ "$code" = "200" ]; then
+    echo "  ok: $f"
+  else
+    echo "  FAIL: server.sh fetches $f which returns $code" >&2
+    exit 1
+  fi
+done

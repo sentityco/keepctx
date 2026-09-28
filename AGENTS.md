@@ -8,9 +8,13 @@ useful half.
 
 - **`src/keepctx.py` is one file, standard library only.** No dependencies. This is
   what makes the installer a `curl` and the code readable in one sitting.
-- **`server/handler.py` is one file, boto3 only**, and is deliberately
+- **`server/handler.py` is one file, boto3 only (and only on Lambda)**, and is deliberately
   model-free: storage, a keyed merge, version history. Nothing in it needs
   inference, which is what keeps self-hosting plausible.
+- **`server/serve.py` is the self-hosted server, standard library only.** It runs the
+  same `handler.py` on SQLite and serves `web/` beside the API, so a self-hosted server
+  is keepctx.com on one port. Anything added to the handler's storage calls has to work
+  on its `Table` too.
 - **`web/` has no build step and no framework.**
 - **No per-agent integrations.** No hooks, plugins, or config for Claude Code,
   Cursor, Copilot or anything else. `AGENTS.md` is the integration. ctx prints
@@ -29,6 +33,7 @@ reasoning is welcome; re-proposing it without reading is not.
 ```sh
 python3 tests/test_server.py   # accounts, orgs, membership, who can read and write
 python3 tests/test_cli.py      # the CLI end to end, against the handler served locally
+python3 tests/test_serve.py    # the self-hosted server: site, API on SQLite, restart
 ```
 
 No AWS and no network: `tests/fakes.py` stands in for DynamoDB and serves the real

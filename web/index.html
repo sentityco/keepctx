@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>keepctx — context management for AI and people</title>
-<meta name="description" content="Your AGENTS.md, except it writes itself — kept across sessions, across Claude, Codex and other AI agents, and across your team. Open-source context management for AI agents." />
+<meta name="description" content="Your AGENTS.md, except it writes itself. Everything that belongs in an AGENTS.md, kept current as your agent works — across sessions, across Claude, Codex and other AI agents, and across your team, on our server or your own." />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -21,9 +21,10 @@
 
 <div class="hero"><div class="wrap">
   <h1>Your AGENTS.md,<br />except it writes itself.</h1>
-  <p class="lede">What your agent learns shouldn't die with the session, stay locked in one AI
-  tool, or live on one laptop. keepctx keeps it constantly updated and available — across
-  sessions, across Claude, Codex and other AI agents, and across your team.</p>
+  <p class="lede">AGENTS.md tells your agent how to work, but nothing keeps what it learns.
+  keepctx does &mdash; everything that belongs in an AGENTS.md, kept current as your agent
+  works. Across sessions, across Claude, Codex and other AI agents, and across your team
+  &mdash; on our server or your own.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="app.html#register" id="cta-account">Create an account</a>
@@ -197,15 +198,29 @@ ctx sync     <span class="c"># two-way. mostly automatic after this</span></code
   <table>
     <tr><th><code>ctx</code></th><td>status</td></tr>
     <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
-    <tr><th><code>ctx remote</code></th><td>one-time. create this context on a server</td></tr>
-    <tr><th><code>ctx clone org:name</code></th><td>bring a context here from the remote</td></tr>
+    <tr><th><code>ctx remote [server]</code></th><td>one-time. create this context on a server &mdash; keepctx.com unless you name your own</td></tr>
+    <tr><th><code>ctx clone org:name [server]</code></th><td>bring a context here from the remote</td></tr>
     <tr><th><code>ctx sync</code></th><td>send your changes, bring in the latest</td></tr>
   </table>
+
+  <h3 id="self-host">Run your own server</h3>
+  <p class="sub">It looks and works exactly like this site &mdash; the same console, the same
+  API &mdash; on one port, stored in one SQLite file. Python 3.9+, no dependencies, no cloud
+  account. Put HTTPS in front before anyone signs in over a network.</p>
+<pre><code>curl -fsSL https://keepctx.com/server.sh | sh
+keepctx-server               <span class="c"># http://127.0.0.1:8080</span>
+
+caddy reverse-proxy --from keepctx.sample-company.com --to :8080
+
+<span class="c"># then name it when you share or clone; everything after remembers it</span>
+ctx remote https://keepctx.sample-company.com
+ctx clone team:proj https://keepctx.sample-company.com</code></pre>
 </div></section>
 
 <footer><div class="wrap">
   <a href="https://github.com/sentityco/keepctx">GitHub</a> ·
   <a href="app.html">Console</a> ·
+  <a href="#self-host">Self-host</a> ·
   Apache-2.0 · free for individuals and small teams
 </div></footer>
 

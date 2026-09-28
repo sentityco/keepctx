@@ -12,15 +12,18 @@ import re
 import time
 import uuid
 
-import boto3
-from boto3.dynamodb.conditions import Key
-
 TABLE = os.environ.get("CTX_TABLE", "ctx")
 SECRET = os.environ.get("CTX_JWT_SECRET", "dev-only-change-me").encode()
 TTL = 60 * 60 * 24 * 30  # 30 days
 
-ddb = boto3.resource("dynamodb")
-tbl = ddb.Table(TABLE)
+# The storage is DynamoDB on Lambda. Anywhere else, whoever imports this sets
+# `tbl` and `Key`: serve.py to SQLite, the tests to memory. So self-hosting
+# needs no boto3, and no AWS account.
+tbl = Key = None
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    import boto3
+    from boto3.dynamodb.conditions import Key
+    tbl = boto3.resource("dynamodb").Table(TABLE)
 
 FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*[—→-]\s*(?P<value>.*)$")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")

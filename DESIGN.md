@@ -947,6 +947,39 @@ The installer fetches the latest commit on `main` and replaces the installed cop
 again is the upgrade. There is no `ctx upgrade` command. Nothing else needs doing: every project
 picks up new agent rules on its next `ctx` command, because `instructions.md` refreshes itself.
 
+### Your own server: the same curl
+
+```sh
+curl -fsSL https://keepctx.com/server.sh | sh
+keepctx-server
+```
+
+**A self-hosted server is keepctx.com on one port.** `server/serve.py` runs the same
+`handler.py` the hosted service runs, and serves `web/` beside the API — the same landing page,
+the same console. Nothing is written twice, so a self-hoster never gets a second-class console
+or an API that has drifted; a fix to one is a fix to both.
+
+**SQLite, standard library only.** The handler talks to DynamoDB through five calls, keyed by
+`pk` and `sk` and queried by an `sk` prefix. `serve.py` implements exactly those on SQLite, and
+the handler imports boto3 only on Lambda. So running your own needs a Python and nothing else:
+no AWS account, no database server, no container. Backing it up is copying one directory.
+
+**Plain HTTP, and the server says so.** TLS belongs to whatever already terminates it on that
+box — Caddy, nginx, a load balancer. Building certificates in would be a second, worse copy of
+tools people already run, and the start-up message names the one-line Caddy command instead.
+
+**The signing secret is made once and kept beside the database.** Generated on first start,
+owner-only permissions. A fresh secret per start would sign everyone out on every restart;
+one baked into the code would let anyone who read it mint sign-ins.
+
+**The server is named on the command line, once.** `ctx remote https://keepctx.sample-company.com`
+and `ctx clone org:name https://keepctx.sample-company.com` — a bare host works too, with HTTPS
+assumed, except on this machine, where a self-hosted server speaks HTTP. After that the directory
+remembers it, so `ctx sync` never needs it. `CTX_REMOTE` still works, but an environment variable
+is easy to forget on the one command that mattered. A directory talks to **one server**: a
+sign-in belongs to the server that issued it, and a context beside it from another server would
+need a second one.
+
 ### Maybe later: `ctx upgrade` and a version notice
 
 We may add a `ctx upgrade` that replaces the installed copy when asked — the settled pattern for

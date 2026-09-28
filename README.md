@@ -1,7 +1,7 @@
 # keepctx
 
 **Your AGENTS.md, except it writes itself — shared across sessions, across AI tools, and
-across your team.**
+across your team, on our server or your own.**
 
 Every AI session starts blind. You re-explain the same things — how to log in to your
 servers, where the logs live, what runs where. `ctx` captures that as your agent works and
@@ -118,8 +118,8 @@ That's the whole conflict model. Nothing is ever destroyed, so nobody has to arb
 |---|---|
 | `ctx` | status |
 | `ctx init [name]` | set up here. local, no account, no network |
-| `ctx remote` | put this on a remote — shares it and backs it up |
-| `ctx clone org:name` | bring a context here from the remote |
+| `ctx remote [server]` | put this on a remote — shares it and backs it up |
+| `ctx clone org:name [server]` | bring a context here from the remote |
 | `ctx sync` | send your changes, bring in the latest |
 
 The name defaults to your directory, slugified. It only has to be unique when you run
@@ -127,19 +127,41 @@ The name defaults to your directory, slugified. It only has to be unique when yo
 
 ## Self-hosting
 
-The server is in [`server/`](server/) — a single Lambda handler plus a DynamoDB table. It
-is deliberately **model-free**: storage, a keyed merge, and version history. Nothing in it
-needs inference, so it runs on the cheapest box there is.
-
-Point the CLI anywhere with `CTX_REMOTE`:
+Your own server looks and works exactly like keepctx.com — the same console, the same API —
+on one port, stored in one SQLite file. Python 3.9+, no dependencies, no AWS:
 
 ```sh
-CTX_REMOTE=https://ctx.internal.example.com ctx sync
+curl -fsSL https://keepctx.com/server.sh | sh
+keepctx-server                      # http://127.0.0.1:8080  (--host, --port, --data)
 ```
 
-Auth is email + password with PBKDF2 and HMAC-signed tokens — stdlib only, no Cognito, no
-vendor dependency. Self-hosting is a commitment here, not a maybe: it's the only thing
-standing between this and lock-in.
+It speaks plain HTTP, so put HTTPS in front before anyone signs in over a network. With
+Caddy that's one line:
+
+```sh
+caddy reverse-proxy --from keepctx.sample-company.com --to :8080
+```
+
+Make the first account and an org in its console, then name the server when you share or
+clone — everything after that remembers it:
+
+```sh
+ctx remote https://keepctx.sample-company.com
+ctx clone team:proj https://keepctx.sample-company.com
+```
+
+A bare `keepctx.sample-company.com` works too; HTTPS is assumed. A directory syncs with one
+server, because its sign-in belongs to that server.
+
+Reinstalling replaces the code and never touches the data, which lives in
+`~/.local/share/keepctx-server/data`: the database, and the secret that signs sign-ins.
+Back up that directory and you've backed up everything.
+
+The server is deliberately **model-free**: storage, a keyed merge, and version history.
+`server/handler.py` is the same code keepctx.com runs on Lambda and DynamoDB; `serve.py`
+runs it on SQLite instead. Auth is email + password with PBKDF2 and HMAC-signed tokens —
+stdlib only, no Cognito, no vendor dependency. Self-hosting is a commitment here, not a
+maybe: it's the only thing standing between this and lock-in.
 
 ## Design
 
