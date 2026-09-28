@@ -9,9 +9,11 @@ edits facts.md directly, and ctx is called only for network work.
 import json
 import os
 import getpass
+import hashlib
 import pathlib
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -24,6 +26,8 @@ FACTS = "facts.md"
 BASE = ".base"           # last-synced copy, for diffing
 INSTRUCTIONS = "instructions.md"
 AGENTS = "AGENTS.md"
+JOURNAL = "journal.md"   # dated entries, only ever added to
+PROSE = "prose"          # one .md per section, written for people
 
 BEGIN = "<!-- ctx -->"
 END = "<!-- /ctx -->"
@@ -146,6 +150,55 @@ def merge_facts(local_text, incoming):
     return text.rstrip() + "\n"
 
 
+ENTRY_RE = re.compile(r"^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2})[ \t]*$", re.M)
+
+
+def parse_journal(text):
+    """-> [{"id", "at", "text"}] in the order written. An entry is a
+    `## YYYY-MM-DD HH:MM` heading and everything up to the next one."""
+    marks = list(ENTRY_RE.finditer(text))
+    out = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        body = text[m.end():end].strip()
+        if not body:
+            continue
+        stamp = m.group(1)
+        try:
+            at = int(time.mktime(time.strptime(stamp, "%Y-%m-%d %H:%M")))
+        except ValueError:
+            at = int(time.time())
+        eid = hashlib.sha1(f"{stamp}\n{body}".encode()).hexdigest()[:16]
+        out.append({"id": eid, "at": at, "text": body})
+    return out
+
+
+def local_prose(d):
+    """{section: text} for the prose files in a context directory."""
+    p = d / PROSE
+    if not p.is_dir():
+        return {}
+    return {f.stem: f.read_text() for f in sorted(p.glob("*.md"))}
+
+
+def sha(text):
+    return hashlib.sha1(text.encode()).hexdigest()[:16]
+
+
+def mirror_prose(d, server):
+    """Make the local prose files match the server's. -> {section: sha}."""
+    here = local_prose(d)
+    if server:
+        (d / PROSE).mkdir(exist_ok=True)
+    for section, text in server.items():
+        if here.get(section) != text:
+            (d / PROSE / f"{section}.md").write_text(text)
+    for section in here:
+        if section not in server:
+            (d / PROSE / f"{section}.md").unlink()
+    return {s: sha(t) for s, t in server.items()}
+
+
 def remove_facts(text, keys):
     """Drop whole blocks by key — for facts deleted in another copy."""
     facts, _ = parse_facts(text)
@@ -202,35 +255,67 @@ def api(cfg, method, path, body=None, token=None):
 
 INSTRUCTIONS_TEXT = """# keepctx — instructions for the agent
 
-Context for this project lives here. Read it, keep it current.
+This project's design and context are kept here: the shared memory of everyone
+working on it, people and AI agents alike. Read it, and keep it current as you
+work. People read the same knowledge as a site, so what you capture is also the
+project's documentation.
 
 ## Every session
 {session}
 
-## What to write down
+## What to capture
 
-Only three things are worth recording:
+Everything worth knowing that comes out of your work with the user — not only how
+things run, but what is being built, and why. Capture it in the moment: right now
+you know exactly what was decided and for what reason, and nobody can rebuild
+that later.
 
+Write a fact when:
+
+- **The user states a goal or a requirement.** What this is for, who it serves,
+  what it must do. `goal.*`, `req.*`
+- **The user decides something.** The decision and its reason, as `decision.*`.
+  Only once they commit — "let's do X", "go with Y".
+- **An option is turned down.** As `rejected.*`, with why. Knowing what was
+  considered and dropped is what stops it being proposed again.
+- **Something is still open.** As `question.*`. When it is settled, delete the
+  question and write the decision.
 - **A human corrected you.** The strongest signal there is — the context was
   wrong or missing and the right answer is in hand.
 - **Something cost real effort to establish.** Expensive once means expensive
   again.
-- **A decision and its reasoning.** Decisions decay fastest, because the *why*
-  never gets written down.
 
-Never record task-specific detail, and never record something you inferred
-rather than verified.
+**Musing is not deciding.** "Maybe Postgres?" is a question, not a decision. A
+context that records half-formed ideas as settled is worse than no context.
+
+Never capture:
+
+- **Secrets** — passwords, tokens, keys, not even part of one. The server refuses
+  them, and a refused sync sends nothing until the secret is removed.
+- **Anything the user puts off the record**, and personal matters or opinions
+  about people.
+- **The conversation itself.** Capture conclusions, not the transcript.
+- **What the files already say**, and detail that matters to this task alone.
+- **Anything you inferred** rather than verified or were told.
+
+**Say when you write.** One line in your reply — `noted: decision.storage` — so
+the user always knows what is being kept, and can say "drop that".
 
 ## What a context covers
 
-The rules above decide *when* to write. This decides *what*. The short version:
-**anything that would belong in an `AGENTS.md` belongs here instead.** `AGENTS.md`
-is written once by hand and goes stale; this file is where that same knowledge is
-kept current. So never write facts into `AGENTS.md` itself — it holds the pointer
-and whatever a human wrote there, nothing more.
+Anything that would belong in an `AGENTS.md` belongs here instead — but a context
+is more than that: it also holds what is being built and why. Never write facts
+into `AGENTS.md` itself; it holds the pointer and whatever a human wrote there.
 
 For software or anything else (investing, a book, a business), a good context
 ends up answering:
+
+Intent
+- **Goals** — what this is for and what success looks like.
+- **Requirements** — what it must do, and what it must not.
+- **Decisions** — what was chosen, why, and what was ruled out.
+- **Rejected** — options considered and dropped, and the reason.
+- **Open questions** — what is still undecided.
 
 What it is
 - **Purpose** — why this exists, what value it gives, and who it is for.
@@ -254,7 +339,6 @@ Constraints
 - **Boundaries** — what not to touch: generated, vendored, or owned elsewhere.
 
 Hard-won knowledge
-- **Decisions** — what was chosen, why, and what was ruled out.
 - **Gotchas** — what looks wrong but is intentional, or looks right but breaks.
 - **Failure modes** — how it usually breaks, and the first thing to check.
 - **Sources of truth** — which doc or dashboard wins when two disagree.
@@ -281,6 +365,35 @@ at minute five and written at minute ninety may never get written at all.
 **Reuse an existing key rather than adding a second line.** If `deploy.command`
 is already there and now wrong, edit that line.
 
+## The journal
+
+At natural stopping points — a piece of work done, a design settled, the end of
+a session — add an entry:
+
+```sh
+ctx journal "Moved storage to SQLite: one file to back up, no server to run. Open: do we need TLS built in?"
+```
+
+A few sentences for a teammate who wasn't there: what was worked on, what was
+decided and why, what is still open. The facts say how things are; the journal
+says how they got that way. Entries are only ever added — never edit old ones.
+
+## Prose, for people
+
+People read this context as a site: prose on top, the facts beneath it, and an
+architecture diagram drawn from the `→` relationships. The prose is yours to keep.
+
+- One file per area in `{prose_path}`, named for the key prefix it explains:
+  `gateway.md` explains the `gateway.*` facts.
+- `overview.md` explains the whole thing. Start it with a line saying which
+  keys it covers: `<!-- covers: purpose, goal -->`. Any section can do the same.
+- A short heading, then a few plain paragraphs: what this part is, how it fits,
+  and why it is this way. Explain the facts; never add a fact that is only in
+  the prose — the site shows the facts beneath it, and they must agree.
+- Update it at the same moments as the journal, and only for areas whose facts
+  you changed. The site flags a section whose facts moved on after it was
+  written; when you are working in that area, rewrite it.
+
 ## Format
 
 One fact per line. The bolded lead is the key.
@@ -289,6 +402,9 @@ One fact per line. The bolded lead is the key.
 - **deploy.command** — `make ship` from the repo root
 - **logging.index** — `app_prod_v2`, not what the docs say  `[verified]`
 - **gateway.depends-on** → example-platform, for session validation
+- **decision.storage** — SQLite: one file to back up, no database server to run
+- **rejected.postgres** — a server to operate for a few megabytes of text
+- **question.tls** — build TLS in, or leave it to a reverse proxy?
 - **deploy.process** — three steps:
     - build with `make`
     - push, then verify the health endpoint
@@ -322,19 +438,23 @@ def reread(tty=None):
 
 LOCAL_STEPS = """
 1. **Read `{facts_path}`** for what is known about this project.
-2. **Write facts back as you learn them** (see below).
+2. **Capture as you work** (see below): facts as you learn them, a journal
+   entry and prose at natural stopping points.
 
-This context is local only, so there is nothing to sync. If it is ever put on a
-remote with `ctx remote`, these instructions gain two sync steps.
+This context is local only, so there is nothing to sync; the journal and prose
+wait here. If it is ever put on a remote with `ctx remote`, they are published
+and these instructions gain sync steps.
 """
 
 REMOTE_STEPS = """
 1. **Before reading context, run `ctx sync`.** Starts you from what your
    teammates have learned.
 2. **Read `{facts_path}`** for what is known about this project.
-3. **Write facts back as you learn them** (see below).
-4. **After writing facts, run `ctx sync`.** A session that ends without this
-   takes its findings with it.
+3. **Capture as you work** (see below), and run `ctx sync` after writing facts,
+   so your team and the site see them now, not at the end.
+4. **At natural stopping points,** add a journal entry with `ctx journal`,
+   update the prose for areas you changed, then `ctx sync`. A session that
+   ends without syncing takes its findings with it.
 """
 
 READONLY_STEPS = """
@@ -356,7 +476,8 @@ def write_instructions(root, name, has_remote, readonly=False):
     facts_path = f"{CTXDIR}/{name}/{FACTS}"
     template = READONLY_STEPS if readonly else REMOTE_STEPS if has_remote else LOCAL_STEPS
     steps = template.format(facts_path=facts_path).rstrip()
-    text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps)
+    text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps,
+                                    prose_path=f"{CTXDIR}/{name}/{PROSE}/")
     path = root / CTXDIR / INSTRUCTIONS
     if path.exists() and path.read_text() == text:
         return False
@@ -550,6 +671,10 @@ def cmd_remote(argv):
     save_config(root, cfg)
     (root / CTXDIR / name / BASE).write_text(facts)
     write_instructions(root, name, has_remote=True)
+    d = root / CTXDIR / name
+    if (d / JOURNAL).exists() or local_prose(d):   # kept while local; publish them now
+        push_pull(root, cfg)
+        save_config(root, cfg)
 
     print(f"{cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
     return 0
@@ -585,8 +710,22 @@ def push_pull(root, cfg):
     base = base_path.read_text() if base_path.exists() else ""
 
     changes = diff_facts(base, local)
+
+    # journal entries not yet sent, and prose that changed since the last sync
+    d = root / CTXDIR / name
+    entries = parse_journal((d / JOURNAL).read_text()) if (d / JOURNAL).exists() else []
+    unsent = entries[cfg.get("journal_sent", 0):]
+    sent_prose = cfg.get("prose_sent") or {}
+    here = local_prose(d)
+    prose = {s: t for s, t in here.items() if sent_prose.get(s) != sha(t)}
+    prose.update({s: None for s in sent_prose if s not in here})
+
     out = api(cfg, "POST", f"/v1/contexts/{cfg['org']}/{name}/sync",
-              {"changes": changes, "version": cfg.get("version", 0)})
+              {"changes": changes, "version": cfg.get("version", 0),
+               "journal": unsent, "prose": prose})
+    cfg["journal_sent"] = len(entries)
+    if "prose" in out:
+        cfg["prose_sent"] = mirror_prose(d, out["prose"])
 
     incoming = out.get("facts", {})
     merged = merge_facts(local, incoming) if incoming else local
@@ -601,7 +740,39 @@ def push_pull(root, cfg):
 
     sent, got = len(changes), len(incoming) + len(gone)
     parts = [f"{sent} up"] * bool(sent) + [f"{got} down"] * bool(got)
+    parts += [f"{len(unsent)} journal"] * bool(unsent) + [f"{len(prose)} prose"] * bool(prose)
     print(f"{name}  {', '.join(parts) or 'unchanged'}  (v{out['version']})")
+
+
+def cmd_journal(argv):
+    """Add a dated entry to this context's journal: what was worked on, decided
+    and left open. Kept locally, and sent right away when there is a remote."""
+    text = " ".join(argv).strip()
+    if (not text or text == "-") and not sys.stdin.isatty():
+        text = sys.stdin.read().strip()
+    if not text:
+        err('error: usage: ctx journal "what was worked on, decided and left open"')
+        return 1
+    root = find_root()
+    if not root:
+        err("error: no context here. Run `ctx init` first.")
+        return 1
+    cfg = load_config(root)
+    name = cfg.get("name")
+    if cfg.get("readonly"):
+        err(f"error: {cfg.get('org')}:{name} is read-only for this account, so it has no")
+        err("       journal of yours. Tell the user what happened instead.")
+        return 1
+    path = root / CTXDIR / name / JOURNAL
+    old = path.read_text() if path.exists() else f"# {name} — journal\n"
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    path.write_text(old.rstrip() + f"\n\n## {stamp}\n\n{text}\n")
+    if cfg.get("org"):
+        push_pull(root, cfg)
+        save_config(root, cfg)
+    else:
+        print(f"journal: noted ({CTXDIR}/{name}/{JOURNAL}, local — published by `ctx remote`)")
+    return 0
 
 
 def pull_context(root, cfg):
@@ -610,6 +781,7 @@ def pull_context(root, cfg):
     got = api(cfg, "GET", f"/v1/contexts/{cfg['org']}/{name}")
     (root / CTXDIR / name / FACTS).write_text(got["facts"])
     (root / CTXDIR / name / BASE).write_text(got["facts"])
+    mirror_prose(root / CTXDIR / name, got.get("prose") or {})
     was, cfg["version"] = cfg.get("version", 0), got["version"]
     state = "unchanged" if was == got["version"] else f"updated from v{was}"
     print(f"{name}  {state}  (v{got['version']}, read-only)")
@@ -621,6 +793,7 @@ def pull_clone(root, cfg, org, name):
     d.mkdir(parents=True, exist_ok=True)
     before = (d / FACTS).read_text() if (d / FACTS).exists() else None
     (d / FACTS).write_text(got["facts"])
+    mirror_prose(d, got.get("prose") or {})
     state = "unchanged" if before == got["facts"] else "updated"
     print(f"{name}  {state}  (v{got['version']}, from {org}, read-only)")
 
@@ -659,6 +832,7 @@ def cmd_clone(argv):
     (ctxdir / name).mkdir(parents=True, exist_ok=True)
     (ctxdir / ".gitignore").write_text("*\n")
     (ctxdir / name / FACTS).write_text(got["facts"])
+    prose_sent = mirror_prose(ctxdir / name, got.get("prose") or {})
 
     if own:
         cfg.setdefault("clones", {})[name] = org
@@ -668,7 +842,8 @@ def cmd_clone(argv):
     else:
         readonly = not got.get("can_write")
         (ctxdir / name / BASE).write_text(got["facts"])
-        cfg.update({"name": name, "org": org, "version": got["version"], "readonly": readonly})
+        cfg.update({"name": name, "org": org, "version": got["version"], "readonly": readonly,
+                    "prose_sent": prose_sent, "journal_sent": 0})
         save_config(root, cfg)
         write_instructions(root, name, has_remote=True, readonly=readonly)
         write_pointer(root)
@@ -750,6 +925,7 @@ def usage():
     print("  ctx clone <org>:<name> [server]")
     print("                         Bring a context here from the remote")
     print("  ctx sync               Send your changes, bring in the latest")
+    print('  ctx journal "..."      Add a dated entry: what was done, decided, left open')
     print()
     print("Everything works locally without an account. The server is keepctx.com")
     print("unless you name your own: ctx remote https://keepctx.example.com")
@@ -773,6 +949,8 @@ def main():
         return cmd_sync(argv[1:])
     if cmd == "clone":
         return cmd_clone(argv[1:])
+    if cmd == "journal":
+        return cmd_journal(argv[1:])
     if not argv:
         return cmd_status(with_usage=True)
     err(f"error: unknown command `{cmd}`")

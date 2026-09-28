@@ -136,5 +136,67 @@ ev = {"requestContext": {"http": {"method": "POST"}}, "rawPath": "/v1/auth/login
 r = H.handler(ev)
 check("base64 bodies are decoded", r["statusCode"] == 200, r)
 
+# the journal: only added to, and sending an entry twice stores it once
+entry = {"id": "0123456789abcdef", "at": 1700000000, "text": "Chose SQLite. Open: TLS?"}
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [], "version": 3, "journal": [entry]}, token=own)
+call("POST", "/v1/contexts/team/proj/sync", {"changes": [], "version": 3, "journal": [entry]}, token=own)
+c, v = call("GET", "/v1/contexts/team/proj/view", token=mem)
+check("journal: an entry lands once, and members can read it",
+      c == 200 and [j["text"] for j in v["journal"]] == ["Chose SQLite. Open: TLS?"], v)
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [], "version": 3, "journal": [{"id": "nope", "text": "x"}]}, token=own)
+check("journal: a malformed entry is refused", c == 400, s)
+
+# prose: stored with what it explains, and flagged once those facts move on
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [{"key": "b.why", "block": "- **b.why** — because", "op": "add"}],
+             "version": 3, "prose": {"b": "## B\n\nWhy b is the way it is."}}, token=own)
+check("prose: a sync hands back every section", s.get("prose") == {"b": "## B\n\nWhy b is the way it is."}, s)
+c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
+check("prose: fresh when just written", v["prose"][0]["stale"] is False and v["prose"][0]["covers"] == ["b"], v)
+call("POST", "/v1/contexts/team/proj/sync",
+     {"changes": [{"key": "b.why", "block": "- **b.why** — changed", "op": "update"}], "version": 4}, token=own)
+c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
+check("prose: stale once its facts change", v["prose"][0]["stale"] is True, v)
+call("POST", "/v1/contexts/team/proj/sync",
+     {"changes": [], "version": 5,
+      "prose": {"overview": "<!-- covers: nothing-here -->\n## Overview"}}, token=own)
+c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
+ov = [p for p in v["prose"] if p["section"] == "overview"][0]
+check("prose: a covers line decides what it explains", ov["covers"] == ["nothing-here"] and ov["orphaned"], ov)
+c, s = call("GET", "/v1/contexts/team/proj", token=mem)
+check("prose: reading a context includes it, for clones", "b" in s.get("prose", {}), s)
+call("POST", "/v1/contexts/team/proj/sync", {"changes": [], "version": 5, "prose": {"overview": None}}, token=own)
+c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
+check("prose: sending none deletes a section", [p["section"] for p in v["prose"]] == ["b"], v)
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [], "version": 5, "prose": {"../etc": "x"}}, token=own)
+check("prose: section names are key prefixes", c == 400, s)
+
+# secrets: refused wherever they appear, and nothing from that sync is kept
+fake_aws = "AKIA" + "ABCDEFGHIJKLMNOP"
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [{"key": "aws.key", "block": f"- **aws.key** — {fake_aws}", "op": "add"}],
+             "version": 5, "journal": [{"id": "fedcba9876543210", "text": "fine"}]}, token=own)
+c2, v = call("GET", "/v1/contexts/team/proj/view", token=own)
+check("secrets: a fact holding a key is refused, with nothing kept",
+      c == 400 and "AWS access key" in s["error"] and "aws.key" not in v["facts"]
+      and len(v["journal"]) == 1, s)
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [], "version": 5,
+             "journal": [{"id": "fedcba9876543210", "text": "token ghp_" + "a" * 36}]}, token=own)
+check("secrets: a journal entry holding a token is refused", c == 400 and "GitHub" in s["error"], s)
+c, s = call("POST", "/v1/contexts/team/proj/sync",
+            {"changes": [{"key": "auth.password", "block": "- **auth.password** — never stored in the repo; ask ops",
+                          "op": "add"}], "version": 5}, token=own)
+check("secrets: talking about passwords is fine", c == 200, s)
+c, s = call("POST", "/v1/contexts", {"name": "leaky", "org": "team",
+                                      "facts": "-----BEGIN RSA PRIVATE KEY-----"}, token=own)
+check("secrets: a new context holding one is refused", c == 400, s)
+
+c, s = call("GET", "/v1/contexts/team/proj/view", token=ann)   # ann is in acme, not team
+check("view: members only", c == 403, s)
+
 print(f"\n{fails} failed")
 sys.exit(1 if fails else 0)

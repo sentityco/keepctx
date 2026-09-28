@@ -101,5 +101,35 @@ background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 font-size:14px;color:var(--dim);cursor:pointer}
 .seg button[aria-selected="true"]{background:var(--soft);color:var(--ink);font-weight:600}
 #pane-join .facts{margin:8px 0}
+/* the human view of a context */
+.vsec{padding:22px 0 8px;border-bottom:1px solid var(--line)}
+.vsec h3{margin:0 0 12px;font-size:18px;letter-spacing:-.2px}
+.vsec.lead h3{font-size:21px}
+.vsec.open h3::after{content:" — undecided";color:var(--warn);font-weight:500;font-size:14px}
+.prose{margin:0 0 14px;max-width:680px}
+.prose h4{margin:0 0 6px;font-size:15.5px}
+.prose p{margin:0 0 10px}
+.prose ul{margin:0 0 10px;padding-left:20px}
+.byline{font-size:12.5px;color:var(--dim)}
+.stale{font-size:13px;color:var(--warn);background:#fdf6e7;border:1px solid #f1dfb4;
+border-radius:7px;padding:7px 11px;margin-bottom:10px}
+.flist{list-style:none;padding:0;margin:0 0 12px;font-size:14.5px}
+.flist>li{padding:7px 0;border-top:1px solid var(--soft)}
+.flist ul{margin:4px 0 0;padding-left:20px;color:var(--dim)}
+.fk{font-family:var(--mono);font-size:13px;font-weight:600}
+.fr{color:var(--dim);margin-left:6px}
+.ok-tag{font-size:11.5px;color:var(--ok);border:1px solid #bfe3cd;border-radius:10px;padding:1px 7px;margin-left:4px}
+.dg-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--soft);margin-bottom:6px}
+.dg{display:block;max-width:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.dg-node{fill:#fff;stroke:#c9ced6}
+.dg-text{font-size:12.5px;fill:var(--ink)}
+.dg-edge{fill:none;stroke:#9aa3ae;stroke-width:1.3}
+.dg-head{fill:#9aa3ae}
+.dg-label{font-size:11px;fill:var(--dim);paint-order:stroke;stroke:var(--soft);stroke-width:4px}
+.jrow{padding:12px 0;border-top:1px solid var(--soft)}
+.jwhen{font-size:12.5px;color:var(--dim);margin-bottom:3px}
+.jbody p{margin:0 0 6px}
+.raw{margin-top:22px}
+.raw summary{cursor:pointer;color:var(--dim);font-size:14px}
 /* the hidden attribute must win over any display rule (e.g. .inline-form's flex) */
 [hidden]{display:none!important}

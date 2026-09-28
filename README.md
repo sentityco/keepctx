@@ -51,6 +51,7 @@ Everything you'd tell a sharp new teammate on day one — anything that would be
 
 | | |
 |---|---|
+| **Intent** | goals, requirements, decisions, what was considered and rejected, what's still open |
 | **Purpose** | why this exists, what value it gives, and who it's for |
 | **Parts & design** | what it's made of — components, stack, tools — and the shape it's meant to have |
 | **Conventions** | naming, structure, workflow, the idioms *this* place uses |
@@ -67,7 +68,25 @@ It isn't only for code. An investing context holds your thesis, sizing rules and
 ruled out; a book's holds characters, voice and what's canon; a business's holds customers,
 pricing and tone. Anything you keep re-explaining to an AI is a context.
 
-The agent's rules for this live in `.ctx/instructions.md`, which `ctx init` writes.
+The agent's rules for this live in `.ctx/instructions.md`, which `ctx init` writes. It
+captures everything worth knowing from your work together — not the conversation, and never
+secrets or anything you put off the record — and says `noted: <key>` whenever it writes.
+
+## What people see
+
+Open a context in the console and it reads as a site, not a list: an overview, an
+architecture diagram, goals, requirements, decisions, what was rejected, open questions, then
+each area of the system, then a journal of how it got this way.
+
+- **Prose** is written by the agents, one short section per area, in `.ctx/<name>/prose/`.
+  The facts always sit beneath it, and a section whose facts changed after it was written is
+  flagged until the next agent working there rewrites it.
+- **The diagram** is drawn from the `→` relationship facts, so it shows only what's recorded.
+- **The journal** is a dated entry per stopping point — `ctx journal "..."` — for teammates
+  who weren't there.
+
+All of it is drawn in the browser. The server stores text and never needs a model, so a
+self-hosted server shows exactly the same page.
 
 ## Why not just a wiki
 
@@ -121,6 +140,7 @@ That's the whole conflict model. Nothing is ever destroyed, so nobody has to arb
 | `ctx remote [server]` | put this on a remote — shares it and backs it up |
 | `ctx clone org:name [server]` | bring a context here from the remote |
 | `ctx sync` | send your changes, bring in the latest |
+| `ctx journal "..."` | add a dated entry: what was done, decided, left open |
 
 The name defaults to your directory, slugified. It only has to be unique when you run
 `ctx remote`, which is where it gets validated.

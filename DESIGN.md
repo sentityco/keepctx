@@ -850,16 +850,73 @@ runnable on the cheapest box there is.
 
 ## When an agent writes back
 
-The instructions matter more than the mechanism. Most interesting things are not worth
-keeping. Three triggers only:
+**Capture everything worth knowing, never everything said.** Two readings of "capture what
+you talk about with the AI" were weighed. The transcript reading — every conversation sent to
+the server — was rejected: an agent cannot reliably forward its own conversation without a
+per-tool hook, people tell their AI things they would never put on a team site, most of a
+conversation is dead ends, and distilling it afterwards needs a model on the server. The
+reading chosen is breadth of *topic*, not of text: design and intent as well as operations,
+distilled by the agent in the moment, which is the one time anyone knows exactly what was
+decided and why.
 
+The instructions matter more than the mechanism. The triggers:
+
+- **The user states a goal or a requirement.** `goal.*`, `req.*`.
+- **The user decides something**, only once they commit. `decision.*`, with the reason.
+- **An option is turned down.** `rejected.*`, with why — this is what design discussions
+  lose first, and what stops the same idea being proposed again.
+- **Something is still open.** `question.*`, deleted when a decision replaces it.
 - **A human corrected you.** Highest signal available — existing context was wrong or
   missing, and the right answer is in hand.
 - **Something cost real effort to establish.** Expensive once means expensive again.
-- **A decision and its reasoning.** Decisions decay fastest because the why never gets
-  written down.
 
-Never for task-specific detail, never for something inferred rather than verified.
+**Musing is not deciding** is the rule that protects all of it. "Maybe Postgres?" recorded
+as a decision poisons the context for every later session, so anything still being weighed
+is a question.
+
+Never secrets, never what the user puts off the record, never the conversation itself, never
+what the files already say, never something inferred rather than verified. And the agent says
+when it writes — `noted: decision.storage` — so capture is never invisible.
+
+### The journal
+
+Facts say how things are; the journal says how they got that way. At natural stopping points
+the agent runs `ctx journal "…"`: a few sentences for a teammate who was not there. It is kept
+in `.ctx/<name>/journal.md` and sent at once when there is a remote.
+
+**Entries are only ever added**, so the journal needs no merge rule at all. Each entry's id is
+a hash of its timestamp and text, made by the client, so a resend after a dropped connection
+stores it once. A local-only context keeps its journal and `ctx remote` publishes it.
+
+This is not the session memory rejected below. It does not restore a conversation; it is a
+team-visible record of what was done and decided, and it is the most readable page on the site.
+
+### Prose is written by the agent, drawn by the browser
+
+The human view needs prose, and the server must not need a model. So the agent writes it: one
+file per area in `.ctx/<name>/prose/`, named for the key prefix it explains, or with a
+`<!-- covers: a, b -->` line. It is stored separately from the facts — "prose alongside the
+facts" stays rejected — and synced like them, later write wins per section.
+
+**Staleness is mechanical.** Each section is stored with a fingerprint of the facts it covered
+when written. When those facts change, the fingerprint no longer matches and the site says so;
+when none are left, it says the section describes something that is gone. No model decides
+whether prose is out of date.
+
+**The page is drawn in the browser** from three things: facts, prose and journal. Intent comes
+first — overview, goals, requirements, decisions, rejected, open questions — then an area per
+key prefix, prose above its facts, then the journal. **The architecture diagram is drawn from
+the `→` facts alone**: each is an arrow from the thing the key is about to what it names. It
+cannot invent a component, and it is never stale. This replaces mermaid from the earlier
+design: there is no diagram text to keep in step, because the facts are the diagram.
+
+### Secrets are refused at the door
+
+The server rejects a sync, a journal entry, prose or a new context holding anything shaped
+only like a credential — cloud keys, private keys, GitHub, Slack, Stripe and model API tokens.
+Pattern matching, no model, and deliberately nothing that fires on the word "password" in a
+sentence about passwords. A refused sync keeps nothing from that request, and the error names
+the key or entry to fix.
 
 **Write as you learn, not at session end.** Sessions get truncated, interrupted, or hit a
 context limit. A fact learned at minute five and written at minute ninety is a fact that may

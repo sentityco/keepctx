@@ -27,6 +27,21 @@ if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
 
 FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*[—→-]\s*(?P<value>.*)$")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")
+SECTION_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,60}$")
+ENTRY_ID_RE = re.compile(r"^[0-9a-f]{8,40}$")
+COVERS_RE = re.compile(r"^\s*<!--\s*covers:\s*(?P<keys>[^>]*?)\s*-->")
+
+# Shapes that are only ever credentials. Mechanical on purpose: no model, and
+# nothing that fires on the word "password" in a sentence about passwords.
+SECRETS = [
+    ("an AWS access key", re.compile(r"\b(AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("a private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("a GitHub token", re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})")),
+    ("a Slack token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}")),
+    ("an API key", re.compile(r"\bsk-(ant-|proj-|live-)?[A-Za-z0-9_-]{20,}")),
+    ("a Google API key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}")),
+    ("a Stripe key", re.compile(r"\b(sk|rk)_live_[0-9A-Za-z]{20,}")),
+]
 GENERIC = {"src", "app", "api", "web", "lib", "code", "work", "dev", "test",
            "tmp", "project", "repo", "main", "new", "untitled", "workspace"}
 
@@ -122,6 +137,34 @@ def apply_changes(text, changes):
     return body.rstrip() + "\n"
 
 
+def find_secret(text):
+    for what, rx in SECRETS:
+        if rx.search(text or ""):
+            return what
+    return None
+
+
+def covers_of(section, text):
+    """Which keys a prose section explains: its `<!-- covers: a, b -->` line,
+    else the key prefix it is named after."""
+    m = COVERS_RE.match(text or "")
+    if m:
+        keys = [k.strip() for k in m.group("keys").split(",") if k.strip()]
+        if keys:
+            return keys
+    return [section]
+
+
+def covered(facts, covers):
+    """The blocks a prose section explains, as one string to fingerprint."""
+    return "\n".join(facts[k] for k in sorted(facts)
+                     if any(k == c or k.startswith(c + ".") for c in covers))
+
+
+def fingerprint(text):
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
 def resp(code, body):
     return {
         "statusCode": code,
@@ -151,6 +194,71 @@ def put_version(org, name, facts, version, by):
         "pk": f"CTX#{org}#{name}", "sk": f"V#{version:09d}",
         "facts": facts, "by": by, "at": int(time.time()), "version": version,
     })
+
+
+def get_prose(org, name):
+    r = tbl.query(KeyConditionExpression=Key("pk").eq(f"CTX#{org}#{name}")
+                  & Key("sk").begins_with("P#"))
+    return r.get("Items", [])
+
+
+def put_prose(org, name, section, text, facts, by):
+    """Prose is stored with a fingerprint of the facts it explains, so the site
+    can say when those facts have moved on without it — no model needed."""
+    if text is None:
+        tbl.delete_item(Key={"pk": f"CTX#{org}#{name}", "sk": f"P#{section}"})
+        return
+    covers = covers_of(section, text)
+    tbl.put_item(Item={"pk": f"CTX#{org}#{name}", "sk": f"P#{section}",
+                       "section": section, "text": text, "covers": covers,
+                       "basis": fingerprint(covered(parse_facts(facts), covers)),
+                       "by": by, "at": int(time.time())})
+
+
+def put_entry(org, name, entry, by):
+    """Journal entries are only ever added. The id comes from the client, so
+    sending one twice — after a dropped connection, say — stores it once."""
+    now = int(time.time())
+    at = entry.get("at")
+    at = at if isinstance(at, int) and 0 < at <= now + 300 else now
+    tbl.put_item(Item={"pk": f"CTX#{org}#{name}", "sk": f"J#{at:012d}#{entry['id']}",
+                       "text": entry["text"], "by": by, "at": at})
+
+
+def check_extras(body):
+    """Validate the journal entries and prose a sync carries. -> error or None."""
+    for e in body.get("journal") or []:
+        if not isinstance(e, dict) or not ENTRY_ID_RE.match(str(e.get("id", ""))) \
+                or not isinstance(e.get("text"), str) or not e["text"].strip():
+            return "a journal entry needs an id and some text"
+        if len(e["text"]) > 20000:
+            return "a journal entry is limited to 20,000 characters"
+    prose = body.get("prose") or {}
+    if not isinstance(prose, dict):
+        return "prose is {section: text}"
+    for section, text in prose.items():
+        if not SECTION_RE.match(section):
+            return f"prose section `{section}` should be a key prefix like `gateway`"
+        if text is not None and (not isinstance(text, str) or len(text) > 50000):
+            return f"prose section `{section}` is limited to 50,000 characters"
+    return None
+
+
+def secret_in(body):
+    """-> where a sync's content looks like it holds a secret, or None."""
+    for ch in body.get("changes") or []:
+        what = find_secret(ch.get("block", ""))
+        if what:
+            return f"`{ch.get('key')}` looks like it contains {what}"
+    for e in body.get("journal") or []:
+        what = find_secret(e.get("text", ""))
+        if what:
+            return f"a journal entry looks like it contains {what}"
+    for section, text in (body.get("prose") or {}).items():
+        what = find_secret(text or "")
+        if what:
+            return f"prose section `{section}` looks like it contains {what}"
+    return None
 
 
 # ---------------------------------------------------------------- membership
@@ -320,6 +428,10 @@ def create_context(claims, body):
         return err(409, f"{org}:{name} already exists")
 
     facts = body.get("facts") or ""
+    what = find_secret(facts)
+    if what:
+        return err(400, f"not stored: the facts look like they contain {what}. "
+                        "Remove it and try again — secrets never go in a context.")
     now = int(time.time())
     tbl.put_item(Item={"pk": f"ORG#{org}", "sk": f"CTX#{name}",
                        "name": name, "org": org, "facts": facts,
@@ -350,7 +462,8 @@ def read_context(claims, org, name):
                       "count": len(parse_facts(facts)),
                       "owner": item.get("owner", ""),
                       "can_write": can_write(claims["sub"], org, item),
-                      "requires": item.get("requires", [])})
+                      "requires": item.get("requires", []),
+                      "prose": {p["section"]: p["text"] for p in get_prose(org, name)}})
 
 
 def sync_context(claims, org, name, body):
@@ -361,6 +474,14 @@ def sync_context(claims, org, name, body):
         return err(404, f"{org}:{name} not found")
     if not can_write(claims["sub"], org, item):
         return err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
+
+    problem = check_extras(body)
+    if problem:
+        return err(400, problem)
+    found = secret_in(body)
+    if found:
+        return err(400, f"nothing was synced: {found}. Remove it and sync again — "
+                        "secrets never go in a context.")
 
     server_facts = item.get("facts", "")
     server_version = int(item.get("version", 0))
@@ -386,9 +507,43 @@ def sync_context(claims, org, name, body):
         theirs = parse_facts(apply_changes("", changes)) if changes else {}
         down = {k: v for k, v in mine.items() if theirs.get(k) != v}
 
-    # every key the server has, so a copy can drop facts deleted elsewhere
+    for entry in body.get("journal") or []:
+        put_entry(org, name, entry, claims["sub"])
+    for section, text in (body.get("prose") or {}).items():
+        put_prose(org, name, section, text, updated, claims["sub"])
+
+    # every key the server has, so a copy can drop facts deleted elsewhere; and
+    # every prose section, so a copy mirrors what the site shows
     return resp(200, {"version": version, "facts": down,
-                      "keys": list(parse_facts(updated).keys())})
+                      "keys": list(parse_facts(updated).keys()),
+                      "prose": {p["section"]: p["text"] for p in get_prose(org, name)}})
+
+
+def view_context(claims, org, name):
+    """Everything the human view draws: the facts, the prose with whether its
+    facts have moved on since it was written, and the journal, newest first."""
+    if not role_in(claims["sub"], org):
+        return err(403, f"you're not in `{org}`, or it doesn't exist")
+    item = get_context(org, name)
+    if not item:
+        return err(404, f"{org}:{name} not found")
+    facts = item.get("facts", "")
+    parsed = parse_facts(facts)
+    prose = []
+    for p in get_prose(org, name):
+        now = covered(parsed, p.get("covers") or [p["section"]])
+        prose.append({"section": p["section"], "text": p["text"], "covers": p.get("covers", []),
+                      "by": p.get("by", ""), "at": int(p.get("at", 0)),
+                      "stale": fingerprint(now) != p.get("basis"), "orphaned": not now})
+    r = tbl.query(KeyConditionExpression=Key("pk").eq(f"CTX#{org}#{name}")
+                  & Key("sk").begins_with("J#"), ScanIndexForward=False, Limit=200)
+    journal = [{"text": j["text"], "by": j.get("by", ""), "at": int(j.get("at", 0))}
+               for j in r.get("Items", [])]
+    return resp(200, {"org": org, "name": name, "facts": facts,
+                      "version": int(item.get("version", 0)), "count": len(parsed),
+                      "updated": int(item.get("updated", 0)), "owner": item.get("owner", ""),
+                      "can_write": can_write(claims["sub"], org, item),
+                      "prose": sorted(prose, key=lambda p: p["section"]), "journal": journal})
 
 
 def list_contexts(claims, org):
@@ -503,6 +658,8 @@ def handler(event, _context=None):
                 return sync_context(claims, org, name, body)
             if action == "versions" and method == "GET":
                 return list_versions(claims, org, name)
+            if action == "view" and method == "GET":
+                return view_context(claims, org, name)
             if action == "revert" and method == "POST":
                 return revert(claims, org, name, body)
     except Exception as e:                                   # noqa: BLE001

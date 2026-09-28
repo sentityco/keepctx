@@ -119,6 +119,53 @@ check("expired: an agent is told to sign in from a terminal", "Run `ctx sync` in
 out = ctx(A)
 check("agent index: no false 'AGENTS.md changed'", "changed" not in out, out)
 
+# the journal: added locally, sent right away, stored once
+out = ctx(A, "journal", "Chose SQLite over Postgres. Open: TLS?")
+check("journal: ctx journal sends the entry", "1 journal" in out, out)
+out = ctx(A, "sync")
+check("journal: a later sync doesn't send it again", "journal" not in out, out)
+view = call("GET", "/v1/contexts/team/proj/view", token=owner)[1]
+check("journal: the server has it once", [j["text"] for j in view["journal"]]
+      == ["Chose SQLite over Postgres. Open: TLS?"], view)
+out = ctx(C, "journal", "member note")
+check("journal: a read-only copy can't add to it", "read-only" in out, out)
+
+# prose: written in one copy, mirrored to the others, deletions travel
+prose = A / ".ctx" / "proj" / "prose"
+prose.mkdir()
+(prose / "deploy.md").write_text("## Deploy\n\nShipped with make.\n")
+out = ctx(A, "sync")
+check("prose: a changed section goes up", "1 prose" in out, out)
+ctx(B, "sync")
+bp = B / ".ctx" / "proj" / "prose" / "deploy.md"
+check("prose: another copy of the owner's gets it", bp.exists() and "Shipped" in bp.read_text())
+ctx(D, "sync")     # C's sign-in was expired above; D holds proj as a reference
+check("prose: a read-only reference copy gets it", (D / ".ctx" / "proj" / "prose" / "deploy.md").exists())
+bp.unlink()
+ctx(B, "sync")
+ctx(A, "sync")
+check("prose: a deleted section is deleted everywhere", not (prose / "deploy.md").exists())
+
+# a local context keeps its journal and prose, and `ctx remote` publishes them
+E = tmp / "e"
+E.mkdir()
+ctx(E, "init", "later")
+out = ctx(E, "journal", "Started locally.")
+check("local: the journal is kept here", "local" in out
+      and "Started locally." in (E / ".ctx" / "later" / "journal.md").read_text(), out)
+(E / ".ctx" / "later" / "prose").mkdir()
+(E / ".ctx" / "later" / "prose" / "overview.md").write_text("<!-- covers: purpose -->\n## Later\n")
+out = ctx(E, "remote", typed=me + "\n")
+view = call("GET", "/v1/contexts/team/later/view", token=owner)[1]
+check("local: ctx remote publishes the journal and prose",
+      [j["text"] for j in view.get("journal", [])] == ["Started locally."]
+      and [p["section"] for p in view.get("prose", [])] == ["overview"], out + str(view))
+
+# the rules an agent gets describe all of it
+instr = (A / ".ctx" / "instructions.md").read_text()
+check("instructions: capture intent, the journal and prose",
+      "question.*" in instr and "ctx journal" in instr and ".ctx/proj/prose/" in instr)
+
 stop()
 print(f"\n{fails} failed")
 sys.exit(1 if fails else 0)

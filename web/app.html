@@ -109,10 +109,20 @@
         <button class="link-btn" id="back">← all contexts</button>
       </div>
     </div>
-    <div class="facts" id="d-facts">—</div>
-    <h3>Version history</h3>
-    <p class="sub">Every sync is a version. Reverting creates a new one, so nothing is lost.</p>
-    <div id="d-versions"></div>
+
+    <!-- the human view: drawn in the browser from the facts, the prose the
+         agents keep, and the journal. Nothing here is generated on the server. -->
+    <div id="d-view"></div>
+
+    <details class="raw">
+      <summary>All facts, as agents read them</summary>
+      <div class="facts" id="d-facts">—</div>
+    </details>
+    <details class="raw">
+      <summary>Version history</summary>
+      <p class="sub">Every sync is a version. Reverting creates a new one, so nothing is lost.</p>
+      <div id="d-versions"></div>
+    </details>
   </div>
 </div>
 
