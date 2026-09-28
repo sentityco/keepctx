@@ -46,20 +46,22 @@ carry on without context when `.ctx/` is missing. Delete it too if you want a cl
 
 ## What goes in a context
 
-Everything you'd tell a sharp new teammate on day one:
+Everything you'd tell a sharp new teammate on day one — anything that would belong in an
+`AGENTS.md`, kept current instead of written once:
 
 | | |
 |---|---|
-| **Purpose** | why this exists, and who it's for |
-| **Parts** | what it's made of — components, stack, tools |
+| **Purpose** | why this exists, what value it gives, and who it's for |
+| **Parts & design** | what it's made of — components, stack, tools — and the shape it's meant to have |
+| **Conventions** | naming, structure, workflow, the idioms *this* place uses |
+| **How** | build, test, deploy, operate — the exact commands, done the way *this* place does them |
 | **Where** | where things run and live, and where to look — logs, dashboards, files |
-| **How** | the routines, done the way *this* place does them — deploy, operate, maintain |
 | **Vocabulary** | internal names no model could guess |
 | **Gotchas** | what looks wrong but is intentional, and what looks right but breaks |
 | **Sources of truth** | which doc wins when two disagree |
 | **Decisions** | what was chosen, why, and what was ruled out |
-| **Rules** | standards, compliance, budgets, never-do-X |
-| **People & access** | who owns what, who to ask, how to get in — never the credentials |
+| **Rules & boundaries** | standards, compliance, budgets, never-do-X, what not to touch |
+| **People & access** | who owns what, who to ask, how they like to work, how to get in — never the credentials |
 
 It isn't only for code. An investing context holds your thesis, sizing rules and what you've
 ruled out; a book's holds characters, voice and what's canon; a business's holds customers,

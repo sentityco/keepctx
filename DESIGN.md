@@ -303,6 +303,20 @@ and that its absence is normal — wording that should not need to change. Every
 change lives in `instructions.md`, which ctx refreshes on every command: it is gitignored and
 ctx owns all of it, so upgrading keepctx is just reinstalling it.
 
+**This is `AGENTS.md` used as intended, not hijacked.** `AGENTS.md` is a standard for
+instructions — guidance a human writes and agents read — and it says nothing about memory.
+There is no cross-tool standard for memory at all: each tool keeps its own, mostly outside
+the project. The pointer is itself an ordinary instruction ("read this other file"), and the
+state lives behind it. Writing facts into `AGENTS.md` would be the misuse — a committed file
+rewritten every session, growing into a log — so `instructions.md` tells the agent never to.
+
+**What goes in a context is defined by that same file.** The coverage list in
+`instructions.md` opens with the rule that anything which would belong in an `AGENTS.md`
+belongs in the facts instead: the same knowledge, kept current rather than written once. That
+one sentence is easier for an agent to apply than any list, and the list — purpose, design,
+conventions, workflow, build, testing, operating, environment, boundaries, preferences and the
+rest — is there to fill in what it means.
+
 **The trade this accepts:** because no context list is committed, a fresh clone cannot tell
 an agent *which* contexts the project used — the developer has to know the name. Free for a
 solo dev, one line in a real README for a team, and it is the price of keeping git clean.

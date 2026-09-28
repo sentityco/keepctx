@@ -223,22 +223,48 @@ rather than verified.
 
 ## What a context covers
 
-The rules above decide *when* to write. This decides *what* a good context ends
-up answering — for software or anything else (investing, a book, a business):
+The rules above decide *when* to write. This decides *what*. The short version:
+**anything that would belong in an `AGENTS.md` belongs here instead.** `AGENTS.md`
+is written once by hand and goes stale; this file is where that same knowledge is
+kept current. So never write facts into `AGENTS.md` itself — it holds the pointer
+and whatever a human wrote there, nothing more.
 
-- **Purpose** — why this exists, and who it is for.
+For software or anything else (investing, a book, a business), a good context
+ends up answering:
+
+What it is
+- **Purpose** — why this exists, what value it gives, and who it is for.
 - **Parts** — what it is made of: components, stack, tools.
-- **Where** — where things live and run, and where to look (logs, dashboards, files).
-- **How** — the routines, done the way this place does them: deploy, operate, maintain.
 - **Relationships** — what depends on what.
+- **Design** — the intended shape and principles; for writing, the voice and style.
 - **Vocabulary** — internal names nobody outside would know.
+
+How to work in it
+- **Conventions** — naming, structure, the idioms this place uses.
+- **Workflow** — how changes are made: branches, commits, review.
+- **Build and run** — the exact commands.
+- **Testing** — how to test, what counts as passing, what is not covered.
+- **Operating** — deploy, release, monitor, maintain, done the way this place does it.
+- **Environment** — where things live and run, required tools and versions,
+  variable names (never values), and where to look: logs, dashboards, files.
+- **Access** — how to get into things. Never the credentials themselves.
+
+Constraints
+- **Rules** — standards, compliance, budgets, never-do-X.
+- **Boundaries** — what not to touch: generated, vendored, or owned elsewhere.
+
+Hard-won knowledge
+- **Decisions** — what was chosen, why, and what was ruled out.
 - **Gotchas** — what looks wrong but is intentional, or looks right but breaks.
 - **Failure modes** — how it usually breaks, and the first thing to check.
 - **Sources of truth** — which doc or dashboard wins when two disagree.
-- **Decisions** — what was chosen, why, and what was ruled out.
-- **Rules** — constraints: standards, compliance, budgets, never-do-X.
-- **People** — who owns what, and who to ask.
-- **Access** — how to get into things. Never the credentials themselves.
+
+People
+- **Ownership** — who owns what, and who to ask.
+- **Preferences** — how the people here like to work.
+
+Leave out what the files already say (listings, signatures, anything one read
+answers) — it only goes stale — and anything that matters to this task alone.
 
 Keys stay `thing.property` (`api.runs-on`, `logs.location`). When a fact is not
 about one thing, the topic is the thing: `purpose.users`, `vocab.orion`,
