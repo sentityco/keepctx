@@ -252,22 +252,43 @@ async function createOrg() {
 }
 
 // ------------------------------------------------------------- human view
-// Everything below draws from three things: the facts, the prose sections the
-// agents keep beside them, and the journal. No model and no server rendering,
-// so a self-hosted server shows exactly the same page.
+// Drawn in the browser from the facts alone: a section per category, and an
+// architecture diagram from the → relationships. No model, no server
+// rendering, so a self-hosted server shows exactly the same page.
 
 const FACT = /^\s*-\s+\*\*([^*]+)\*\*\s*([—→-])\s*(.*)$/;
+const HEADING = /^##\s+(.+?)\s*$/;
 
+// the same categories, in the same order, as the CLI
+const CATEGORIES = [
+  ["overview", "Overview", "What this is, why it exists, who it's for, and what success looks like."],
+  ["requirements", "Requirements", "What it must and must not do, and what is in and out of scope."],
+  ["architecture", "Architecture", "Services, components, dependencies and data flows: what connects to what."],
+  ["environments", "Environments", "Hosts, deployment environments, service names, versions and access."],
+  ["decisions", "Decisions", "What was chosen and why, and what was considered and rejected."],
+  ["questions", "Questions", "What is still undecided."],
+  ["conventions", "Conventions", "Patterns future developers and agents should follow, and what not to touch."],
+  ["operations", "Operations", "Build, deploy, runbooks, troubleshooting and recurring operational details."],
+  ["testing", "Testing", "How to test, what passing means, and what is not covered."],
+  ["knowledge", "Knowledge", "Gotchas, domain facts and vocabulary nobody outside would know."],
+  ["people", "People", "Who owns what, who to ask, and how they like to work."],
+];
+const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+// -> [{cat, key, rel, value, verified, more}]. A file from before categories
+// has no headings; its facts show under Knowledge.
 function parseFacts(text) {
   const out = [];
-  let cur = null;
+  let cat = null, cur = null;
   (text || "").split("\n").forEach((line) => {
+    const h = line.match(HEADING);
+    if (h) { cat = slug(h[1]); cur = null; return; }
     const m = line.match(FACT);
     if (m) {
       let value = m[3];
       const verified = value.includes("`[verified]`");
       value = value.replace("`[verified]`", "").trim();
-      cur = { key: m[1].trim(), rel: m[2], value, verified, more: [] };
+      cur = { cat: cat || "knowledge", key: m[1].trim(), rel: m[2], value, verified, more: [] };
       out.push(cur);
     } else if (cur && line.trim() && /^\s/.test(line)) {
       cur.more.push(line.trim().replace(/^[-*]\s+/, ""));
@@ -280,57 +301,26 @@ function parseFacts(text) {
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// Markdown, the small part of it prose uses. Escaped first, so nothing in a
+// The small part of markdown a fact uses. Escaped first, so nothing in a
 // context can put markup on the page.
 function inline(s) {
   return esc(s)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
 }
 
-function md(text) {
-  const blocks = (text || "").replace(/<!--[\s\S]*?-->/g, "").trim().split(/\n\s*\n/);
-  return blocks.map((b) => {
-    const lines = b.split("\n");
-    if (/^#{1,6}\s/.test(lines[0]) && lines.length === 1) {
-      return `<h4>${inline(lines[0].replace(/^#+\s*/, ""))}</h4>`;
-    }
-    if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
-      return "<ul>" + lines.map((l) => `<li>${inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`).join("") + "</ul>";
-    }
-    const head = /^#{1,6}\s/.test(lines[0]) ? `<h4>${inline(lines.shift().replace(/^#+\s*/, ""))}</h4>` : "";
-    return head + (lines.length ? `<p>${inline(lines.join(" "))}</p>` : "");
-  }).join("");
-}
-
-function factList(facts, strip) {
+function factList(facts) {
   const ul = el("ul", "flist");
   facts.forEach((f) => {
     const li = el("li");
-    const label = strip && f.key.startsWith(strip + ".") ? f.key.slice(strip.length + 1) : f.key;
-    li.innerHTML = `<span class="fk">${esc(label)}</span>` +
+    li.innerHTML = `<span class="fk">${esc(f.key)}</span>` +
       `<span class="fr">${f.rel === "→" ? "→" : "—"}</span> ${inline(f.value)}` +
       (f.verified ? ' <span class="ok-tag">verified</span>' : "") +
       (f.more.length ? "<ul>" + f.more.map((m) => `<li>${inline(m)}</li>`).join("") + "</ul>" : "");
     ul.appendChild(li);
   });
   return ul;
-}
-
-function proseBlock(p) {
-  const box = el("div", "prose");
-  if (p.stale || p.orphaned) {
-    box.appendChild(el("div", "stale",
-      p.orphaned ? "No facts left under this section — it describes something that's gone."
-                 : "The facts below changed after this was written. The next agent working here rewrites it."));
-  }
-  const body = el("div");
-  body.innerHTML = md(p.text);
-  box.appendChild(body);
-  box.appendChild(el("div", "byline", `${p.by} · ${ago(p.at)}`));
-  return box;
 }
 
 // The architecture, drawn from the → facts alone: each is an arrow from the
@@ -418,84 +408,34 @@ function diagram(edges) {
   return wrap;
 }
 
-// Intent comes first, in this order; every other prefix is an area of its own.
-const INTENT = [
-  ["goal", "Goals"], ["req", "Requirements"], ["decision", "Decisions"],
-  ["rejected", "Considered and rejected"], ["question", "Open questions"],
-];
-
-function renderView(v) {
+function renderView(text) {
   const box = $("d-view");
   box.innerHTML = "";
-  const facts = parseFacts(v.facts);
-  const prose = Object.fromEntries(v.prose.map((p) => [p.section, p]));
-  const prefix = (f) => f.key.split(".")[0];
-  const under = (p) => facts.filter((f) => prefix(f) === p);
-  const section = (title, cls) => {
-    const s = el("div", "vsec " + (cls || ""));
-    s.appendChild(el("h3", "", title));
-    box.appendChild(s);
-    return s;
-  };
-  const used = new Set();
-
-  if (!facts.length && !v.prose.length && !v.journal.length) {
+  const facts = parseFacts(text);
+  if (!facts.length) {
     const e = el("div", "empty");
-    e.appendChild(el("p", "", "Nothing captured yet."));
+    e.appendChild(el("p", "", "Nothing remembered yet."));
     e.appendChild(el("p", "", "As agents work in this project, what they learn and decide shows up here."));
     box.appendChild(e);
     return;
   }
-
-  const ov = prose.overview;
-  const purpose = under("purpose");
-  if (ov || purpose.length) {
-    const s = section("Overview", "lead");
-    if (ov) { s.appendChild(proseBlock(ov)); used.add("overview"); }
-    if (purpose.length) s.appendChild(factList(purpose, "purpose"));
-    used.add("purpose");
-  }
-
+  const known = CATEGORIES.map((c) => c[0]);
+  const extra = [...new Set(facts.map((f) => f.cat))].filter((c) => !known.includes(c)).sort();
   const edges = edgesOf(facts);
-  if (edges.length) {
-    const s = section("Architecture");
-    if (prose.architecture) { s.appendChild(proseBlock(prose.architecture)); used.add("architecture"); }
-    s.appendChild(diagram(edges));
-    s.appendChild(el("p", "hint", "Drawn from the → relationships in the facts, so it shows only what's recorded."));
-  }
-
-  INTENT.forEach(([p, title]) => {
-    const list = under(p);
-    used.add(p);
-    if (!list.length && !prose[p]) return;
-    const s = section(title, p === "question" ? "open" : "");
-    if (prose[p]) s.appendChild(proseBlock(prose[p]));
-    if (list.length) s.appendChild(factList(list, p));
+  CATEGORIES.concat(extra.map((c) => [c, c, ""])).forEach(([cat, title, desc]) => {
+    const list = facts.filter((f) => f.cat === cat);
+    const draw = cat === "architecture" && edges.length;
+    if (!list.length && !draw) return;
+    const s = el("div", "vsec" + (cat === "questions" ? " open" : ""));
+    s.appendChild(el("h3", "", title));
+    if (desc) s.appendChild(el("p", "hint", desc));
+    if (draw) {
+      s.appendChild(diagram(edges));
+      s.appendChild(el("p", "hint", "Drawn from the → relationships in the facts, so it shows only what's recorded."));
+    }
+    if (list.length) s.appendChild(factList(list));
+    box.appendChild(s);
   });
-
-  const areas = [...new Set(facts.map(prefix).concat(v.prose.map((p) => p.section)))]
-    .filter((p) => !used.has(p)).sort();
-  areas.forEach((p) => {
-    const s = section(p);
-    if (prose[p]) s.appendChild(proseBlock(prose[p]));
-    const list = under(p);
-    if (list.length) s.appendChild(factList(list, p));
-  });
-
-  if (v.journal.length) {
-    const s = section("Journal");
-    s.appendChild(el("p", "sub", "How it got this way — written by the agents as the work happened."));
-    v.journal.forEach((j) => {
-      const row = el("div", "jrow");
-      const when = new Date(j.at * 1000);
-      row.appendChild(el("div", "jwhen",
-        `${when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} · ${j.by}`));
-      const body = el("div", "jbody");
-      body.innerHTML = md(j.text);
-      row.appendChild(body);
-      s.appendChild(row);
-    });
-  }
 }
 
 async function openContext(name) {
@@ -505,10 +445,10 @@ async function openContext(name) {
   $("detail").hidden = false;
   $("d-name").textContent = `${org}:${name}`;
 
-  const c = await api(`/v1/contexts/${org}/${name}/view`);
-  $("d-version").textContent = `v${c.version} · ${c.count} facts · ${ago(c.updated)}`;
+  const c = await api(`/v1/contexts/${org}/${name}`);
+  $("d-version").textContent = `v${c.version} · ${c.count} facts`;
   $("d-facts").textContent = c.facts || "(empty)";
-  renderView(c);
+  renderView(c.facts);
 
   const v = await api(`/v1/contexts/${org}/${name}/versions`);
   const box = $("d-versions");

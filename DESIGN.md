@@ -26,6 +26,56 @@ Same claim at two altitudes; use whichever matches who is asking. See *How to pi
 
 ---
 
+## The current model (v0.2) — read this first
+
+Much of this document records how KeepCTX got here. Where it disagrees with this section,
+this section wins.
+
+**Name and pitch.** KeepCTX in prose; `keepctx` and `ctx` stay as the commands. *Keep your AI
+context — across sessions, across AIs, across your team.* `AGENTS.md` is only the mechanism
+many agents already read: one pointer to `.ctx/instructions.md`, nothing more. The earlier
+"your AGENTS.md, except it writes itself" pitch is retired — it made people think KeepCTX
+rewrites `AGENTS.md`, and the context holds far more than an `AGENTS.md` would.
+
+**The agent works through the CLI, not the file.** `ctx get` reads the whole context;
+`ctx remember <category> <key> "<value>"` adds or replaces a fact; `ctx forget` removes one.
+The agent never edits `.ctx/` itself. This reverses the earlier "the agent edits facts.md
+directly, no write command to forget": commands give every write a visible `KeepCTX:` line
+for the operator, a secret check before anything is stored, and a push at the moment of
+writing — and agents run commands as readily as they edit files.
+
+**One file, a heading per category.** `facts.md` has eleven categories in a fixed order —
+overview, requirements, architecture, environments, decisions, questions, conventions,
+operations, testing, knowledge, people — each with a one-line description, and a fact's full
+key is `category.key`. One file is one thing to merge, push and read; a file per category
+was considered and would have multiplied all three. The categories are written for software
+but read sensibly for a book, a business or a portfolio. A file from before categories is
+still read: `decision.*`, `question.*` and a few other prefixes find their category, and the
+rest land in knowledge.
+
+**`ctx pull`, merge fact by fact, `ctx push`** replace `ctx sync`:
+
+- `pull` downloads the latest into `.ctx/<name>/remote/v<N>.md` (the last five kept) and
+  merges it against `.base`, the server copy both sides started from. A fact changed on one
+  side only is taken from that side. A fact changed differently on both is a conflict: the
+  local value stays, `pull` names it, and the agent settles exactly that fact with
+  `remember` or `forget` after comparing `ctx get` with `ctx get --remote`.
+- `push` sends the whole merged file with the version it started from. The server accepts it
+  only if that is still its current version; otherwise `ctx` pulls, merges and tries again,
+  and stops only on a real conflict. The server never merges — it stores versions — which
+  removed its keyed merge entirely.
+- **The CLI merges, the AI settles.** Having the AI merge every fact on every pull was the
+  first idea and was rejected: slow, expensive in tokens, and sooner or later it silently
+  drops or rewrites a fact. A three-way merge does the routine part exactly; only a true
+  conflict needs judgment.
+
+**When to sync.** The agent pulls and reads at the start of a session, and pushes once before
+finishing. In between, every `remember` and `forget` pushes by itself. That is two moments
+the agent has to remember, and nothing it can forget in the middle.
+
+**Tell the operator.** Every line `ctx` prints that starts with `KeepCTX:` is meant for the
+person too, and the instructions tell the agent to repeat it as printed.
+
 ## How to pitch it
 
 **"Your AGENTS.md, except it writes itself — and your team shares it."**
@@ -878,45 +928,22 @@ Never secrets, never what the user puts off the record, never the conversation i
 what the files already say, never something inferred rather than verified. And the agent says
 when it writes — `noted: decision.storage` — so capture is never invisible.
 
-### The journal
+### The journal and agent-written prose: built, then dropped
 
-Facts say how things are; the journal says how they got that way. At natural stopping points
-the agent runs `ctx journal "…"`: a few sentences for a teammate who was not there. It is kept
-in `.ctx/<name>/journal.md` and sent at once when there is a remote.
-
-**Entries are only ever added**, so the journal needs no merge rule at all. Each entry's id is
-a hash of its timestamp and text, made by the client, so a resend after a dropped connection
-stores it once. A local-only context keeps its journal and `ctx remote` publishes it.
-
-This is not the session memory rejected below. It does not restore a conversation; it is a
-team-visible record of what was done and decided, and it is the most readable page on the site.
-
-### Prose is written by the agent, drawn by the browser
-
-The human view needs prose, and the server must not need a model. So the agent writes it: one
-file per area in `.ctx/<name>/prose/`, named for the key prefix it explains, or with a
-`<!-- covers: a, b -->` line. It is stored separately from the facts — "prose alongside the
-facts" stays rejected — and synced like them, later write wins per section.
-
-**Staleness is mechanical.** Each section is stored with a fingerprint of the facts it covered
-when written. When those facts change, the fingerprint no longer matches and the site says so;
-when none are left, it says the section describes something that is gone. No model decides
-whether prose is out of date.
-
-**The page is drawn in the browser** from three things: facts, prose and journal. Intent comes
-first — overview, goals, requirements, decisions, rejected, open questions — then an area per
-key prefix, prose above its facts, then the journal. **The architecture diagram is drawn from
-the `→` facts alone**: each is an arrow from the thing the key is about to what it names. It
-cannot invent a component, and it is never stale. This replaces mermaid from the earlier
-design: there is no diagram text to keep in step, because the facts are the diagram.
+For a few days the agent also kept a dated journal (`ctx journal`) and a prose section per
+area, fingerprinted so the site could flag prose its facts had moved past. Both worked, and
+both were taken out for the MVP. Each added a second and third kind of content with its own
+sync rule, its own instructions and its own failure mode, before there was any evidence
+anyone reads them. Facts alone carry the claim — context kept across sessions, AIs and a
+team — and the human view can be drawn from facts. If the journal comes back, it is still
+the right shape: only ever added to, ids hashed on the client, so it needs no merge rule.
 
 ### Secrets are refused at the door
 
-The server rejects a sync, a journal entry, prose or a new context holding anything shaped
-only like a credential — cloud keys, private keys, GitHub, Slack, Stripe and model API tokens.
+The server rejects a push or a new context holding anything shaped only like a credential — cloud keys, private keys, GitHub, Slack, Stripe and model API tokens.
 Pattern matching, no model, and deliberately nothing that fires on the word "password" in a
-sentence about passwords. A refused sync keeps nothing from that request, and the error names
-the key or entry to fix.
+sentence about passwords. A refused push keeps nothing, and `ctx remember` refuses the same
+shapes before they reach the local file.
 
 **Write as you learn, not at session end.** Sessions get truncated, interrupted, or hit a
 context limit. A fact learned at minute five and written at minute ninety is a fact that may

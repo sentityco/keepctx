@@ -95,8 +95,7 @@ A, B = tmp / "a", tmp / "b"
 A.mkdir()
 B.mkdir()
 ctx(A, "init", "proj")
-p = A / ".ctx" / "proj" / "facts.md"
-p.write_text(p.read_text().rstrip() + "\n- **deploy.command** — `make ship`\n")
+ctx(A, "remember", "operations", "deploy.command", "`make ship`")
 out = ctx(A, "remote", f"127.0.0.1:{port}", typed=me + "\n")
 check("cli: ctx remote <server> goes live there", "team:proj is live" in out, out)
 check("cli: the directory remembers the server", cfg(A)["remote"] == f"http://127.0.0.1:{port}", cfg(A))
@@ -116,10 +115,9 @@ for d in (A, B):
     c = cfg(d)
     c["remote"] = f"http://127.0.0.1:{port2}"
     (d / ".ctx" / "config.json").write_text(json.dumps(c))
-p.write_text(p.read_text().rstrip() + "\n- **logs.location** — Splunk\n")
-ctx(A, "sync")
-out = ctx(B, "sync")
-check("restart: data and sign-ins survive, sync still works",
+ctx(A, "remember", "environments", "logs.location", "Splunk")
+out = ctx(B, "pull")
+check("restart: data and sign-ins survive, pull and push still work",
       "Splunk" in (B / ".ctx" / "proj" / "facts.md").read_text(), out)
 
 srv.shutdown()

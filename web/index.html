@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>keepctx — context management for AI and people</title>
-<meta name="description" content="Your AGENTS.md, except it writes itself. Everything that belongs in an AGENTS.md, kept current as your agent works — across sessions, across Claude, Codex and other AI agents, and across your team, on our server or your own." />
+<title>KeepCTX — keep your AI context</title>
+<meta name="description" content="Keep your AI context across sessions, across AIs, across your team. KeepCTX keeps what your project's agents learn and decide as facts, merged fact by fact and shared on our server or your own." />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <header><div class="wrap">
-  <a class="logo" href="/">keepctx</a>
+  <a class="logo" href="/">KeepCTX</a>
   <nav>
     <a href="#why">Why</a>
     <a href="#how">How it works</a>
@@ -20,11 +20,10 @@
 </div></header>
 
 <div class="hero"><div class="wrap">
-  <h1>Your AGENTS.md,<br />except it writes itself.</h1>
-  <p class="lede">AGENTS.md tells your agent how to work, but nothing keeps what it learns.
-  keepctx does &mdash; everything that belongs in an AGENTS.md, kept current as your agent
-  works. Across sessions, across Claude, Codex and other AI agents, and across your team
-  &mdash; on our server or your own.</p>
+  <h1>Keep your AI context.<br />Across sessions, across AIs, across your team.</h1>
+  <p class="lede">What your AI learns and decides about a project shouldn't die with the
+  session, stay locked in one tool, or live on one laptop. KeepCTX keeps it as facts &mdash;
+  remembered as your agent works, merged fact by fact, and shared on our server or your own.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="app.html#register" id="cta-account">Create an account</a>
@@ -42,7 +41,7 @@
     <div class="card">
       <h3>Every AI agent shares one memory</h3>
       <p>Correct Claude on Monday and Codex knows on Tuesday — and so does any other agent that
-      reads <code>AGENTS.md</code>. Context is plain markdown behind that file, so there's no
+      reads <code>AGENTS.md</code>. That file just points the agent at KeepCTX, so there's no
       plugin per tool and nothing to migrate when you switch.</p>
     </div>
     <div class="card">
@@ -75,34 +74,39 @@
 
 <section id="how"><div class="wrap">
   <h2>How it works</h2>
-  <p class="sub">A context is a list of facts. The bolded lead is the key, and the value can be
-  an IP, a command, or a sentence.</p>
+  <p class="sub">A context is a list of facts, grouped by category. Your agent remembers
+  each one the moment it learns it, and every line <code>ctx</code> prints starting with
+  <code>KeepCTX:</code> gets passed on to you, so you always see what's kept.</p>
 
-<pre><code><span class="c"># .ctx/example-project/facts.md</span>
+<pre><code>ctx remember environments logs.location "Splunk, index app_prod. Not CloudWatch."
+<span class="c">KeepCTX: remembered environments.logs.location — Splunk, index app_prod. Not CloudWatch.</span>
+<span class="c">KeepCTX: pushed 48 facts to https://keepctx.com (v13)</span>
 
-- **prod.access** — SSO, then jump host <span class="k">`bastion.example.com`</span>, then <span class="k">`aws --profile prod-ro`</span>. Never direct SSH. `[verified]`
-- **network.proxy** — internal hosts only resolve through the corporate proxy; set <span class="k">`HTTPS_PROXY`</span> first
-- **logs.location** — Splunk, index <span class="k">`app_prod`</span>. Not CloudWatch, whatever the old runbook says.
-- **api.runs-on** → Cloud Foundry (<span class="k">`cf logs api --recent`</span>), not Kubernetes
-- **api.depends-on** → auth-service, for session validation</code></pre>
+ctx get
+<span class="c">## Environments</span>
+<span class="c">- **prod.access** — SSO, then jump host `bastion.example.com`. Never direct SSH.</span>
+<span class="c">- **logs.location** — Splunk, index app_prod. Not CloudWatch.</span>
+<span class="c">## Decisions</span>
+<span class="c">- **storage** — SQLite: one file to back up, no database server</span>
+<span class="c">- **rejected.postgres** — a server to run for a few megabytes of text</span></code></pre>
 
   <h3>What goes in a context</h3>
-  <p class="sub">Everything you'd tell a sharp new teammate on day one &mdash; anything that
-  would belong in an <code>AGENTS.md</code>, kept current instead of written once. Your agent
-  fills it in as it learns, in whatever order the work turns things up.</p>
+  <p class="sub">A wide net: not only how things run, but what's being built and why &mdash;
+  everything you'd tell a sharp new teammate. Never secrets, never what you put off the record,
+  and never the conversation itself.</p>
 
   <table>
-    <tr><th>Purpose</th><td>why this exists, what value it gives, and who it's for</td></tr>
-    <tr><th>Parts &amp; design</th><td>what it's made of — components, stack, tools — and the shape it's meant to have</td></tr>
-    <tr><th>Conventions</th><td>naming, structure, workflow, the idioms <em>this</em> place uses</td></tr>
-    <tr><th>How</th><td>build, test, deploy, operate — the exact commands, done the way <em>this</em> place does them</td></tr>
-    <tr><th>Where</th><td>where things run and live, and where to look — logs, dashboards, files</td></tr>
-    <tr><th>Vocabulary</th><td>internal names no model could guess</td></tr>
-    <tr><th>Gotchas</th><td>what looks wrong but is intentional, and what looks right but breaks</td></tr>
-    <tr><th>Sources of truth</th><td>which doc wins when two disagree</td></tr>
-    <tr><th>Decisions</th><td>what was chosen, why, and what was ruled out — so it stops being re-suggested</td></tr>
-    <tr><th>Rules &amp; boundaries</th><td>standards, compliance, budgets, never-do-X, what not to touch</td></tr>
-    <tr><th>People &amp; access</th><td>who owns what, who to ask, how they like to work, and how to get in — never the credentials themselves</td></tr>
+    <tr><th>Overview</th><td>what this is, why it exists, who it's for, what success looks like</td></tr>
+    <tr><th>Requirements</th><td>what it must and must not do, and what's in and out of scope</td></tr>
+    <tr><th>Architecture</th><td>services, components, dependencies and data flows</td></tr>
+    <tr><th>Environments</th><td>hosts, deployment environments, service names, versions, access</td></tr>
+    <tr><th>Decisions</th><td>what was chosen and why, and what was rejected &mdash; so it stops being re-suggested</td></tr>
+    <tr><th>Questions</th><td>what's still undecided, until a decision settles it</td></tr>
+    <tr><th>Conventions</th><td>patterns to follow, and what not to touch</td></tr>
+    <tr><th>Operations</th><td>build, deploy, runbooks, troubleshooting</td></tr>
+    <tr><th>Testing</th><td>how to test, what passing means, what isn't covered</td></tr>
+    <tr><th>Knowledge</th><td>gotchas, domain facts, vocabulary no model could guess</td></tr>
+    <tr><th>People</th><td>who owns what, who to ask, how they like to work</td></tr>
   </table>
 
   <p class="sub" style="margin-top:26px"><strong>Not just code.</strong> Anything you keep explaining to an AI is a
@@ -127,15 +131,16 @@
     </div>
   </div>
 
-  <h3>Reads and writes are just files</h3>
-  <p class="sub">Your agent opens <code>facts.md</code> with the same tools it uses for any
-  other file, and edits it as it learns. There's no write command to forget and no ceremony to
-  skip — which is exactly why capture actually happens.</p>
+  <h3>Your agent works through one command</h3>
+  <p class="sub"><code>ctx get</code> to read everything, <code>ctx remember</code> and
+  <code>ctx forget</code> to change it. With a server, every change is pushed the moment it's
+  made, so a session that ends abruptly loses nothing.</p>
 
-  <h3>Conflicts resolve without anyone arbitrating</h3>
-  <p class="sub">Changes sync per key, not per file. Two people learning different things both
-  land. Two people changing the same fact means the later one wins, and every version is kept —
-  so a bad change is one revert away rather than an argument.</p>
+  <h3>Merged fact by fact</h3>
+  <p class="sub"><code>ctx pull</code> brings in the latest and merges it one fact at a time.
+  A fact changed on one side is simply taken. Only a fact changed differently on both sides is a
+  conflict, and your agent settles just that one. Every version is kept on the server, so a bad
+  change is one revert away.</p>
 
   <table>
     <tr><th>Syntax</th><th>Means</th></tr>
@@ -152,7 +157,7 @@
   <ol class="steps">
     <li>
       <h3>Install</h3>
-      <p>Python 3.9 or newer, no dependencies. The app is <code>keepctx</code>, and it also
+      <p>Python 3.9 or newer, no dependencies. The command is <code>keepctx</code>, and it also
       installs <code>ctx</code> as a short alias, which is what the examples below use. If
       another <code>ctx</code> is already on your PATH the alias is skipped and
       <code>keepctx</code> works the same.</p>
@@ -167,7 +172,7 @@ ctx init
 
 <span class="c">Initialized `example-project`</span>
 <span class="c">  .ctx/example-project/facts.md  your facts</span>
-<span class="c">  .ctx/instructions.md           how the agent maintains them</span>
+<span class="c">  .ctx/instructions.md           how the agent keeps them</span>
 <span class="c">  AGENTS.md                      pointer added at the top</span>
 
 <span class="c">Tell your AI to re-read AGENTS.md.</span></code></pre>
@@ -175,19 +180,21 @@ ctx init
     <li>
       <h3>Work</h3>
       <p>Your agent reads <code>.ctx/instructions.md</code>, learns the rules, and starts
-      recording what matters — corrections, hard-won findings, decisions. Nothing else to do.</p>
+      remembering what matters &mdash; goals, decisions, how things run, what's still open.
+      Nothing else to do.</p>
     </li>
     <li>
       <h3>Share it, when you want to</h3>
       <p>Local works forever with no account. <code>ctx remote</code> puts it on a server so
-      your team gets it — and so it survives a dead laptop.</p>
+      your team gets it &mdash; and so it survives a dead laptop. After that, every
+      <code>ctx remember</code> is pushed straight away.</p>
 <pre><code>ctx remote   <span class="c"># one time, creates it on the server</span>
-ctx sync     <span class="c"># two-way. mostly automatic after this</span></code></pre>
+ctx pull     <span class="c"># the agent runs this at the start of every session</span></code></pre>
     </li>
     <li>
       <h3>Your teammates</h3>
       <p>Add them to your org in the console. In their checkout, one command gets them the same
-      context — kept current by <code>ctx sync</code>. You and your org's admins write it;
+      context &mdash; kept current by <code>ctx pull</code>. You and your org's admins write it;
       everyone else reads it. The same command gives you a writable copy on another machine.</p>
 <pre><code>ctx clone your-org:your-context</code></pre>
     </li>
@@ -198,10 +205,13 @@ ctx sync     <span class="c"># two-way. mostly automatic after this</span></code
   <table>
     <tr><th><code>ctx</code></th><td>status</td></tr>
     <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
+    <tr><th><code>ctx get [--remote]</code></th><td>print the whole context &mdash; or the copy the last pull downloaded</td></tr>
+    <tr><th><code>ctx remember &lt;category&gt; &lt;key&gt; "&lt;value&gt;"</code></th><td>add a fact, or replace it</td></tr>
+    <tr><th><code>ctx forget &lt;category&gt; &lt;key&gt;</code></th><td>remove a fact</td></tr>
     <tr><th><code>ctx remote [server]</code></th><td>one-time. create this context on a server &mdash; keepctx.com unless you name your own</td></tr>
-    <tr><th><code>ctx clone org:name [server]</code></th><td>bring a context here from the remote</td></tr>
-    <tr><th><code>ctx sync</code></th><td>send your changes, bring in the latest</td></tr>
-    <tr><th><code>ctx journal "..."</code></th><td>add a dated entry: what was done, decided, left open</td></tr>
+    <tr><th><code>ctx clone org:name [server]</code></th><td>bring a context here from a server</td></tr>
+    <tr><th><code>ctx pull</code></th><td>bring in the latest and merge it, fact by fact</td></tr>
+    <tr><th><code>ctx push</code></th><td>send what's here &mdash; done for you after every remember</td></tr>
   </table>
 
   <h3 id="self-host">Run your own server</h3>

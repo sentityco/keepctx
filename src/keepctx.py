@@ -1,39 +1,97 @@
 #!/usr/bin/env python3
-"""keepctx — context management for AI and people.
+"""keepctx — keep your AI context across sessions, across AIs, across your team.
 
 Installed as `keepctx`, with `ctx` as a short alias.
 
-Local by default. A context is a list of facts in markdown; the agent reads and
-edits facts.md directly, and ctx is called only for network work.
+Local by default. A context is a list of facts, one line each, grouped by
+category in one markdown file. The agent reads it with `ctx get` and changes it
+with `ctx remember` and `ctx forget`; `ctx pull` and `ctx push` keep it in step
+with a server when there is one.
 """
+import getpass
 import json
 import os
-import getpass
-import hashlib
 import pathlib
 import re
 import sys
-import time
 import urllib.error
 import urllib.request
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 DEFAULT_REMOTE = os.environ.get("CTX_REMOTE", "https://keepctx.com")
 
 CTXDIR = ".ctx"
 CONFIG = "config.json"
 FACTS = "facts.md"
-BASE = ".base"           # last-synced copy, for diffing
+BASE = ".base"           # the server's facts as of the last pull or push: the merge base
+REMOTE_DIR = "remote"    # what each pull downloaded, by version
+KEEP_REMOTE = 5
 INSTRUCTIONS = "instructions.md"
 AGENTS = "AGENTS.md"
-JOURNAL = "journal.md"   # dated entries, only ever added to
-PROSE = "prose"          # one .md per section, written for people
 
 BEGIN = "<!-- ctx -->"
 END = "<!-- /ctx -->"
 
 # a fact line: "- **key** — value"  or  "- **key** → value"
 FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*(?P<rel>[—→-])\s*(?P<value>.*)$")
+HEADING_RE = re.compile(r"^##\s+(?P<title>.+?)\s*$")
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+
+# slug, heading, what belongs there. The order is the order of the file.
+CATEGORIES = [
+    ("overview", "Overview",
+     "What this is, why it exists, who it's for, and what success looks like."),
+    ("requirements", "Requirements",
+     "What it must and must not do, and what is in and out of scope."),
+    ("architecture", "Architecture",
+     "Services, components, dependencies and data flows: what connects to what."),
+    ("environments", "Environments",
+     "Hosts, deployment environments, service names, versions and access. Never secrets."),
+    ("decisions", "Decisions",
+     "What was chosen and why, and what was considered and rejected."),
+    ("questions", "Questions",
+     "What is still undecided. Replaced by a decision once settled."),
+    ("conventions", "Conventions",
+     "Patterns future developers and agents should follow, and what not to touch."),
+    ("operations", "Operations",
+     "Build, deploy, runbooks, troubleshooting and recurring operational details."),
+    ("testing", "Testing",
+     "How to test, what passing means, and what is not covered."),
+    ("knowledge", "Knowledge",
+     "Gotchas, domain facts and vocabulary nobody outside would know."),
+    ("people", "People",
+     "Who owns what, who to ask, and how they like to work."),
+]
+CATEGORY = {slug: (title, desc) for slug, title, desc in CATEGORIES}
+
+# Files from before categories: facts sit under no heading, and a few key
+# prefixes say where they belong. Everything else lands in knowledge.
+LEGACY = {"purpose": "overview", "goal": "overview", "req": "requirements",
+          "decision": "decisions", "rejected": "decisions", "question": "questions"}
+LEGACY_STRIP = {"decision", "question", "req"}
+
+# Shapes that are only ever credentials. The server refuses them too; checking
+# here keeps them out of the local file as well.
+SECRETS = [
+    ("an AWS access key", re.compile(r"\b(AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("a private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("a GitHub token", re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})")),
+    ("a Slack token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}")),
+    ("an API key", re.compile(r"\bsk-(ant-|proj-|live-)?[A-Za-z0-9_-]{20,}")),
+    ("a Google API key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}")),
+    ("a Stripe key", re.compile(r"\b(sk|rk)_live_[0-9A-Za-z]{20,}")),
+]
+
+
+def say(msg):
+    """Everything an operator should see starts with KeepCTX:, and the
+    instructions tell the agent to pass these lines on."""
+    print(f"KeepCTX: {msg}")
+
+
+def err(msg):
+    """Errors go to stderr, so an agent piping stdout gets only real output."""
+    print(msg, file=sys.stderr)
 
 
 # ---------------------------------------------------------------- filesystem
@@ -96,121 +154,118 @@ GENERIC = {
 
 
 # -------------------------------------------------------------------- facts
+#
+# A context is {full key: (rel, value)}, where the full key is
+# `category.key` — `environments.server-a.ip`. The file is that, rendered:
+# a heading per category, one line per fact. Continuation lines (indented
+# sub-lists) stay part of the value.
 
-def parse_facts(text):
-    """-> ({key: block}, [key, ...]) where a block is the fact line plus any
-    more-indented continuation lines beneath it (sub-lists, multi-step values)."""
-    facts, order, key, block = {}, [], None, []
-
-    def flush():
-        if key is not None:
-            if key not in facts:
-                order.append(key)
-            facts[key] = "\n".join(block).rstrip()
-
-    for line in text.splitlines():
+def parse(text):
+    facts, cat, last = {}, None, None
+    for line in (text or "").splitlines():
+        h = HEADING_RE.match(line)
+        if h:
+            cat, last = slugify(h.group("title")), None
+            continue
         m = FACT_RE.match(line)
         if m:
-            flush()
-            key, block = m.group("key").strip(), [line.rstrip()]
-        elif key is not None and line.strip() and line[:1].isspace():
-            block.append(line.rstrip())      # continuation of the current fact
+            key, rel = m.group("key").strip(), "→" if m.group("rel") == "→" else "—"
+            if cat is None:                               # a file from before categories
+                prefix = key.split(".")[0]
+                c = LEGACY.get(prefix, "knowledge")
+                if prefix in LEGACY_STRIP and "." in key:
+                    key = key.split(".", 1)[1]
+                full = f"{c}.{key}"
+            else:
+                full = f"{cat}.{key}"
+            facts[full] = (rel, m.group("value").strip())
+            last = full
+        elif last and line.strip() and line[:1].isspace():
+            rel, value = facts[last]
+            facts[last] = (rel, value + "\n" + line.rstrip())
         else:
-            flush()
-            key, block = None, []
-    flush()
-    return facts, order
+            last = None
+    return facts
 
 
-def diff_facts(base_text, now_text):
-    """What changed locally since the last sync, keyed."""
-    base, _ = parse_facts(base_text)
-    now, order = parse_facts(now_text)
-    changes = []
-    for key in order:
-        if key not in base:
-            changes.append({"key": key, "block": now[key], "op": "add"})
-        elif base[key] != now[key]:
-            changes.append({"key": key, "block": now[key], "op": "update"})
-    for key in base:
-        if key not in now:
-            changes.append({"key": key, "block": "", "op": "delete"})
-    return changes
+def split_key(full):
+    cat, _, key = full.partition(".")
+    return cat, key
 
 
-def merge_facts(local_text, incoming):
-    """Apply server blocks onto the local file. Later wins, per key."""
-    local, _ = parse_facts(local_text)
-    text = local_text
-    for key, block in incoming.items():
-        if key in local:
-            text = text.replace(local[key], block, 1)   # whole block, not one line
-        else:
-            text = text.rstrip() + "\n" + block + "\n"
-    return text.rstrip() + "\n"
+def fact_line(full, fact):
+    rel, value = fact
+    return f"- **{split_key(full)[1]}** {rel} {value}"
 
 
-ENTRY_RE = re.compile(r"^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2})[ \t]*$", re.M)
-
-
-def parse_journal(text):
-    """-> [{"id", "at", "text"}] in the order written. An entry is a
-    `## YYYY-MM-DD HH:MM` heading and everything up to the next one."""
-    marks = list(ENTRY_RE.finditer(text))
-    out = []
-    for i, m in enumerate(marks):
-        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        body = text[m.end():end].strip()
-        if not body:
+def render(facts, template=True):
+    """The whole file. With template, every category heading appears with its
+    description even when empty, so a person opening it sees the shape."""
+    by_cat = {}
+    for full, fact in facts.items():
+        by_cat.setdefault(split_key(full)[0], []).append(fact_line(full, fact))
+    out = ["# Project Context", ""]
+    order = [c for c, _, _ in CATEGORIES] + sorted(c for c in by_cat if c not in CATEGORY)
+    for c in order:
+        lines = by_cat.get(c, [])
+        if not lines and not template:
             continue
-        stamp = m.group(1)
-        try:
-            at = int(time.mktime(time.strptime(stamp, "%Y-%m-%d %H:%M")))
-        except ValueError:
-            at = int(time.time())
-        eid = hashlib.sha1(f"{stamp}\n{body}".encode()).hexdigest()[:16]
-        out.append({"id": eid, "at": at, "text": body})
-    return out
+        title, desc = CATEGORY.get(c, (c.replace("-", " ").title(), ""))
+        out.append(f"## {title}")
+        if desc and template:
+            out.append(f"_{desc}_")
+        out.append("")
+        if lines:
+            out += lines + [""]
+    return "\n".join(out).rstrip() + "\n"
 
 
-def local_prose(d):
-    """{section: text} for the prose files in a context directory."""
-    p = d / PROSE
-    if not p.is_dir():
-        return {}
-    return {f.stem: f.read_text() for f in sorted(p.glob("*.md"))}
+def body(facts):
+    """The facts without the file's title and empty headings — what an agent reads."""
+    return render(facts, template=False).partition("\n\n")[2].rstrip()
 
 
-def sha(text):
-    return hashlib.sha1(text.encode()).hexdigest()[:16]
+def read_file(path):
+    return parse(path.read_text()) if path.exists() else {}
 
 
-def mirror_prose(d, server):
-    """Make the local prose files match the server's. -> {section: sha}."""
-    here = local_prose(d)
-    if server:
-        (d / PROSE).mkdir(exist_ok=True)
-    for section, text in server.items():
-        if here.get(section) != text:
-            (d / PROSE / f"{section}.md").write_text(text)
-    for section in here:
-        if section not in server:
-            (d / PROSE / f"{section}.md").unlink()
-    return {s: sha(t) for s, t in server.items()}
+def find_secret(text):
+    for what, rx in SECRETS:
+        if rx.search(text or ""):
+            return what
+    return None
 
 
-def remove_facts(text, keys):
-    """Drop whole blocks by key — for facts deleted in another copy."""
-    facts, _ = parse_facts(text)
-    for key in keys:
-        if key in facts:
-            text = text.replace(facts[key] + "\n", "", 1).replace(facts[key], "", 1)
-    return text.rstrip() + "\n"
+def merge3(base, local, remote):
+    """Fact by fact, against the copy both sides started from. A fact changed
+    on one side only is taken from that side; changed differently on both is
+    a conflict, and the local value stays until the agent settles it.
+    -> (merged, counts, conflicts)"""
+    merged, conflicts = {}, []
+    n = {"added": 0, "changed": 0, "removed": 0, "kept": 0}
+    for k in list(local) + [k for k in remote if k not in local]:
+        b, l, r = base.get(k), local.get(k), remote.get(k)
+        if l == r:
+            pick = l
+        elif l == b:                               # only the remote changed it
+            pick = r
+            n["added" if b is None else "removed" if r is None else "changed"] += 1
+        elif r == b:                               # only this copy changed it
+            pick = l
+            n["kept"] += 1
+        else:
+            pick = l
+            conflicts.append(k)
+        if pick is not None:
+            merged[k] = pick
+    return merged, n, conflicts
 
 
 # --------------------------------------------------------------------- http
 
-def api(cfg, method, path, body=None, token=None):
+def api(cfg, method, path, body=None, token=None, allow=()):
+    """JSON in, JSON out. A status in `allow` comes back as {"_status": code, ...}
+    instead of ending the command."""
     base = cfg.get("remote") or DEFAULT_REMOTE
     url = base.rstrip("/") + path
     data = json.dumps(body).encode() if body is not None else None
@@ -227,243 +282,132 @@ def api(cfg, method, path, body=None, token=None):
         except json.JSONDecodeError:
             # something between us and the API answered instead (a proxy, a CDN
             # error page) — say so, rather than dying on a parse error
-            raise SystemExit(f"ctx: {base} sent back something that isn't the keepctx API. "
+            raise SystemExit(f"ctx: {base} sent back something that isn't the KeepCTX API. "
                              "Check the server address, or try again in a minute.")
     except urllib.error.HTTPError as e:
-        detail = e.read().decode()
+        raw = e.read().decode()
         try:
-            detail = json.loads(detail).get("error", detail)
+            got = json.loads(raw)
         except json.JSONDecodeError:
-            pass
+            got = {"error": raw}
+        if e.code in allow:
+            return {"_status": e.code, **got}
+        detail = got.get("error", raw)
         if e.code == 401 and tok and not path.startswith("/v1/auth/"):
             # sign-ins last 30 days. a person can just sign in again; an agent
             # can't type a password, so it gets told who can.
             if not (sys.stdin.isatty() and sys.stdout.isatty()):
-                raise SystemExit("ctx: the keepctx sign-in here has expired. "
-                                 "Run `ctx sync` in a terminal to sign in again.")
-            print("Your keepctx sign-in has expired. Sign in again:")
+                raise SystemExit("ctx: the KeepCTX sign-in here has expired. "
+                                 "Run `ctx pull` in a terminal to sign in again.")
+            print("Your KeepCTX sign-in has expired. Sign in again:")
             cfg["token"] = login(cfg)[0]["token"]
             cfg["_signed_in"] = True          # caller saves it
-            return api(cfg, method, path, body)
-        raise SystemExit(f"ctx: {detail}" if e.code in (401, 403, 404, 409)
+            return api(cfg, method, path, body, allow=allow)
+        raise SystemExit(f"ctx: {detail}" if e.code in (400, 401, 403, 404, 409)
                          else f"ctx: server said {e.code}: {detail}")
     except urllib.error.URLError as e:
         raise SystemExit(f"ctx: cannot reach {base} ({e.reason})")
 
 
-# ----------------------------------------------------------------- commands
+# -------------------------------------------------------------- instructions
 
-INSTRUCTIONS_TEXT = """# keepctx — instructions for the agent
+INSTRUCTIONS_TEXT = """# KeepCTX — instructions for the agent
 
-This project's design and context are kept here: the shared memory of everyone
-working on it, people and AI agents alike. Read it, and keep it current as you
-work. People read the same knowledge as a site, so what you capture is also the
-project's documentation.
+This project's context is kept in KeepCTX: what it is, why, how it is built and
+run, what has been decided, and what is still open. It outlasts this session,
+and every AI and every person on the project reads the same facts. Use it, and
+keep it current as you work.
+
+Work through the `ctx` command only. Never edit the files in `{ctxdir}/` yourself.
 
 ## Every session
 {session}
 
-## What to capture
+## Tell the user
 
-Everything worth knowing that comes out of your work with the user — not only how
-things run, but what is being built, and why. Capture it in the moment: right now
-you know exactly what was decided and for what reason, and nobody can rebuild
-that later.
+Every line `ctx` prints that starts with `KeepCTX:` is for the user too. Repeat
+it in your reply, as it was printed, so they always see what is kept and synced:
 
-Write a fact when:
+    KeepCTX: remembered environments.server-a.ip — 10.0.4.12
+    KeepCTX: pulled 45 facts from https://keepctx.com (v12)
+    KeepCTX: pushed 48 facts to https://keepctx.com (v13)
 
-- **The user states a goal or a requirement.** What this is for, who it serves,
-  what it must do. `goal.*`, `req.*`
-- **The user decides something.** The decision and its reason, as `decision.*`.
-  Only once they commit — "let's do X", "go with Y".
-- **An option is turned down.** As `rejected.*`, with why. Knowing what was
-  considered and dropped is what stops it being proposed again.
-- **Something is still open.** As `question.*`. When it is settled, delete the
-  question and write the decision.
-- **A human corrected you.** The strongest signal there is — the context was
-  wrong or missing and the right answer is in hand.
-- **Something cost real effort to establish.** Expensive once means expensive
-  again.
-
-**Musing is not deciding.** "Maybe Postgres?" is a question, not a decision. A
-context that records half-formed ideas as settled is worse than no context.
-
-Never capture:
-
-- **Secrets** — passwords, tokens, keys, not even part of one. The server refuses
-  them, and a refused sync sends nothing until the secret is removed.
-- **Anything the user puts off the record**, and personal matters or opinions
-  about people.
-- **The conversation itself.** Capture conclusions, not the transcript.
-- **What the files already say**, and detail that matters to this task alone.
-- **Anything you inferred** rather than verified or were told.
-
-**Say when you write.** One line in your reply — `noted: decision.storage` — so
-the user always knows what is being kept, and can say "drop that".
-
-## What a context covers
-
-Anything that would belong in an `AGENTS.md` belongs here instead — but a context
-is more than that: it also holds what is being built and why. Never write facts
-into `AGENTS.md` itself; it holds the pointer and whatever a human wrote there.
-
-For software or anything else (investing, a book, a business), a good context
-ends up answering:
-
-Intent
-- **Goals** — what this is for and what success looks like.
-- **Requirements** — what it must do, and what it must not.
-- **Decisions** — what was chosen, why, and what was ruled out.
-- **Rejected** — options considered and dropped, and the reason.
-- **Open questions** — what is still undecided.
-
-What it is
-- **Purpose** — why this exists, what value it gives, and who it is for.
-- **Parts** — what it is made of: components, stack, tools.
-- **Relationships** — what depends on what.
-- **Design** — the intended shape and principles; for writing, the voice and style.
-- **Vocabulary** — internal names nobody outside would know.
-
-How to work in it
-- **Conventions** — naming, structure, the idioms this place uses.
-- **Workflow** — how changes are made: branches, commits, review.
-- **Build and run** — the exact commands.
-- **Testing** — how to test, what counts as passing, what is not covered.
-- **Operating** — deploy, release, monitor, maintain, done the way this place does it.
-- **Environment** — where things live and run, required tools and versions,
-  variable names (never values), and where to look: logs, dashboards, files.
-- **Access** — how to get into things. Never the credentials themselves.
-
-Constraints
-- **Rules** — standards, compliance, budgets, never-do-X.
-- **Boundaries** — what not to touch: generated, vendored, or owned elsewhere.
-
-Hard-won knowledge
-- **Gotchas** — what looks wrong but is intentional, or looks right but breaks.
-- **Failure modes** — how it usually breaks, and the first thing to check.
-- **Sources of truth** — which doc or dashboard wins when two disagree.
-
-People
-- **Ownership** — who owns what, and who to ask.
-- **Preferences** — how the people here like to work.
-
-Leave out what the files already say (listings, signatures, anything one read
-answers) — it only goes stale — and anything that matters to this task alone.
-
-Keys stay `thing.property` (`api.runs-on`, `logs.location`). When a fact is not
-about one thing, the topic is the thing: `purpose.users`, `vocab.orion`,
-`gotcha.staging-db`, `decision.no-kafka`. This is a map, not a form: never fill
-a gap by guessing. A missing topic is better than an invented one.
-
-**Record relationships, not just properties.** `gateway.depends-on → example-platform`
-is worth more than three facts about its configuration, because it is what
-nobody writes down and everybody needs.
-
-**Write as you learn, not at the end.** Sessions get truncated. A fact learned
-at minute five and written at minute ninety may never get written at all.
-
-**Reuse an existing key rather than adding a second line.** If `deploy.command`
-is already there and now wrong, edit that line.
-
-## The journal
-
-At natural stopping points — a piece of work done, a design settled, the end of
-a session — add an entry:
+## Remember
 
 ```sh
-ctx journal "Moved storage to SQLite: one file to back up, no server to run. Open: do we need TLS built in?"
+ctx remember <category> <key> "<value>"   # add a fact, or replace it
+ctx forget <category> <key>                # remove one that is wrong or gone
 ```
 
-A few sentences for a teammate who wasn't there: what was worked on, what was
-decided and why, what is still open. The facts say how things are; the journal
-says how they got that way. Entries are only ever added — never edit old ones.
+Remember anything worth knowing next time — by you in another session, by
+another AI, or by a teammate. Cast a wide net: not only how things run, but what
+is being built and why. Remember it the moment you learn it; a session can end
+at any time.
 
-## Prose, for people
+- **The user states a goal or a requirement.**
+- **The user decides something** — once they commit ("let's do X", "go with Y"),
+  with the reason. Musing is not deciding: "maybe Postgres?" is a question.
+- **An option is turned down** — under decisions, with why, so it is not
+  proposed again.
+- **Something is still open** — under questions. Forget it once a decision
+  settles it.
+- **A human corrects you**, or **something took real effort to establish**.
+- **How things are**: where they run, how to build, test, deploy and fix them,
+  the conventions here, and who owns what.
 
-People read this context as a site: prose on top, the facts beneath it, and an
-architecture diagram drawn from the `→` relationships. The prose is yours to keep.
+Never remember:
 
-- One file per area in `{prose_path}`, named for the key prefix it explains:
-  `gateway.md` explains the `gateway.*` facts.
-- `overview.md` explains the whole thing. Start it with a line saying which
-  keys it covers: `<!-- covers: purpose, goal -->`. Any section can do the same.
-- A short heading, then a few plain paragraphs: what this part is, how it fits,
-  and why it is this way. Explain the facts; never add a fact that is only in
-  the prose — the site shows the facts beneath it, and they must agree.
-- Update it at the same moments as the journal, and only for areas whose facts
-  you changed. The site flags a section whose facts moved on after it was
-  written; when you are working in that area, rewrite it.
+- **Secrets** — passwords, tokens, keys, not even part of one. `ctx` refuses them.
+- **Anything the user puts off the record**, and personal matters or opinions
+  about people.
+- **The conversation itself**, or detail that matters to this task alone.
+- **What the files already say**, or anything you guessed.
 
-## Format
+## Categories
 
-One fact per line. The bolded lead is the key.
+{categories}
 
-```markdown
-- **deploy.command** — `make ship` from the repo root
-- **logging.index** — `app_prod_v2`, not what the docs say  `[verified]`
-- **gateway.depends-on** → example-platform, for session validation
-- **decision.storage** — SQLite: one file to back up, no database server to run
-- **rejected.postgres** — a server to operate for a few megabytes of text
-- **question.tls** — build TLS in, or leave it to a reverse proxy?
-- **deploy.process** — three steps:
-    - build with `make`
-    - push, then verify the health endpoint
+## Keys and values
+
+Keys are short and lowercase, `thing.property`: `server-a.ip`, `deploy.command`,
+`storage`. Reuse a key to change a fact — never add a second one for the same
+thing. Values are one line, written so a newcomer understands them.
+
+A value starting with `→` is a relationship, and relationships draw the
+architecture diagram people see:
+
+```sh
+ctx remember architecture api.depends-on "→ auth-service, for session checks"
+ctx remember decisions storage "SQLite: one file to back up, no database server"
+ctx remember decisions rejected.postgres "a server to run for a few megabytes of text"
+ctx remember questions tls "build TLS in, or leave it to a reverse proxy?"
 ```
-
-- `—` marks an attribute, `→` marks a relationship.
-- `` `[verified]` `` means a human settled it. Do not remove it; if the fact is
-  now wrong, correct the value and leave the marker for a human to re-confirm.
-- Dotted keys group automatically. Prefer `thing.property` over `thingProperty`.
-
-Do not record who wrote a fact or when. That is kept for you in version history.
 """
 
-
-
-def err(msg):
-    """Errors go to stderr, so an agent piping stdout gets only real output."""
-    print(msg, file=sys.stderr)
-
-
-def reread(tty=None):
-    """One line. The rules live in AGENTS.md -> instructions.md; duplicating them
-    in command output only creates a second copy to keep in step."""
-    tty = sys.stdout.isatty() if tty is None else tty
-    if tty:
-        return "Tell your AI to re-read AGENTS.md."
-    # the agent already read AGENTS.md at session start, so say why to read it
-    # again — otherwise the instruction looks like a no-op.
-    return "AGENTS.md changed — re-read it."
-
-
 LOCAL_STEPS = """
-1. **Read `{facts_path}`** for what is known about this project.
-2. **Capture as you work** (see below): facts as you learn them, a journal
-   entry and prose at natural stopping points.
+1. **`ctx get`** — read the whole context before you start.
+2. **`ctx remember` as you learn** (see below).
 
-This context is local only, so there is nothing to sync; the journal and prose
-wait here. If it is ever put on a remote with `ctx remote`, they are published
-and these instructions gain sync steps.
+This context is local only, so there is nothing to pull or push. Once it is put
+on a server with `ctx remote`, these instructions gain the sync steps.
 """
 
 REMOTE_STEPS = """
-1. **Before reading context, run `ctx sync`.** Starts you from what your
-   teammates have learned.
-2. **Read `{facts_path}`** for what is known about this project.
-3. **Capture as you work** (see below), and run `ctx sync` after writing facts,
-   so your team and the site see them now, not at the end.
-4. **At natural stopping points,** add a journal entry with `ctx journal`,
-   update the prose for areas you changed, then `ctx sync`. A session that
-   ends without syncing takes its findings with it.
+1. **`ctx pull`, then `ctx get`.** Starts you from the latest the team knows.
+2. **`ctx remember` as you learn** (see below). Each one is pushed to the
+   server straight away; you don't push by hand.
+3. **If `ctx pull` reports a conflict** — a fact changed differently here and on
+   the server — compare `ctx get` with `ctx get --remote`, settle each listed
+   fact with `ctx remember` or `ctx forget`, then `ctx push`. Change nothing
+   else: every other fact was merged for you.
+4. **Before you finish, `ctx push`.** It does nothing when there is nothing new.
 """
 
 READONLY_STEPS = """
-1. **Before reading context, run `ctx sync`.** Brings in the latest version.
-2. **Read `{facts_path}`** for what is known about this project.
-3. **Don't edit it.** Its owner and org admins maintain this context; it is
-   read-only for this account, and `ctx sync` replaces local edits with the
-   latest version. When you learn something it should say, tell the user, so
-   they can pass it on to whoever maintains it.
+1. **`ctx pull`, then `ctx get`.** Brings in and reads the latest version.
+2. **Don't change it.** Its owner and org admins maintain this context; it is
+   read-only for this account. When you learn something it should say, tell
+   the user, so they can pass it on to whoever maintains it.
 
 The rules below are how its maintainers keep it. They are here so you know what
 the facts mean and what kind of thing is worth passing on.
@@ -473,11 +417,9 @@ the facts mean and what kind of thing is worth passing on.
 def write_instructions(root, name, has_remote, readonly=False):
     """ctx owns this file and the agent never writes it, so ctx keeps it current
     — including on a later run, so an old setup does not keep stale rules."""
-    facts_path = f"{CTXDIR}/{name}/{FACTS}"
     template = READONLY_STEPS if readonly else REMOTE_STEPS if has_remote else LOCAL_STEPS
-    steps = template.format(facts_path=facts_path).rstrip()
-    text = INSTRUCTIONS_TEXT.format(facts_path=facts_path, session=steps,
-                                    prose_path=f"{CTXDIR}/{name}/{PROSE}/")
+    cats = "\n".join(f"- **{slug}** — {desc}" for slug, _, desc in CATEGORIES)
+    text = INSTRUCTIONS_TEXT.format(session=template.rstrip(), categories=cats, ctxdir=CTXDIR)
     path = root / CTXDIR / INSTRUCTIONS
     if path.exists() and path.read_text() == text:
         return False
@@ -499,9 +441,20 @@ def refresh_instructions():
                               readonly=bool(cfg.get("readonly")))
 
 
+def reread(tty=None):
+    """One line. The rules live in AGENTS.md -> instructions.md; duplicating them
+    in command output only creates a second copy to keep in step."""
+    tty = sys.stdout.isatty() if tty is None else tty
+    if tty:
+        return "Tell your AI to re-read AGENTS.md."
+    # the agent already read AGENTS.md at session start, so say why to read it
+    # again — otherwise the instruction looks like a no-op.
+    return "AGENTS.md changed — re-read it."
+
+
 POINTER = (
     f"{BEGIN}\n"
-    f"AI context for this project lives in `{CTXDIR}/{INSTRUCTIONS}` — read it first.\n"
+    f"This project's AI context is kept in KeepCTX: read `{CTXDIR}/{INSTRUCTIONS}` first.\n"
     f"No `{CTXDIR}/`? Carry on without it, and don't flag it: it is gitignored, so it may not\n"
     f"be cloned here yet, or it was removed on purpose. To set it up, install ctx\n"
     f"(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.\n"
@@ -519,10 +472,24 @@ def write_pointer(root):
         agents.write_text(POINTER + ("\n" + existing if existing else ""))
 
 
+# ------------------------------------------------------------------ commands
+
+def here_or_fail():
+    root = find_root()
+    if not root:
+        err("error: no context here. Run `ctx init` first.")
+        return None, None
+    cfg = load_config(root)
+    if not cfg.get("name"):
+        err("error: no context here. Run `ctx init` or `ctx clone <org>:<name>` first.")
+        return None, None
+    return root, cfg
+
+
 def cmd_init(argv, refreshed=False):
     here = pathlib.Path.cwd().resolve()
     if CTXDIR in here.parts:
-        err(f"error: {here} is inside keepctx's own {CTXDIR}/ directory.")
+        err(f"error: {here} is inside KeepCTX's own {CTXDIR}/ directory.")
         err("       Run `ctx init` from the project directory instead.")
         return 1
     found = find_root()
@@ -539,7 +506,7 @@ def cmd_init(argv, refreshed=False):
         if refreshed:
             print()
             tty = sys.stdout.isatty()
-            print(("keepctx's rules for your agent were updated. " if tty else "") + reread())
+            print(("KeepCTX's rules for your agent were updated. " if tty else "") + reread())
         return 0
 
     # A context further up is no obstacle: contexts are independent, so this
@@ -557,8 +524,7 @@ def cmd_init(argv, refreshed=False):
     write_instructions(root, name, has_remote=False)
 
     facts = ctxdir / name / FACTS
-    if not facts.exists():
-        facts.write_text(f"# {name}\n\n")
+    facts.write_text(render(read_file(facts)))
     (ctxdir / name / BASE).write_text("")
 
     save_config(root, {"name": name, "org": None, "remote": None,
@@ -569,12 +535,292 @@ def cmd_init(argv, refreshed=False):
     print(f"Initialized `{name}`")
     w = max(len(facts_rel), len(f"{CTXDIR}/{INSTRUCTIONS}"), len(AGENTS))
     print(f"  {facts_rel:<{w}}  your facts")
-    print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent maintains them")
+    print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent keeps them")
     print(f"  {AGENTS:<{w}}  pointer added at the top")
     print()
     print(reread())
     return 0
 
+
+def cmd_get(argv):
+    """The whole context, for an agent to read: its own facts, then any
+    contexts cloned beside it. `--remote` shows what the last pull downloaded."""
+    root, cfg = here_or_fail()
+    if not root:
+        return 1
+    name = cfg["name"]
+    d = root / CTXDIR / name
+    if "--remote" in argv:
+        latest = remote_versions(d)
+        if not latest:
+            err("error: nothing pulled yet. Run `ctx pull` first.")
+            return 1
+        v, path = latest[-1]
+        print(f"# {cfg.get('org')}:{name} on {cfg.get('remote')}, as pulled (v{v})")
+        print()
+        print(body(read_file(path)) or "(empty)")
+        return 0
+
+    facts = read_file(d / FACTS)
+    where = f"{cfg['org']}:{name} @ v{cfg.get('version', 0)}" if cfg.get("org") else "local only"
+    ro = ", read-only" if cfg.get("readonly") else ""
+    print(f"# {name} — {len(facts)} facts ({where}{ro})")
+    if cfg.get("conflicts"):
+        print()
+        print(f"Unsettled conflicts: {', '.join(cfg['conflicts'])}. Compare with "
+              "`ctx get --remote`, settle each with `ctx remember` or `ctx forget`, then `ctx push`.")
+    print()
+    print(body(facts) or "(nothing remembered yet)")
+    for n, org in sorted((cfg.get("clones") or {}).items()):
+        ref = read_file(root / CTXDIR / n / FACTS)
+        print()
+        print(f"# {n} — {len(ref)} facts (from {org}, for reference, read-only)")
+        print()
+        print(body(ref) or "(empty)")
+    print()
+    print("Categories: " + ", ".join(c for c, _, _ in CATEGORIES))
+    return 0
+
+
+def parse_fact_args(argv, need_value):
+    """`<category> <key> [value…]`, or `<category>.<key> [value…]`."""
+    if argv and "." in argv[0] and argv[0].split(".")[0] in CATEGORY:
+        cat, _, key = argv[0].partition(".")
+        rest = argv[1:]
+    elif len(argv) >= 2:
+        cat, key, rest = argv[0].lower(), argv[1], argv[2:]
+    else:
+        return None
+    key = re.sub(r"\s+", "-", key.strip().lower())
+    value = " ".join(rest).strip()
+    if cat not in CATEGORY:
+        err(f"error: `{cat}` isn't a category. Use one of:")
+        err("       " + ", ".join(CATEGORY))
+        return False
+    if not KEY_RE.match(key):
+        err(f"error: `{key}` isn't a key. Keys are short and lowercase: server-a.ip, deploy.command")
+        return False
+    if need_value and not value:
+        return None
+    return cat, key, value
+
+
+def writable(cfg):
+    if cfg.get("readonly"):
+        err(f"error: {cfg.get('org')}:{cfg['name']} is read-only for this account.")
+        err("       Tell the user what you learned, so they can pass it on to its maintainers.")
+        return False
+    return True
+
+
+def cmd_remember(argv):
+    got = parse_fact_args(argv, need_value=True)
+    if not got:
+        if got is None:
+            err('error: usage: ctx remember <category> <key> "<value>"')
+        return 1
+    cat, key, value = got
+    root, cfg = here_or_fail()
+    if not root or not writable(cfg):
+        return 1
+    what = find_secret(value)
+    if what:
+        err(f"error: not remembered — that looks like {what}. Secrets never go in a context;")
+        err("       remember where it is kept instead.")
+        return 1
+
+    rel = "—"
+    if value.startswith(("→", "->")):
+        rel, value = "→", value.lstrip("→->").strip()
+    full = f"{cat}.{key}"
+    path = root / CTXDIR / cfg["name"] / FACTS
+    facts = read_file(path)
+    before = facts.get(full)
+    facts[full] = (rel, value)
+    path.write_text(render(facts))
+    verb = "remembered" if before is None else "unchanged" if before == facts[full] else "updated"
+    say(f"{verb} {full} {rel} {value}")
+    settle(cfg, full)
+    return finish_write(root, cfg)
+
+
+def cmd_forget(argv):
+    got = parse_fact_args(argv, need_value=False)
+    if not got:
+        if got is None:
+            err("error: usage: ctx forget <category> <key>")
+        return 1
+    cat, key, _ = got
+    root, cfg = here_or_fail()
+    if not root or not writable(cfg):
+        return 1
+    full = f"{cat}.{key}"
+    path = root / CTXDIR / cfg["name"] / FACTS
+    facts = read_file(path)
+    if full not in facts:
+        say(f"nothing to forget — no {full}")
+        settle(cfg, full)
+        save_config(root, cfg)
+        return 0
+    del facts[full]
+    path.write_text(render(facts))
+    say(f"forgot {full}")
+    settle(cfg, full)
+    return finish_write(root, cfg)
+
+
+def settle(cfg, full):
+    """Remembering or forgetting a conflicted fact is how the agent settles it."""
+    if full in (cfg.get("conflicts") or []):
+        cfg["conflicts"] = [k for k in cfg["conflicts"] if k != full]
+
+
+def finish_write(root, cfg):
+    """After a remember or forget: push straight away when there's a server, so
+    the team has it now and a session that ends abruptly loses nothing."""
+    if cfg.get("org"):
+        push(root, cfg)
+    save_config(root, cfg)
+    return 0
+
+
+def remote_versions(d):
+    p = d / REMOTE_DIR
+    if not p.is_dir():
+        return []
+    found = []
+    for f in p.glob("v*.md"):
+        try:
+            found.append((int(f.stem[1:]), f))
+        except ValueError:
+            pass
+    return sorted(found)
+
+
+def keep_remote(d, version, text):
+    """Each pull is kept by version, so the agent can read exactly what the
+    server said; only the last few, since the server keeps every version."""
+    p = d / REMOTE_DIR
+    p.mkdir(exist_ok=True)
+    (p / f"v{version}.md").write_text(text)
+    for _, f in remote_versions(d)[:-KEEP_REMOTE]:
+        f.unlink()
+
+
+def pull_own(root, cfg):
+    """Download the latest, keep it, and merge it into the local facts. -> the
+    conflicts still to settle."""
+    name = cfg["name"]
+    d = root / CTXDIR / name
+    got = api(cfg, "GET", f"/v1/contexts/{cfg['org']}/{name}")
+    remote = parse(got["facts"])
+    keep_remote(d, got["version"], render(remote))
+    say(f"pulled {len(remote)} facts from {cfg['remote']} (v{got['version']})")
+
+    if cfg.get("readonly"):            # someone else maintains it: take theirs
+        (d / FACTS).write_text(render(remote))
+        (d / BASE).write_text(render(remote))
+        cfg["version"] = got["version"]
+        return []
+
+    local = read_file(d / FACTS)
+    base = read_file(d / BASE)
+    merged, n, new = merge3(base, local, remote)
+    # a conflict left unsettled from before is still one while the two differ
+    old = [k for k in cfg.get("conflicts") or [] if merged.get(k) != remote.get(k)]
+    conflicts = sorted(set(old) | set(new))
+    (d / FACTS).write_text(render(merged))
+    (d / BASE).write_text(render(remote))
+    cfg["version"] = got["version"]
+    cfg["conflicts"] = conflicts
+
+    took = [f"{n[k]} {k}" for k in ("added", "changed", "removed") if n[k]]
+    if took or n["kept"]:
+        parts = ([", ".join(took) + " from the server"] if took else []) + \
+                ([f"{n['kept']} local change{'s' * (n['kept'] != 1)} kept"] if n["kept"] else [])
+        say("merged — " + "; ".join(parts))
+    if conflicts:
+        say(f"{len(conflicts)} conflict{'s' * (len(conflicts) != 1)} to settle: {', '.join(conflicts)}")
+        say("compare `ctx get` with `ctx get --remote`, settle each with `ctx remember` "
+            "or `ctx forget`, then `ctx push`")
+    return conflicts
+
+
+def push(root, cfg):
+    """Send the local facts. If the server moved on since the last pull, pull
+    and merge first; stop if that leaves a conflict for the agent to settle.
+    -> True when the server has what's here."""
+    name = cfg["name"]
+    d = root / CTXDIR / name
+    for _ in range(3):
+        if cfg.get("conflicts"):
+            say(f"not pushed — settle {', '.join(cfg['conflicts'])} first")
+            return False
+        local = read_file(d / FACTS)
+        if local == read_file(d / BASE):
+            return True
+        out = api(cfg, "POST", f"/v1/contexts/{cfg['org']}/{name}/push",
+                  {"facts": render(local), "version": cfg.get("version", 0)}, allow=(409,))
+        if out.get("_status") == 409:
+            say(f"the server moved on to v{out.get('version', '?')} — pulling first")
+            if pull_own(root, cfg):
+                return False
+            continue
+        (d / BASE).write_text(render(local))
+        cfg["version"] = out["version"]
+        say(f"pushed {len(local)} facts to {cfg['remote']} (v{out['version']})")
+        return True
+    say("not pushed — the server keeps changing; try `ctx push` again")
+    return False
+
+
+def pull_clone(root, cfg, org, name):
+    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
+    d = root / CTXDIR / name
+    d.mkdir(parents=True, exist_ok=True)
+    facts = parse(got["facts"])
+    (d / FACTS).write_text(render(facts))
+    say(f"pulled {len(facts)} facts of {org}:{name} for reference (v{got['version']})")
+
+
+def no_remote():
+    say("this context is local only — nothing to sync. `ctx remote` puts it on a server.")
+    return 0
+
+
+def cmd_pull(argv):
+    root, cfg = here_or_fail()
+    if not root:
+        return 1
+    if not cfg.get("org") and not cfg.get("clones"):
+        return no_remote()
+    if cfg.get("org"):
+        pull_own(root, cfg)
+    for name, org in sorted((cfg.get("clones") or {}).items()):
+        pull_clone(root, cfg, org, name)
+    save_config(root, cfg)
+    return 0
+
+
+def cmd_push(argv):
+    root, cfg = here_or_fail()
+    if not root:
+        return 1
+    if not cfg.get("org"):
+        return no_remote()
+    if not writable(cfg):
+        return 1
+    d = root / CTXDIR / cfg["name"]
+    if not cfg.get("conflicts") and read_file(d / FACTS) == read_file(d / BASE):
+        say(f"nothing new to push — {cfg['org']}:{cfg['name']} is at v{cfg.get('version', 0)}")
+        save_config(root, cfg)
+        return 0
+    ok = push(root, cfg)
+    save_config(root, cfg)
+    return 0 if ok else 1
+
+
+# -------------------------------------------------------- remote and clone
 
 def app_url(cfg):
     """The console lives on the same server as the API, hosted or self-hosted."""
@@ -665,157 +911,38 @@ def cmd_remote(argv):
     cfg["org"] = org
     cfg["name"] = name
 
-    facts = (root / CTXDIR / name / FACTS).read_text()
+    facts = render(read_file(root / CTXDIR / name / FACTS))
     made = api(cfg, "POST", "/v1/contexts", {"name": name, "facts": facts, "org": org})
     cfg["version"] = made["version"]
+    cfg["conflicts"] = []
     save_config(root, cfg)
+    (root / CTXDIR / name / FACTS).write_text(facts)
     (root / CTXDIR / name / BASE).write_text(facts)
     write_instructions(root, name, has_remote=True)
-    d = root / CTXDIR / name
-    if (d / JOURNAL).exists() or local_prose(d):   # kept while local; publish them now
-        push_pull(root, cfg)
-        save_config(root, cfg)
 
-    print(f"{cfg['org']}:{name} is live. Others can `ctx clone {cfg['org']}:{name}`")
+    say(f"pushed {len(parse(facts))} facts to {remote} (v{made['version']})")
+    print(f"{org}:{name} is live. Others can `ctx clone {org}:{name}`")
     return 0
-
-
-def cmd_sync(argv):
-    root = find_root()
-    if not root:
-        err("error: no context here. Run `ctx init` first.")
-        return 1
-    cfg = load_config(root)
-    if not cfg.get("org") and not cfg.get("clones"):
-        print("No remote for this context — `ctx remote` to create one.")
-        print("Everything local keeps working without it.")
-        return 1
-
-    if cfg.get("org"):
-        (pull_context if cfg.get("readonly") else push_pull)(root, cfg)
-    for name, org in sorted((cfg.get("clones") or {}).items()):
-        pull_clone(root, cfg, org, name)
-
-    save_config(root, cfg)
-    return 0
-
-
-def push_pull(root, cfg):
-    """A context you maintain: send what changed here, take what changed in
-    your other copies. Merged per key; the later write of one key wins."""
-    name = cfg["name"]
-    facts_path = root / CTXDIR / name / FACTS
-    base_path = root / CTXDIR / name / BASE
-    local = facts_path.read_text()
-    base = base_path.read_text() if base_path.exists() else ""
-
-    changes = diff_facts(base, local)
-
-    # journal entries not yet sent, and prose that changed since the last sync
-    d = root / CTXDIR / name
-    entries = parse_journal((d / JOURNAL).read_text()) if (d / JOURNAL).exists() else []
-    unsent = entries[cfg.get("journal_sent", 0):]
-    sent_prose = cfg.get("prose_sent") or {}
-    here = local_prose(d)
-    prose = {s: t for s, t in here.items() if sent_prose.get(s) != sha(t)}
-    prose.update({s: None for s in sent_prose if s not in here})
-
-    out = api(cfg, "POST", f"/v1/contexts/{cfg['org']}/{name}/sync",
-              {"changes": changes, "version": cfg.get("version", 0),
-               "journal": unsent, "prose": prose})
-    cfg["journal_sent"] = len(entries)
-    if "prose" in out:
-        cfg["prose_sent"] = mirror_prose(d, out["prose"])
-
-    incoming = out.get("facts", {})
-    merged = merge_facts(local, incoming) if incoming else local
-    gone = []
-    if "keys" in out:              # deleted in another copy: drop them here too
-        server = set(out["keys"])
-        gone = [k for k in parse_facts(merged)[1] if k not in server]
-        merged = remove_facts(merged, gone)
-    facts_path.write_text(merged)
-    base_path.write_text(merged)
-    cfg["version"] = out["version"]
-
-    sent, got = len(changes), len(incoming) + len(gone)
-    parts = [f"{sent} up"] * bool(sent) + [f"{got} down"] * bool(got)
-    parts += [f"{len(unsent)} journal"] * bool(unsent) + [f"{len(prose)} prose"] * bool(prose)
-    print(f"{name}  {', '.join(parts) or 'unchanged'}  (v{out['version']})")
-
-
-def cmd_journal(argv):
-    """Add a dated entry to this context's journal: what was worked on, decided
-    and left open. Kept locally, and sent right away when there is a remote."""
-    text = " ".join(argv).strip()
-    if (not text or text == "-") and not sys.stdin.isatty():
-        text = sys.stdin.read().strip()
-    if not text:
-        err('error: usage: ctx journal "what was worked on, decided and left open"')
-        return 1
-    root = find_root()
-    if not root:
-        err("error: no context here. Run `ctx init` first.")
-        return 1
-    cfg = load_config(root)
-    name = cfg.get("name")
-    if cfg.get("readonly"):
-        err(f"error: {cfg.get('org')}:{name} is read-only for this account, so it has no")
-        err("       journal of yours. Tell the user what happened instead.")
-        return 1
-    path = root / CTXDIR / name / JOURNAL
-    old = path.read_text() if path.exists() else f"# {name} — journal\n"
-    stamp = time.strftime("%Y-%m-%d %H:%M")
-    path.write_text(old.rstrip() + f"\n\n## {stamp}\n\n{text}\n")
-    if cfg.get("org"):
-        push_pull(root, cfg)
-        save_config(root, cfg)
-    else:
-        print(f"journal: noted ({CTXDIR}/{name}/{JOURNAL}, local — published by `ctx remote`)")
-    return 0
-
-
-def pull_context(root, cfg):
-    """A context this account reads but doesn't maintain: take the latest."""
-    name = cfg["name"]
-    got = api(cfg, "GET", f"/v1/contexts/{cfg['org']}/{name}")
-    (root / CTXDIR / name / FACTS).write_text(got["facts"])
-    (root / CTXDIR / name / BASE).write_text(got["facts"])
-    mirror_prose(root / CTXDIR / name, got.get("prose") or {})
-    was, cfg["version"] = cfg.get("version", 0), got["version"]
-    state = "unchanged" if was == got["version"] else f"updated from v{was}"
-    print(f"{name}  {state}  (v{got['version']}, read-only)")
-
-
-def pull_clone(root, cfg, org, name):
-    got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
-    d = root / CTXDIR / name
-    d.mkdir(parents=True, exist_ok=True)
-    before = (d / FACTS).read_text() if (d / FACTS).exists() else None
-    (d / FACTS).write_text(got["facts"])
-    mirror_prose(d, got.get("prose") or {})
-    state = "unchanged" if before == got["facts"] else "updated"
-    print(f"{name}  {state}  (v{got['version']}, from {org}, read-only)")
 
 
 def cmd_clone(argv):
     """Bring a remote context here. In a directory with no context of its own it
     becomes this directory's context — writable if you maintain it (its owner or
     an org admin), read-only otherwise. Beside an existing context it's a
-    read-only reference. Either way, `ctx sync` keeps it current."""
+    read-only reference. Either way, `ctx pull` keeps it current."""
     if not argv or ":" not in argv[0]:
         err("error: usage: ctx clone <org>:<name> [server]")
         return 1
     org, _, name = argv[0].partition(":")
     here = pathlib.Path.cwd().resolve()
     if CTXDIR in here.parts:
-        err(f"error: {here} is inside keepctx's own {CTXDIR}/ directory.")
+        err(f"error: {here} is inside KeepCTX's own {CTXDIR}/ directory.")
         return 1
     root = find_root() or here
     cfg = load_config(root)
     own = cfg.get("name")
     if own == name and cfg.get("org") == org:
-        print(f"{org}:{name} is already this directory's context — `ctx sync` to update it.")
+        print(f"{org}:{name} is already this directory's context — `ctx pull` to update it.")
         return 0
 
     remote = pick_server(cfg, argv[1] if len(argv) > 1 else None)
@@ -827,38 +954,39 @@ def cmd_clone(argv):
         print(f"Sign in to read {org}:{name} on {remote} (no account? make one at {app_url(cfg)})")
         cfg["token"] = login(cfg)[0]["token"]
     got = api(cfg, "GET", f"/v1/contexts/{org}/{name}")
+    facts = render(parse(got["facts"]))
 
     ctxdir = root / CTXDIR
     (ctxdir / name).mkdir(parents=True, exist_ok=True)
     (ctxdir / ".gitignore").write_text("*\n")
-    (ctxdir / name / FACTS).write_text(got["facts"])
-    prose_sent = mirror_prose(ctxdir / name, got.get("prose") or {})
+    (ctxdir / name / FACTS).write_text(facts)
 
     if own:
         cfg.setdefault("clones", {})[name] = org
         save_config(root, cfg)
-        print(f"Cloned {org}:{name} beside `{own}` ({got.get('count', 0)} facts, read-only)")
-        print("`ctx sync` keeps it current.")
+        print(f"Cloned {org}:{name} beside `{own}` ({len(parse(facts))} facts, read-only)")
+        print("`ctx get` shows it after this context's own facts; `ctx pull` keeps it current.")
     else:
         readonly = not got.get("can_write")
-        (ctxdir / name / BASE).write_text(got["facts"])
+        (ctxdir / name / BASE).write_text(facts)
+        keep_remote(ctxdir / name, got["version"], facts)
         cfg.update({"name": name, "org": org, "version": got["version"], "readonly": readonly,
-                    "prose_sent": prose_sent, "journal_sent": 0})
+                    "conflicts": []})
         save_config(root, cfg)
         write_instructions(root, name, has_remote=True, readonly=readonly)
         write_pointer(root)
-        print(f"Cloned {org}:{name} ({got.get('count', 0)} facts)")
+        print(f"Cloned {org}:{name} ({len(parse(facts))} facts)")
         if readonly:
             print(f"Read-only: {got.get('owner') or 'its owner'} and {org}'s admins maintain it.")
-            print("`ctx sync` brings in their updates.")
+            print("`ctx pull` brings in their updates.")
         else:
-            print("You maintain it: edits here sync with your other copies on `ctx sync`.")
-    for dep in got.get("requires", []):
-        print(f"  requires {dep} — `ctx clone {dep}`")
+            print("You maintain it: `ctx remember` here is pushed to the server and your other copies.")
     print()
     print(reread())
     return 0
 
+
+# -------------------------------------------------------------------- status
 
 def cmd_status(with_usage=False):
     root = find_root()
@@ -874,18 +1002,19 @@ def cmd_status(with_usage=False):
 
     cfg = load_config(root)
     name = cfg.get("name", "?")
-    facts_path = root / CTXDIR / name / FACTS
-    facts, _ = parse_facts(facts_path.read_text() if facts_path.exists() else "")
+    facts = read_file(root / CTXDIR / name / FACTS)
 
-    print(f"keepctx {VERSION}")
+    print(f"KeepCTX {VERSION}")
     print(f"  root      {root}")
     print(f"  context   {name}")
     print(f"  facts     {len(facts)}")
     if cfg.get("org"):
         ro = ", read-only" if cfg.get("readonly") else ""
-        print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)}{ro}")
+        print(f"  remote    {cfg['org']}:{name} @ v{cfg.get('version', 0)} on {cfg.get('remote')}{ro}")
     else:
         print("  remote    none — `ctx remote` to share this")
+    if cfg.get("conflicts"):
+        print(f"  conflicts {', '.join(cfg['conflicts'])}")
 
     clones = cfg.get("clones") or {}
     if clones:
@@ -897,39 +1026,44 @@ def cmd_status(with_usage=False):
 
 
 def agent_index(root):
-    """One line per context. Keys live in the files; listing them here is
-    preloading by another name, and it grows without bound."""
+    """One line per context. The facts themselves come from `ctx get`."""
     scope = contexts_in_scope()
     if not scope:
         return 0
     bits = []
     for r, n, kind in scope:
-        _, order = read_facts(r, n)
+        count = len(read_file(r / CTXDIR / n / FACTS))
         tag = "" if kind == "own" else ", read-only"
-        bits.append(f"{n} ({len(order)} facts{tag})")
-    print("Contexts: " + ", ".join(bits))
+        bits.append(f"{n} ({count} facts{tag})")
+    print("Contexts: " + ", ".join(bits) + ". Read them with `ctx get`.")
     return 0
 
 
-def read_facts(root, name):
-    p = root / CTXDIR / name / FACTS
-    return parse_facts(p.read_text() if p.exists() else "")
-
-
 def usage():
-    print("keepctx — context management for AI and people")
+    print("KeepCTX — keep your AI context across sessions, across AIs, across your team")
     print()
-    print("  ctx                    Show status")
-    print("  ctx init [name]        Set up here — local, no account, no network")
-    print("  ctx remote [server]    Put this on a remote — shares it and backs it up")
-    print("  ctx clone <org>:<name> [server]")
-    print("                         Bring a context here from the remote")
-    print("  ctx sync               Send your changes, bring in the latest")
-    print('  ctx journal "..."      Add a dated entry: what was done, decided, left open')
+    print("  ctx                              Show status")
+    print("  ctx init [name]                  Set up here — local, no account, no network")
+    print("  ctx get [--remote]               Print the whole context (or the last pulled copy)")
+    print('  ctx remember <category> <key> "<value>"')
+    print("                                   Add or replace a fact")
+    print("  ctx forget <category> <key>      Remove a fact")
+    print("  ctx remote [server]              Put this on a server — shares it and backs it up")
+    print("  ctx clone <org>:<name> [server]  Bring a context here from a server")
+    print("  ctx pull                         Bring in the latest and merge it, fact by fact")
+    print("  ctx push                         Send what's here")
+    print()
+    print("Categories: " + ", ".join(CATEGORY))
     print()
     print("Everything works locally without an account. The server is keepctx.com")
     print("unless you name your own: ctx remote https://keepctx.example.com")
     return 0
+
+
+COMMANDS = {
+    "get": cmd_get, "remember": cmd_remember, "forget": cmd_forget,
+    "pull": cmd_pull, "push": cmd_push, "remote": cmd_remote, "clone": cmd_clone,
+}
 
 
 def main():
@@ -943,14 +1077,12 @@ def main():
     refreshed = refresh_instructions()
     if cmd == "init":
         return cmd_init(argv[1:], refreshed)
-    if cmd == "remote":
-        return cmd_remote(argv[1:])
+    if cmd in COMMANDS:
+        return COMMANDS[cmd](argv[1:])
     if cmd == "sync":
-        return cmd_sync(argv[1:])
-    if cmd == "clone":
-        return cmd_clone(argv[1:])
-    if cmd == "journal":
-        return cmd_journal(argv[1:])
+        err("error: `ctx sync` is now `ctx pull` and `ctx push` — and `ctx remember`")
+        err("       pushes by itself. Re-read AGENTS.md for the new steps.")
+        return 1
     if not argv:
         return cmd_status(with_usage=True)
     err(f"error: unknown command `{cmd}`")

@@ -1,8 +1,9 @@
 """The CLI end to end, against the real handler served locally.
 
-Covers the owner's copies (writable, merged per key, deletions travel), a
-member's copy (read-only, refreshed by sync), a clone beside an existing
-context, and an expired sign-in."""
+Covers local facts (remember, forget, get, categories, an old file), a remote
+the owner keeps from two copies (every write pushed, fact-by-fact merge on pull,
+a conflict settled by the agent, deletions travelling), a member's read-only
+copy, a reference clone beside a context, and an expired sign-in."""
 import json
 import os
 import pathlib
@@ -34,11 +35,6 @@ def facts(d, name):
     return (pathlib.Path(d) / ".ctx" / name / "facts.md").read_text()
 
 
-def add(d, name, line):
-    p = pathlib.Path(d) / ".ctx" / name / "facts.md"
-    p.write_text(p.read_text().rstrip() + "\n" + line + "\n")
-
-
 def cfg(d):
     return json.loads((pathlib.Path(d) / ".ctx" / "config.json").read_text())
 
@@ -54,117 +50,128 @@ owner = signup("owner@x.com", "team")
 signup("member@x.com")
 call("POST", "/v1/orgs/team/members", {"email": "member@x.com"}, token=owner)
 tmp = pathlib.Path(tempfile.mkdtemp())
-A, B, C, D = (tmp / x for x in "abcd")
-for d in (A, B, C, D):
+A, B, C, D, L, O = (tmp / x for x in "abcdlo")
+for d in (A, B, C, D, L, O):
     d.mkdir()
 me = "owner@x.com\npassword1\n"
 
-# the owner puts a context on the remote
+# ------------------------------------------------------------------ local
+ctx(L, "init", "solo")
+f = facts(L, "solo")
+check("init: facts.md has a heading per category", "## Environments" in f and "## Decisions" in f, f)
+instr = (L / ".ctx" / "instructions.md").read_text()
+check("init: the instructions teach get, remember and forget",
+      "ctx get" in instr and "ctx remember" in instr and "ctx forget" in instr and "KeepCTX:" in instr)
+check("init: local instructions have no sync steps", "ctx pull" not in instr.split("## Tell")[0])
+
+out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.12")
+check("remember: says what it kept", out.strip() == "KeepCTX: remembered environments.server-a.ip — 10.0.4.12", out)
+ctx(L, "remember", "architecture.api.depends-on", "→ auth-service, for sessions")
+out = ctx(L, "get")
+check("get: facts appear under their category",
+      "## Environments\n\n- **server-a.ip** — 10.0.4.12" in out, out)
+check("get: a → value is a relationship", "- **api.depends-on** → auth-service, for sessions" in out, out)
+check("get: empty categories are left out, and listed at the end",
+      "## Testing" not in out and "Categories: overview" in out, out)
+out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.13")
+check("remember: an existing key is updated, not doubled",
+      "updated" in out and facts(L, "solo").count("server-a.ip") == 1, out)
+out = ctx(L, "remember", "stuff", "x", "y")
+check("remember: an unknown category is refused, with the list", "isn't a category" in out and "environments" in out, out)
+out = ctx(L, "remember", "environments", "aws.key", "AKIA" + "ABCDEFGHIJKLMNOP")
+check("remember: a secret is refused, and not written", "Secrets never" in out and "aws.key" not in facts(L, "solo"), out)
+out = ctx(L, "forget", "environments", "server-a.ip")
+check("forget: removes the fact", "forgot environments.server-a.ip" in out and "server-a" not in facts(L, "solo"), out)
+out = ctx(L, "pull")
+check("pull: a local-only context says so", "local only" in out, out)
+out = ctx(L, "sync")
+check("sync: tells you what replaced it", "ctx pull" in out and "ctx push" in out, out)
+
+# a file from before categories still reads, sorted into categories
+ctx(O, "init", "old")
+(O / ".ctx" / "old" / "facts.md").write_text(
+    "# old\n\n- **decision.storage** — SQLite\n- **deploy.command** — `make ship`\n")
+out = ctx(O, "get")
+check("old file: decision.* lands under Decisions",
+      "## Decisions\n\n- **storage** — SQLite" in out and "## Knowledge\n\n- **deploy.command**" in out, out)
+
+# ------------------------------------------------------- owner, two copies
 ctx(A, "init", "proj")
-add(A, "proj", "- **deploy.command** — `make ship`")
+ctx(A, "remember", "operations", "deploy.command", "`make ship`")
 out = ctx(A, "remote", typed=me + "\n")
-check("owner: ctx remote puts it live", "team:proj is live" in out, out)
+check("remote: goes live and says what it pushed", "team:proj is live" in out and "pushed 1 facts" in out, out)
+check("remote: instructions gain the pull and push steps",
+      "ctx pull" in (A / ".ctx" / "instructions.md").read_text())
 
-# the owner's second copy is writable, and the two merge
+out = ctx(A, "remember", "environments", "logs.location", "Splunk, index app_prod")
+check("remember: with a remote, it pushes straight away", "pushed 2 facts" in out and "(v2)" in out, out)
+
 out = ctx(B, "clone", "team:proj", typed=me)
-check("owner: clone elsewhere is writable", "You maintain it" in out and not cfg(B)["readonly"], out)
-check("owner: the clone has the facts", "make ship" in facts(B, "proj"))
-check("owner: the clone got an AGENTS.md pointer", (B / "AGENTS.md").exists())
-add(A, "proj", "- **logs.location** — Splunk")
-add(B, "proj", "- **api.runs-on** → Cloud Foundry")
-ctx(A, "sync")
-ctx(B, "sync")
-ctx(A, "sync")
-check("owner: different facts from two copies both land",
-      "Splunk" in facts(B, "proj") and "Cloud Foundry" in facts(A, "proj"),
-      facts(A, "proj") + "\n---\n" + facts(B, "proj"))
-p = A / ".ctx" / "proj" / "facts.md"
-p.write_text("\n".join(l for l in p.read_text().splitlines() if "logs.location" not in l) + "\n")
-ctx(A, "sync")
-out = ctx(B, "sync")
-check("owner: a deletion in one copy reaches the other", "Splunk" not in facts(B, "proj"), out)
+check("clone: the owner's second copy is writable", "You maintain it" in out and not cfg(B)["readonly"], out)
+check("clone: it has the facts", "Splunk" in facts(B, "proj"))
 
-# a member's copy is read-only, and sync keeps it current
+# both copies write different facts: the second push finds the server moved on,
+# pulls, merges and pushes — no conflict, nothing for the agent to do
+ctx(A, "remember", "testing", "command", "`make test`")
+out = ctx(B, "remember", "people", "owner", "Jason")
+check("merge: a stale push pulls, merges and pushes by itself",
+      "moved on" in out and "1 added from the server" in out and "pushed 4 facts" in out, out)
+out = ctx(A, "pull")
+check("merge: pull brings in the other copy's fact", "1 added from the server" in out
+      and "Jason" in facts(A, "proj"), out)
+check("pull: each download is kept by version", (A / ".ctx" / "proj" / "remote" / "v4.md").exists())
+
+# both copies change the same fact differently: a conflict the agent settles
+ctx(A, "remember", "operations", "deploy.command", "`make release`")
+out = ctx(B, "remember", "operations", "deploy.command", "`make publish`")
+check("conflict: reported, not pushed", "1 conflict to settle: operations.deploy.command" in out
+      and "pushed" not in out.split("conflict")[1], out)
+check("conflict: the local value stays until settled", "make publish" in facts(B, "proj"))
+out = ctx(B, "push")
+check("conflict: push refuses until it's settled", "not pushed" in out, out)
+out = ctx(B, "get", "--remote")
+check("conflict: get --remote shows the server's side", "make release" in out, out)
+out = ctx(B, "get")
+check("conflict: get lists what's unsettled", "Unsettled conflicts: operations.deploy.command" in out, out)
+out = ctx(B, "remember", "operations", "deploy.command", "`make release`, then tag")
+check("conflict: remembering the fact settles it and pushes", "pushed" in out and not cfg(B)["conflicts"], out)
+ctx(A, "pull")
+check("conflict: the settled value reaches the other copy", "then tag" in facts(A, "proj"))
+
+# deletions travel; a merge never brings a forgotten fact back
+ctx(A, "forget", "environments", "logs.location")
+out = ctx(B, "pull")
+check("forget: a deletion reaches the other copy", "1 removed from the server" in out
+      and "Splunk" not in facts(B, "proj"), out)
+out = ctx(B, "push")
+check("push: nothing new says so", "nothing new to push" in out, out)
+
+# ------------------------------------------------------- member, read-only
 out = ctx(C, "clone", "team:proj", typed="member@x.com\npassword1\n")
 check("member: clone is read-only", "Read-only" in out and cfg(C)["readonly"], out)
-instr = (C / ".ctx" / "instructions.md").read_text()
-check("member: the agent is told not to edit", "Don't edit it" in instr)
-add(A, "proj", "- **oncall** — #ops-oncall")
-ctx(A, "sync")
-add(C, "proj", "- **local.scribble** — mine")
-out = ctx(C, "sync")
-check("member: sync brings in the owner's update", "ops-oncall" in facts(C, "proj"), out)
-check("member: local edits are replaced, not sent", "scribble" not in facts(C, "proj"), out)
-out = ctx(C)
-check("member: the agent's index says read-only", "read-only" in out, out)
+check("member: instructions say don't change it", "Don't change it" in (C / ".ctx" / "instructions.md").read_text())
+out = ctx(C, "remember", "knowledge", "x", "y")
+check("member: remember is refused", "read-only" in out, out)
+ctx(A, "remember", "people", "oncall", "#ops-oncall")
+out = ctx(C, "pull")
+check("member: pull brings in the owner's update", "ops-oncall" in facts(C, "proj"), out)
 
-# beside an existing context, a clone is a reference, refreshed by sync
+# ---------------------------------------------- a reference beside a context
 ctx(D, "init", "other")
 out = ctx(D, "clone", "team:proj", typed=me)
-check("beside: clone next to an existing context", "beside `other`" in out, out)
-check("beside: the directory's own context is unchanged", cfg(D)["name"] == "other")
-add(A, "proj", "- **runbook** — wiki/ops")
-ctx(A, "sync")
-out = ctx(D, "sync")
-check("beside: sync refreshes it", "wiki/ops" in facts(D, "proj"), out)
+check("beside: clone next to an existing context", "beside `other`" in out and cfg(D)["name"] == "other", out)
+out = ctx(D, "get")
+check("beside: get shows it after the context's own facts", "# proj" in out and "read-only" in out, out)
 
 # an expired sign-in: an agent gets told what to do instead of a raw 401
 conf = cfg(C)
 conf["token"] = "expired.token.value"
 (C / ".ctx" / "config.json").write_text(json.dumps(conf))
-out = ctx(C, "sync")
-check("expired: an agent is told to sign in from a terminal", "Run `ctx sync` in a terminal" in out, out)
+out = ctx(C, "pull")
+check("expired: an agent is told to sign in from a terminal", "Run `ctx pull` in a terminal" in out, out)
 
-# plain `ctx` from an agent no longer claims AGENTS.md changed
 out = ctx(A)
-check("agent index: no false 'AGENTS.md changed'", "changed" not in out, out)
-
-# the journal: added locally, sent right away, stored once
-out = ctx(A, "journal", "Chose SQLite over Postgres. Open: TLS?")
-check("journal: ctx journal sends the entry", "1 journal" in out, out)
-out = ctx(A, "sync")
-check("journal: a later sync doesn't send it again", "journal" not in out, out)
-view = call("GET", "/v1/contexts/team/proj/view", token=owner)[1]
-check("journal: the server has it once", [j["text"] for j in view["journal"]]
-      == ["Chose SQLite over Postgres. Open: TLS?"], view)
-out = ctx(C, "journal", "member note")
-check("journal: a read-only copy can't add to it", "read-only" in out, out)
-
-# prose: written in one copy, mirrored to the others, deletions travel
-prose = A / ".ctx" / "proj" / "prose"
-prose.mkdir()
-(prose / "deploy.md").write_text("## Deploy\n\nShipped with make.\n")
-out = ctx(A, "sync")
-check("prose: a changed section goes up", "1 prose" in out, out)
-ctx(B, "sync")
-bp = B / ".ctx" / "proj" / "prose" / "deploy.md"
-check("prose: another copy of the owner's gets it", bp.exists() and "Shipped" in bp.read_text())
-ctx(D, "sync")     # C's sign-in was expired above; D holds proj as a reference
-check("prose: a read-only reference copy gets it", (D / ".ctx" / "proj" / "prose" / "deploy.md").exists())
-bp.unlink()
-ctx(B, "sync")
-ctx(A, "sync")
-check("prose: a deleted section is deleted everywhere", not (prose / "deploy.md").exists())
-
-# a local context keeps its journal and prose, and `ctx remote` publishes them
-E = tmp / "e"
-E.mkdir()
-ctx(E, "init", "later")
-out = ctx(E, "journal", "Started locally.")
-check("local: the journal is kept here", "local" in out
-      and "Started locally." in (E / ".ctx" / "later" / "journal.md").read_text(), out)
-(E / ".ctx" / "later" / "prose").mkdir()
-(E / ".ctx" / "later" / "prose" / "overview.md").write_text("<!-- covers: purpose -->\n## Later\n")
-out = ctx(E, "remote", typed=me + "\n")
-view = call("GET", "/v1/contexts/team/later/view", token=owner)[1]
-check("local: ctx remote publishes the journal and prose",
-      [j["text"] for j in view.get("journal", [])] == ["Started locally."]
-      and [p["section"] for p in view.get("prose", [])] == ["overview"], out + str(view))
-
-# the rules an agent gets describe all of it
-instr = (A / ".ctx" / "instructions.md").read_text()
-check("instructions: capture intent, the journal and prose",
-      "question.*" in instr and "ctx journal" in instr and ".ctx/proj/prose/" in instr)
+check("agent index: points at ctx get", "ctx get" in out and "changed" not in out, out)
 
 stop()
 print(f"\n{fails} failed")

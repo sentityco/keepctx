@@ -25,8 +25,8 @@ check("legacy owner logs in and sees their org as admin",
 old = s["token"]
 c, s = call("GET", "/v1/orgs/oldorg/contexts", token=old)
 check("legacy owner can still list contexts", c == 200 and len(s["contexts"]) == 1, s)
-c, s = call("POST", "/v1/contexts/oldorg/proj/sync", {"changes": [], "version": 1}, token=old)
-check("legacy owner can still sync", c == 200, s)
+c, s = call("POST", "/v1/contexts/oldorg/proj/push", {"facts": "- **a** — 1\n", "version": 1}, token=old)
+check("legacy owner can still push", c == 200, s)
 
 # flow 1: account + org
 c, s = call("POST", "/v1/auth/register", {"email": "ann@x.com", "password": "password1"})
@@ -77,8 +77,8 @@ c, s = call("POST", "/v1/contexts", {"name": "shop2", "org": "second"}, token=bo
 check("…and can when they do", c == 200 and s["org"] == "second", s)
 c, s = call("POST", "/v1/contexts", {"name": "nope1", "org": "zorg"}, token=bob)
 check("can't create a context in someone else's org", c == 403, s)
-c, s = call("POST", "/v1/contexts/acme/shop/sync", {"changes": [], "version": 1}, token=bob)
-check("member syncs", c == 200, s)
+c, s = call("POST", "/v1/contexts/acme/shop/push", {"facts": "- **x** — 2\n", "version": 1}, token=bob)
+check("its creator pushes", c == 200 and s["version"] == 2, s)
 
 # reads are members-only
 call("POST", "/v1/contexts", {"name": "secret", "facts": "- **k** — v\n", "org": "acme"}, token=ann)
@@ -91,7 +91,7 @@ check("a member can read it", c == 200 and "**k**" in s["facts"], s)
 
 # removal
 call("POST", "/v1/orgs/acme/members/remove", {"email": "bob@x.com"}, token=ann)
-c, s = call("POST", "/v1/contexts/acme/shop/sync", {"changes": [], "version": 1}, token=bob)
+c, s = call("GET", "/v1/contexts/acme/shop", token=bob)
 check("removed member loses access immediately", c == 403, s)
 c, s = call("GET", "/v1/me", token=bob)
 check("…and the org leaves their list", s["orgs"] == [{"org": "second", "role": "admin"}], s)
@@ -112,21 +112,29 @@ c, s = call("GET", "/v1/contexts/team/proj", token=own)
 check("the owner can write it", s.get("can_write") is True, s)
 c, s = call("GET", "/v1/contexts/team/proj", token=mem)
 check("a member reads it but can't write", c == 200 and s.get("can_write") is False, s)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "b", "block": "- **b** — 2", "op": "add"}], "version": 1}, token=mem)
-check("a member's sync is refused", c == 403 and "read-only" in s.get("error", ""), s)
+c, s = call("POST", "/v1/contexts/team/proj/push", {"facts": "- **b** — 2\n", "version": 1}, token=mem)
+check("a member's push is refused", c == 403 and "read-only" in s.get("error", ""), s)
 c, s = call("POST", "/v1/contexts/team/proj/revert", {"version": 1}, token=mem)
 check("a member's revert is refused", c == 403, s)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "b", "block": "- **b** — 2", "op": "add"}], "version": 1}, token=adm)
+c, s = call("POST", "/v1/contexts/team/proj/push",
+            {"facts": "- **a** — 1\n- **b** — 2\n", "version": 1}, token=adm)
 check("an org admin can write it", c == 200 and s["version"] == 2, s)
 c, s = call("GET", "/v1/orgs/team/contexts", token=mem)
 check("the list says who can write", s["contexts"][0]["can_write"] is False, s)
 
-# the same owner in two places: per-key merge, and deletions travel
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "a", "block": "", "op": "delete"}], "version": 2}, token=own)
-check("sync reports every key the server holds", sorted(s.get("keys", [])) == ["b"], s)
+# push: accepted only from the current version, so nobody overwrites what they never saw
+c, s = call("POST", "/v1/contexts/team/proj/push", {"facts": "- **c** — 3\n", "version": 1}, token=own)
+check("push: a stale version is refused with the current one", c == 409 and s.get("version") == 2, s)
+c, s = call("GET", "/v1/contexts/team/proj", token=own)
+check("push: …and nothing changed", "**b**" in s["facts"] and "**c**" not in s["facts"], s)
+c, s = call("POST", "/v1/contexts/team/proj/push", {"facts": "- **c** — 3\n", "version": 2}, token=own)
+check("push: from the current version it lands", c == 200 and s["version"] == 3, s)
+c, s = call("POST", "/v1/contexts/team/proj/push", {"facts": "- **c** — 3\n", "version": 3}, token=own)
+check("push: the same facts again make no new version", c == 200 and s["version"] == 3, s)
+c, s = call("GET", "/v1/contexts/team/proj/versions", token=own)
+check("push: every push is a version", [v["version"] for v in s["versions"]] == [3, 2, 1], s)
+c, s = call("POST", "/v1/contexts/team/proj/push", {"version": 3}, token=own)
+check("push: the facts are required", c == 400, s)
 
 # API Gateway base64-encodes bodies it doesn't recognise as text
 import base64, json  # noqa: E401,E402
@@ -136,67 +144,27 @@ ev = {"requestContext": {"http": {"method": "POST"}}, "rawPath": "/v1/auth/login
 r = H.handler(ev)
 check("base64 bodies are decoded", r["statusCode"] == 200, r)
 
-# the journal: only added to, and sending an entry twice stores it once
-entry = {"id": "0123456789abcdef", "at": 1700000000, "text": "Chose SQLite. Open: TLS?"}
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [], "version": 3, "journal": [entry]}, token=own)
-call("POST", "/v1/contexts/team/proj/sync", {"changes": [], "version": 3, "journal": [entry]}, token=own)
-c, v = call("GET", "/v1/contexts/team/proj/view", token=mem)
-check("journal: an entry lands once, and members can read it",
-      c == 200 and [j["text"] for j in v["journal"]] == ["Chose SQLite. Open: TLS?"], v)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [], "version": 3, "journal": [{"id": "nope", "text": "x"}]}, token=own)
-check("journal: a malformed entry is refused", c == 400, s)
-
-# prose: stored with what it explains, and flagged once those facts move on
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "b.why", "block": "- **b.why** — because", "op": "add"}],
-             "version": 3, "prose": {"b": "## B\n\nWhy b is the way it is."}}, token=own)
-check("prose: a sync hands back every section", s.get("prose") == {"b": "## B\n\nWhy b is the way it is."}, s)
-c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
-check("prose: fresh when just written", v["prose"][0]["stale"] is False and v["prose"][0]["covers"] == ["b"], v)
-call("POST", "/v1/contexts/team/proj/sync",
-     {"changes": [{"key": "b.why", "block": "- **b.why** — changed", "op": "update"}], "version": 4}, token=own)
-c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
-check("prose: stale once its facts change", v["prose"][0]["stale"] is True, v)
-call("POST", "/v1/contexts/team/proj/sync",
-     {"changes": [], "version": 5,
-      "prose": {"overview": "<!-- covers: nothing-here -->\n## Overview"}}, token=own)
-c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
-ov = [p for p in v["prose"] if p["section"] == "overview"][0]
-check("prose: a covers line decides what it explains", ov["covers"] == ["nothing-here"] and ov["orphaned"], ov)
-c, s = call("GET", "/v1/contexts/team/proj", token=mem)
-check("prose: reading a context includes it, for clones", "b" in s.get("prose", {}), s)
-call("POST", "/v1/contexts/team/proj/sync", {"changes": [], "version": 5, "prose": {"overview": None}}, token=own)
-c, v = call("GET", "/v1/contexts/team/proj/view", token=own)
-check("prose: sending none deletes a section", [p["section"] for p in v["prose"]] == ["b"], v)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [], "version": 5, "prose": {"../etc": "x"}}, token=own)
-check("prose: section names are key prefixes", c == 400, s)
-
-# secrets: refused wherever they appear, and nothing from that sync is kept
+# secrets: refused at the door, and nothing from that push is kept
 fake_aws = "AKIA" + "ABCDEFGHIJKLMNOP"
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "aws.key", "block": f"- **aws.key** — {fake_aws}", "op": "add"}],
-             "version": 5, "journal": [{"id": "fedcba9876543210", "text": "fine"}]}, token=own)
-c2, v = call("GET", "/v1/contexts/team/proj/view", token=own)
-check("secrets: a fact holding a key is refused, with nothing kept",
-      c == 400 and "AWS access key" in s["error"] and "aws.key" not in v["facts"]
-      and len(v["journal"]) == 1, s)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [], "version": 5,
-             "journal": [{"id": "fedcba9876543210", "text": "token ghp_" + "a" * 36}]}, token=own)
-check("secrets: a journal entry holding a token is refused", c == 400 and "GitHub" in s["error"], s)
-c, s = call("POST", "/v1/contexts/team/proj/sync",
-            {"changes": [{"key": "auth.password", "block": "- **auth.password** — never stored in the repo; ask ops",
-                          "op": "add"}], "version": 5}, token=own)
+c, s = call("POST", "/v1/contexts/team/proj/push",
+            {"facts": f"- **c** — 3\n- **aws.key** — {fake_aws}\n", "version": 3}, token=own)
+c2, v = call("GET", "/v1/contexts/team/proj", token=own)
+check("secrets: a context holding a key is refused, with nothing kept",
+      c == 400 and "AWS access key" in s["error"] and "aws.key" not in v["facts"] and v["version"] == 3, s)
+c, s = call("POST", "/v1/contexts/team/proj/push",
+            {"facts": "- **gh** — token ghp_" + "a" * 36 + "\n", "version": 3}, token=own)
+check("secrets: a GitHub token is refused", c == 400 and "GitHub" in s["error"], s)
+c, s = call("POST", "/v1/contexts/team/proj/push",
+            {"facts": "- **c** — 3\n- **auth.password** — never in the repo; ask ops\n", "version": 3}, token=own)
 check("secrets: talking about passwords is fine", c == 200, s)
 c, s = call("POST", "/v1/contexts", {"name": "leaky", "org": "team",
                                       "facts": "-----BEGIN RSA PRIVATE KEY-----"}, token=own)
 check("secrets: a new context holding one is refused", c == 400, s)
 
-c, s = call("GET", "/v1/contexts/team/proj/view", token=ann)   # ann is in acme, not team
-check("view: members only", c == 403, s)
+c, s = call("POST", "/v1/contexts/team/proj/push", {"facts": "", "version": 4}, token=ann)  # ann is in acme
+check("push: members of the org only", c == 403, s)
+c, s = call("POST", "/v1/contexts/team/proj/sync", {"changes": [], "version": 4}, token=own)
+check("sync is gone", c == 404, s)
 
 print(f"\n{fails} failed")
 sys.exit(1 if fails else 0)

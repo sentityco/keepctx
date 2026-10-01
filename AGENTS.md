@@ -1,6 +1,6 @@
-# keepctx
+# KeepCTX
 
-Context management for AI agents and people. See `DESIGN.md` for why things are
+Keep your AI context across sessions, across AIs, across your team. See `DESIGN.md` for why things are
 the way they are; it is long, and the **Explicitly rejected** section is the
 useful half.
 
@@ -9,8 +9,8 @@ useful half.
 - **`src/keepctx.py` is one file, standard library only.** No dependencies. This is
   what makes the installer a `curl` and the code readable in one sitting.
 - **`server/handler.py` is one file, boto3 only (and only on Lambda)**, and is deliberately
-  model-free: storage, a keyed merge, version history. Nothing in it needs
-  inference, which is what keeps self-hosting plausible.
+  model-free: storage and version history; the merge happens in the CLI. Nothing
+  in it needs inference, which is what keeps self-hosting plausible.
 - **`server/serve.py` is the self-hosted server, standard library only.** It runs the
   same `handler.py` on SQLite and serves `web/` beside the API, so a self-hosted server
   is keepctx.com on one port. Anything added to the handler's storage calls has to work
