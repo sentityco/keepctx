@@ -31,8 +31,8 @@ AGENTS = "AGENTS.md"
 BEGIN = "<!-- ctx -->"
 END = "<!-- /ctx -->"
 
-# a fact line: "- **key** — value"  or  "- **key** → value"
-FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*(?P<rel>[—→-])\s*(?P<value>.*)$")
+# a fact line: "- **key** — value". Any dash or arrow is read; "—" is written.
+FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*[—→-]\s*(?P<value>.*)$")
 HEADING_RE = re.compile(r"^##\s+(?P<title>.+?)\s*$")
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -154,7 +154,7 @@ GENERIC = {
 
 # -------------------------------------------------------------------- facts
 #
-# A context is {full key: (rel, value)}, where the full key is
+# A context is {full key: value}, where the full key is
 # `category.key` — `environments.server-a.ip`. The file is that, rendered:
 # a heading per category, one line per fact. Continuation lines (indented
 # sub-lists) stay part of the value.
@@ -168,7 +168,7 @@ def parse(text):
             continue
         m = FACT_RE.match(line)
         if m:
-            key, rel = m.group("key").strip(), "→" if m.group("rel") == "→" else "—"
+            key = m.group("key").strip()
             if cat is None:                               # a file from before categories
                 prefix = key.split(".")[0]
                 c = LEGACY.get(prefix, "knowledge")
@@ -177,11 +177,10 @@ def parse(text):
                 full = f"{c}.{key}"
             else:
                 full = f"{cat}.{key}"
-            facts[full] = (rel, m.group("value").strip())
+            facts[full] = m.group("value").strip()
             last = full
         elif last and line.strip() and line[:1].isspace():
-            rel, value = facts[last]
-            facts[last] = (rel, value + "\n" + line.rstrip())
+            facts[last] += "\n" + line.rstrip()
         else:
             last = None
     return facts
@@ -192,9 +191,8 @@ def split_key(full):
     return cat, key
 
 
-def fact_line(full, fact):
-    rel, value = fact
-    return f"- **{split_key(full)[1]}** {rel} {value}"
+def fact_line(full, value):
+    return f"- **{split_key(full)[1]}** — {value}"
 
 
 def render(facts, template=True):
@@ -384,11 +382,8 @@ Keys are short and lowercase, `thing.property`: `server-a.ip`, `deploy.command`,
 `storage`. Reuse a key to change a fact — never add a second one for the same
 thing. Values are one line, written so a newcomer understands them.
 
-A value starting with `→` is a relationship, and relationships draw the
-architecture diagram people see:
-
 ```sh
-ctx remember architecture api.depends-on "→ auth-service, for session checks"
+ctx remember architecture api.depends-on "auth-service, for session checks"
 ctx remember decisions storage "SQLite: one file to back up, no database server"
 ctx remember decisions rejected.postgres "a server to run for a few megabytes of text"
 ctx remember questions tls "build TLS in, or leave it to a reverse proxy?"
@@ -652,17 +647,14 @@ def cmd_remember(argv):
         err("       remember where it is kept instead.")
         return 1
 
-    rel = "—"
-    if value.startswith(("→", "->")):
-        rel, value = "→", value.lstrip("→->").strip()
     full = f"{cat}.{key}"
     path = root / CTXDIR / cfg["name"] / FACTS
     facts = read_file(path)
     before = facts.get(full)
-    facts[full] = (rel, value)
+    facts[full] = value
     path.write_text(render(facts))
     verb = "remembered" if before is None else "unchanged" if before == facts[full] else "updated"
-    say(f"{verb} {full} {rel} {value}")
+    say(f"{verb} {full} — {value}")
     settle(cfg, full)
     return finish_write(root, cfg)
 

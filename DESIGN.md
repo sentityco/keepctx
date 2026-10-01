@@ -78,6 +78,11 @@ people and lists only `init`, `remote`, `clone` and `get`, plus one line saying 
 with `ctx ai`, so anyone can run it and see exactly what their agent is told. `ctx init`
 replaces an older pointer in place; nothing else in `AGENTS.md` is touched.
 
+**A fact is a key and a value, nothing more.** The `→` relationship syntax and the architecture
+diagram drawn from it were removed: a second kind of fact for the agent to choose between, for
+a picture nobody had asked to rely on. Old lines written with `→` are still read, and written
+back with `—`. Dependencies are ordinary facts under architecture.
+
 **When to sync.** The agent pulls and reads at the start of a session, and pushes once before
 finishing. In between, every `remember` and `forget` pushes by itself. That is two moments
 the agent has to remember, and nothing it can forget in the middle.

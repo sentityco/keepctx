@@ -252,9 +252,8 @@ async function createOrg() {
 }
 
 // ------------------------------------------------------------- human view
-// Drawn in the browser from the facts alone: a section per category, and an
-// architecture diagram from the → relationships. No model, no server
-// rendering, so a self-hosted server shows exactly the same page.
+// Drawn in the browser from the facts alone: a section per category. No
+// model, no server rendering, so a self-hosted server shows the same page.
 
 const FACT = /^\s*-\s+\*\*([^*]+)\*\*\s*([—→-])\s*(.*)$/;
 const HEADING = /^##\s+(.+?)\s*$/;
@@ -275,7 +274,7 @@ const CATEGORIES = [
 ];
 const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-// -> [{cat, key, rel, value, verified, more}]. A file from before categories
+// -> [{cat, key, value, verified, more}]. A file from before categories
 // has no headings; its facts show under Knowledge.
 function parseFacts(text) {
   const out = [];
@@ -288,7 +287,7 @@ function parseFacts(text) {
       let value = m[3];
       const verified = value.includes("`[verified]`");
       value = value.replace("`[verified]`", "").trim();
-      cur = { cat: cat || "knowledge", key: m[1].trim(), rel: m[2], value, verified, more: [] };
+      cur = { cat: cat || "knowledge", key: m[1].trim(), value, verified, more: [] };
       out.push(cur);
     } else if (cur && line.trim() && /^\s/.test(line)) {
       cur.more.push(line.trim().replace(/^[-*]\s+/, ""));
@@ -315,97 +314,12 @@ function factList(facts) {
   facts.forEach((f) => {
     const li = el("li");
     li.innerHTML = `<span class="fk">${esc(f.key)}</span>` +
-      `<span class="fr">${f.rel === "→" ? "→" : "—"}</span> ${inline(f.value)}` +
+      `<span class="fr">—</span> ${inline(f.value)}` +
       (f.verified ? ' <span class="ok-tag">verified</span>' : "") +
       (f.more.length ? "<ul>" + f.more.map((m) => `<li>${inline(m)}</li>`).join("") + "</ul>" : "");
     ul.appendChild(li);
   });
   return ul;
-}
-
-// The architecture, drawn from the → facts alone: each is an arrow from the
-// thing the key is about to what it names. Nothing to invent components with.
-function edgesOf(facts) {
-  return facts.filter((f) => f.rel === "→").map((f) => {
-    const [src, ...rest] = f.key.split(".");
-    const tgt = f.value.replace(/`/g, "").split(/,|;| \(| — | - /)[0].trim().slice(0, 40);
-    return { src, tgt, label: rest.join(".") };
-  }).filter((e) => e.tgt && e.src.toLowerCase() !== e.tgt.toLowerCase());
-}
-
-function diagram(edges) {
-  const NS = "http://www.w3.org/2000/svg";
-  const names = new Map();                      // lowercased -> as first written
-  edges.forEach((e) => [e.src, e.tgt].forEach((n) => { if (!names.has(n.toLowerCase())) names.set(n.toLowerCase(), n); }));
-  const ids = [...names.keys()];
-  const layer = Object.fromEntries(ids.map((i) => [i, 0]));
-  for (let pass = 0; pass < ids.length; pass++) {   // longest path; the cap ends cycles
-    let moved = false;
-    edges.forEach((e) => {
-      const s = e.src.toLowerCase(), t = e.tgt.toLowerCase();
-      if (layer[t] < layer[s] + 1 && layer[s] + 1 < ids.length) { layer[t] = layer[s] + 1; moved = true; }
-    });
-    if (!moved) break;
-  }
-  const cols = {};
-  ids.forEach((i) => { (cols[layer[i]] = cols[layer[i]] || []).push(i); });
-  // order each column by where its neighbours sit (barycentres), a few sweeps
-  // each way: the usual cheap fix for arrows crossing each other
-  const rank = {};
-  const setRanks = () => Object.values(cols).forEach((c) => c.forEach((i, r) => { rank[i] = r; }));
-  setRanks();
-  const nbrs = (i, dir) => edges.filter((e) => (dir > 0 ? e.tgt : e.src).toLowerCase() === i)
-    .map((e) => (dir > 0 ? e.src : e.tgt).toLowerCase());
-  const L = Object.keys(cols).map(Number).sort((a, b) => a - b);
-  for (let sweep = 0; sweep < 4; sweep++) {
-    const dir = sweep % 2 ? -1 : 1;
-    (dir > 0 ? L.slice(1) : L.slice(0, -1).reverse()).forEach((l) => {
-      const bary = (i) => { const n = nbrs(i, dir); return n.length ? n.reduce((s, x) => s + rank[x], 0) / n.length : rank[i]; };
-      cols[l].sort((a, b) => bary(a) - bary(b));
-      setRanks();
-    });
-  }
-  const W = 150, H = 38, CW = 225, RH = 72, PAD = 12;
-  const pos = {};
-  Object.entries(cols).forEach(([l, list]) => list.forEach((i, r) => { pos[i] = { x: PAD + l * CW, y: PAD + r * RH }; }));
-  const width = PAD * 2 + (Math.max(...Object.keys(cols).map(Number)) * CW) + W;
-  const height = PAD * 2 + (Math.max(...Object.values(cols).map((c) => c.length)) - 1) * RH + H;
-
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.setAttribute("width", width);
-  svg.setAttribute("class", "dg");
-  svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="dg-head"/></marker></defs>';
-  const add = (tag, attrs, text) => {
-    const n = document.createElementNS(NS, tag);
-    Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
-    if (text !== undefined) n.textContent = text;
-    svg.appendChild(n);
-    return n;
-  };
-  edges.forEach((e) => {
-    const a = pos[e.src.toLowerCase()], b = pos[e.tgt.toLowerCase()];
-    const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2;
-    const d = b.x > a.x
-      ? `M${x1} ${y1} C${x1 + 40} ${y1} ${x2 - 40} ${y2} ${x2} ${y2}`
-      : `M${a.x + W / 2} ${a.y + H} C${a.x + W / 2} ${a.y + H + 40} ${b.x + W / 2} ${b.y + H + 40} ${b.x + W / 2} ${b.y + H}`;
-    add("path", { d, class: "dg-edge", "marker-end": "url(#arr)" });
-    if (e.label) {
-      const mx = b.x > a.x ? (x1 + x2) / 2 : (a.x + b.x + W) / 2;
-      const my = b.x > a.x ? (y1 + y2) / 2 - 5 : Math.max(a.y, b.y) + H + 34;
-      add("text", { x: mx, y: my, class: "dg-label", "text-anchor": "middle" }, e.label);
-    }
-  });
-  ids.forEach((i) => {
-    const p = pos[i], full = names.get(i);
-    add("rect", { x: p.x, y: p.y, width: W, height: H, rx: 7, class: "dg-node" });
-    const t = add("text", { x: p.x + W / 2, y: p.y + H / 2 + 4.5, class: "dg-text", "text-anchor": "middle" },
-      full.length > 20 ? full.slice(0, 19) + "…" : full);
-    if (full.length > 20) { const tt = document.createElementNS(NS, "title"); tt.textContent = full; t.appendChild(tt); }
-  });
-  const wrap = el("div", "dg-wrap");
-  wrap.appendChild(svg);
-  return wrap;
 }
 
 function renderView(text) {
@@ -421,19 +335,13 @@ function renderView(text) {
   }
   const known = CATEGORIES.map((c) => c[0]);
   const extra = [...new Set(facts.map((f) => f.cat))].filter((c) => !known.includes(c)).sort();
-  const edges = edgesOf(facts);
   CATEGORIES.concat(extra.map((c) => [c, c, ""])).forEach(([cat, title, desc]) => {
     const list = facts.filter((f) => f.cat === cat);
-    const draw = cat === "architecture" && edges.length;
-    if (!list.length && !draw) return;
+    if (!list.length) return;
     const s = el("div", "vsec" + (cat === "questions" ? " open" : ""));
     s.appendChild(el("h3", "", title));
     if (desc) s.appendChild(el("p", "hint", desc));
-    if (draw) {
-      s.appendChild(diagram(edges));
-      s.appendChild(el("p", "hint", "Drawn from the → relationships in the facts, so it shows only what's recorded."));
-    }
-    if (list.length) s.appendChild(factList(list));
+    s.appendChild(factList(list));
     box.appendChild(s);
   });
 }

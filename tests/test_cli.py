@@ -77,11 +77,11 @@ check("ai: no context here says carry on", "carry on without it" in out, out)
 
 out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.12")
 check("remember: says what it kept", out.strip() == "KeepCTX: remembered environments.server-a.ip — 10.0.4.12", out)
-ctx(L, "remember", "architecture.api.depends-on", "→ auth-service, for sessions")
+ctx(L, "remember", "architecture.api.depends-on", "auth-service, for sessions")
 out = ctx(L, "get")
 check("get: facts appear under their category",
       "## Environments\n\n- **server-a.ip** — 10.0.4.12" in out, out)
-check("get: a → value is a relationship", "- **api.depends-on** → auth-service, for sessions" in out, out)
+check("get: the category.key form works too", "- **api.depends-on** — auth-service, for sessions" in out, out)
 check("get: empty categories are left out, and listed at the end",
       "## Testing" not in out and "Categories: overview" in out, out)
 out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.13")

@@ -111,13 +111,6 @@ font-size:14px;color:var(--dim);cursor:pointer}
 .fk{font-family:var(--mono);font-size:13px;font-weight:600}
 .fr{color:var(--dim);margin-left:6px}
 .ok-tag{font-size:11.5px;color:var(--ok);border:1px solid #bfe3cd;border-radius:10px;padding:1px 7px;margin-left:4px}
-.dg-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--soft);margin-bottom:6px}
-.dg{display:block;max-width:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-.dg-node{fill:#fff;stroke:#c9ced6}
-.dg-text{font-size:12.5px;fill:var(--ink)}
-.dg-edge{fill:none;stroke:#9aa3ae;stroke-width:1.3}
-.dg-head{fill:#9aa3ae}
-.dg-label{font-size:11px;fill:var(--dim);paint-order:stroke;stroke:var(--soft);stroke-width:4px}
 .raw{margin-top:22px}
 .raw summary{cursor:pointer;color:var(--dim);font-size:14px}
 /* the hidden attribute must win over any display rule (e.g. .inline-form's flex) */

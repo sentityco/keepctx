@@ -101,9 +101,8 @@ read-only reference that `ctx get` shows after the context's own facts.
 
 ## What people see
 
-Open a context in the console and it reads by category, each with its facts, and an
-architecture diagram drawn from the `→` relationship facts — so it shows only what's recorded.
-It's all drawn in the browser; the server stores text and never needs a model, so a
+Open a context in the console and it reads by category, each with its facts. It's all drawn
+in the browser; the server stores text and never needs a model, so a
 self-hosted server shows exactly the same page.
 
 ## Why not just commit it
@@ -133,9 +132,8 @@ Plain `ctx` lists only what people need — `init`, `remote`, `clone`, `get` —
 | `ctx pull` | bring in the latest and merge it, fact by fact |
 | `ctx push` | send what's here — done for you after every remember |
 
-A value starting with `→` is a relationship: `ctx remember architecture api.depends-on "→
-auth-service"`. The name of a context defaults to your directory, slugified; it only has to be
-unique when you run `ctx remote`.
+The name of a context defaults to your directory, slugified; it only has to be unique when
+you run `ctx remote`.
 
 ## Self-hosting
 
