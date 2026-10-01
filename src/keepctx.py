@@ -26,7 +26,6 @@ FACTS = "facts.md"
 BASE = ".base"           # the server's facts as of the last pull or push: the merge base
 REMOTE_DIR = "remote"    # what each pull downloaded, by version
 KEEP_REMOTE = 5
-INSTRUCTIONS = "instructions.md"
 AGENTS = "AGENTS.md"
 
 BEGIN = "<!-- ctx -->"
@@ -311,17 +310,29 @@ def api(cfg, method, path, body=None, token=None, allow=()):
 
 # -------------------------------------------------------------- instructions
 
-INSTRUCTIONS_TEXT = """# KeepCTX — instructions for the agent
+RULES = """# KeepCTX — how to work with this project's context
 
 This project's context is kept in KeepCTX: what it is, why, how it is built and
 run, what has been decided, and what is still open. It outlasts this session,
 and every AI and every person on the project reads the same facts. Use it, and
-keep it current as you work.
+keep it current as you work. The context itself is printed after these rules.
 
 Work through the `ctx` command only. Never edit the files in `{ctxdir}/` yourself.
 
 ## Every session
 {session}
+
+## Commands
+
+| Command | When |
+|---|---|
+| `ctx ai` | the start of every session — you just ran it |
+| `ctx get` | to read the whole context again |
+| `ctx get --remote` | to see the server's side of a conflict, as last pulled |
+| `ctx remember <category> <key> "<value>"` | the moment you learn something worth keeping |
+| `ctx forget <category> <key>` | when a fact is wrong, gone, or a question is settled |
+| `ctx pull` | now and then in a long session, to bring in what others learned |
+| `ctx push` | before you finish; `remember` and `forget` already push |
 
 ## Tell the user
 
@@ -385,26 +396,32 @@ ctx remember questions tls "build TLS in, or leave it to a reverse proxy?"
 """
 
 LOCAL_STEPS = """
-1. **`ctx get`** — read the whole context before you start.
+1. **You just ran `ctx ai`.** Everything known about this project is printed
+   below these rules. Read it before you start.
 2. **`ctx remember` as you learn** (see below).
 
 This context is local only, so there is nothing to pull or push. Once it is put
-on a server with `ctx remote`, these instructions gain the sync steps.
+on a server with `ctx remote`, `ctx ai` adds the sync steps.
 """
 
 REMOTE_STEPS = """
-1. **`ctx pull`, then `ctx get`.** Starts you from the latest the team knows.
-2. **`ctx remember` as you learn** (see below). Each one is pushed to the
-   server straight away; you don't push by hand.
-3. **If `ctx pull` reports a conflict** — a fact changed differently here and on
-   the server — compare `ctx get` with `ctx get --remote`, settle each listed
-   fact with `ctx remember` or `ctx forget`, then `ctx push`. Change nothing
-   else: every other fact was merged for you.
-4. **Before you finish, `ctx push`.** It does nothing when there is nothing new.
+1. **You just ran `ctx ai`.** It pulled the latest from the server and printed
+   it below these rules. Pass its `KeepCTX:` lines on to the user, then read the
+   context before you start.
+2. **`ctx remember` as you learn** (see below). Each one is pushed to the server
+   straight away; you don't push by hand.
+3. **If a pull reports a conflict** — a fact changed differently here and on the
+   server — compare `ctx get` with `ctx get --remote`, settle each listed fact
+   with `ctx remember` or `ctx forget`, then `ctx push`. Change nothing else:
+   every other fact was merged for you.
+4. **In a long session, `ctx pull` now and then** — after a break, or before a
+   big change — to pick up what teammates have learned since.
+5. **Before you finish, `ctx push`.** It does nothing when there is nothing new.
 """
 
 READONLY_STEPS = """
-1. **`ctx pull`, then `ctx get`.** Brings in and reads the latest version.
+1. **You just ran `ctx ai`.** It pulled the latest version and printed it below
+   these rules. Pass its `KeepCTX:` lines on to the user, then read it.
 2. **Don't change it.** Its owner and org admins maintain this context; it is
    read-only for this account. When you learn something it should say, tell
    the user, so they can pass it on to whoever maintains it.
@@ -414,36 +431,17 @@ the facts mean and what kind of thing is worth passing on.
 """
 
 
-def write_instructions(root, name, has_remote, readonly=False):
-    """ctx owns this file and the agent never writes it, so ctx keeps it current
-    — including on a later run, so an old setup does not keep stale rules."""
-    template = READONLY_STEPS if readonly else REMOTE_STEPS if has_remote else LOCAL_STEPS
+def rules(cfg):
+    """The agent's instructions, made fresh on every `ctx ai` from the installed
+    CLI — so they can never go stale, and upgrading is just reinstalling."""
+    steps = (READONLY_STEPS if cfg.get("readonly") else
+             REMOTE_STEPS if cfg.get("org") else LOCAL_STEPS)
     cats = "\n".join(f"- **{slug}** — {desc}" for slug, _, desc in CATEGORIES)
-    text = INSTRUCTIONS_TEXT.format(session=template.rstrip(), categories=cats, ctxdir=CTXDIR)
-    path = root / CTXDIR / INSTRUCTIONS
-    if path.exists() and path.read_text() == text:
-        return False
-    path.write_text(text)
-    return True
-
-
-def refresh_instructions():
-    """Every command brings instructions.md up to date, so upgrading keepctx is
-    just reinstalling it. Safe to do unasked: the file is gitignored and ctx owns
-    all of it. AGENTS.md is the opposite on both counts, so it is never touched."""
-    root = find_root()
-    if not root:
-        return False
-    cfg = load_config(root)
-    if not cfg.get("name"):
-        return False
-    return write_instructions(root, cfg["name"], has_remote=bool(cfg.get("org")),
-                              readonly=bool(cfg.get("readonly")))
+    return RULES.format(session=steps.rstrip(), categories=cats, ctxdir=CTXDIR)
 
 
 def reread(tty=None):
-    """One line. The rules live in AGENTS.md -> instructions.md; duplicating them
-    in command output only creates a second copy to keep in step."""
+    """One line, after AGENTS.md gains or changes its pointer."""
     tty = sys.stdout.isatty() if tty is None else tty
     if tty:
         return "Tell your AI to re-read AGENTS.md."
@@ -454,22 +452,30 @@ def reread(tty=None):
 
 POINTER = (
     f"{BEGIN}\n"
-    f"This project's AI context is kept in KeepCTX: read `{CTXDIR}/{INSTRUCTIONS}` first.\n"
-    f"No `{CTXDIR}/`? Carry on without it, and don't flag it: it is gitignored, so it may not\n"
-    f"be cloned here yet, or it was removed on purpose. To set it up, install ctx\n"
-    f"(https://keepctx.com), then `ctx clone <org>:<name>` — or `ctx init` for a new one.\n"
+    f"This project's AI context is kept in KeepCTX. Start every session by running `ctx ai`:\n"
+    f"it prints how to work with the context, then everything in it.\n"
+    f"No `ctx` command, or no `{CTXDIR}/` here? Carry on without it, and don't flag it — it may\n"
+    f"not be set up on this machine. To set it up, install ctx (https://keepctx.com), then\n"
+    f"`ctx clone <org>:<name>`, or `ctx init` for a new one.\n"
     f"{END}\n"
 )
 
 
 def write_pointer(root):
-    """Written once, at the top, and never again. AGENTS.md is the developer's
-    file and it is in git: rewriting it later is a diff nobody asked for, and a
-    teammate on an older ctx would write the old wording straight back."""
+    """The pointer goes at the top of AGENTS.md, and nothing else in the file is
+    touched. An older pointer is replaced. -> True if the file changed."""
     agents = root / AGENTS
     existing = agents.read_text() if agents.exists() else ""
-    if BEGIN not in existing:
-        agents.write_text(POINTER + ("\n" + existing if existing else ""))
+    if BEGIN in existing and END in existing:
+        start = existing.index(BEGIN)
+        end = existing.index(END, start) + len(END)
+        updated = existing[:start] + POINTER.rstrip("\n") + existing[end:]
+    else:
+        updated = POINTER + ("\n" + existing if existing else "")
+    if updated == existing:
+        return False
+    agents.write_text(updated)
+    return True
 
 
 # ------------------------------------------------------------------ commands
@@ -486,7 +492,7 @@ def here_or_fail():
     return root, cfg
 
 
-def cmd_init(argv, refreshed=False):
+def cmd_init(argv):
     here = pathlib.Path.cwd().resolve()
     if CTXDIR in here.parts:
         err(f"error: {here} is inside KeepCTX's own {CTXDIR}/ directory.")
@@ -502,11 +508,9 @@ def cmd_init(argv, refreshed=False):
             print(f"Already initialized `{cfg.get('name', '?')}` here.")
             print()
         cmd_status()
-        # nothing an agent reads changed, unless the rules just got updated
-        if refreshed:
+        if write_pointer(found):
             print()
-            tty = sys.stdout.isatty()
-            print(("KeepCTX's rules for your agent were updated. " if tty else "") + reread())
+            print(reread())
         return 0
 
     # A context further up is no obstacle: contexts are independent, so this
@@ -521,7 +525,6 @@ def cmd_init(argv, refreshed=False):
     (ctxdir / ".gitignore").write_text("*\n")
 
     facts_rel = f"{CTXDIR}/{name}/{FACTS}"
-    write_instructions(root, name, has_remote=False)
 
     facts = ctxdir / name / FACTS
     facts.write_text(render(read_file(facts)))
@@ -533,13 +536,33 @@ def cmd_init(argv, refreshed=False):
     write_pointer(root)
 
     print(f"Initialized `{name}`")
-    w = max(len(facts_rel), len(f"{CTXDIR}/{INSTRUCTIONS}"), len(AGENTS))
+    w = max(len(facts_rel), len(AGENTS))
     print(f"  {facts_rel:<{w}}  your facts")
-    print(f"  {CTXDIR}/{INSTRUCTIONS:<{w - len(CTXDIR) - 1}}  how the agent keeps them")
-    print(f"  {AGENTS:<{w}}  pointer added at the top")
+    print(f"  {AGENTS:<{w}}  pointer at the top: your AI starts with `ctx ai`")
     print()
     print(reread())
     return 0
+
+
+def cmd_ai(argv):
+    """Where an agent starts, named in AGENTS.md: pull when there is a server,
+    then the rules, then the whole context — one command for the whole start."""
+    root = find_root()
+    cfg = load_config(root) if root else {}
+    if not cfg.get("name"):
+        say("no context here — carry on without it.")
+        return 0
+    try:
+        if cfg.get("org"):
+            pull_own(root, cfg)
+        for name, org in sorted((cfg.get("clones") or {}).items()):
+            pull_clone(root, cfg, org, name)
+    except SystemExit as e:           # offline, or signed out: work from what's here
+        say(f"couldn't pull ({str(e).removeprefix('ctx: ')}) — working from the local copy")
+    save_config(root, cfg)
+    print()
+    print(rules(cfg))
+    return cmd_get([])
 
 
 def cmd_get(argv):
@@ -918,8 +941,6 @@ def cmd_remote(argv):
     save_config(root, cfg)
     (root / CTXDIR / name / FACTS).write_text(facts)
     (root / CTXDIR / name / BASE).write_text(facts)
-    write_instructions(root, name, has_remote=True)
-
     say(f"pushed {len(parse(facts))} facts to {remote} (v{made['version']})")
     print(f"{org}:{name} is live. Others can `ctx clone {org}:{name}`")
     return 0
@@ -973,7 +994,6 @@ def cmd_clone(argv):
         cfg.update({"name": name, "org": org, "version": got["version"], "readonly": readonly,
                     "conflicts": []})
         save_config(root, cfg)
-        write_instructions(root, name, has_remote=True, readonly=readonly)
         write_pointer(root)
         print(f"Cloned {org}:{name} ({len(parse(facts))} facts)")
         if readonly:
@@ -1035,33 +1055,25 @@ def agent_index(root):
         count = len(read_file(r / CTXDIR / n / FACTS))
         tag = "" if kind == "own" else ", read-only"
         bits.append(f"{n} ({count} facts{tag})")
-    print("Contexts: " + ", ".join(bits) + ". Read them with `ctx get`.")
+    print("Contexts: " + ", ".join(bits) + ". Start with `ctx ai`.")
     return 0
 
 
 def usage():
-    print("KeepCTX — keep your AI context across sessions, across AIs, across your team")
+    """For people. The agent's commands and rules come from `ctx ai`."""
+    print("KeepCTX — keep one context. Every session, every AI, every teammate.")
     print()
-    print("  ctx                              Show status")
-    print("  ctx init [name]                  Set up here — local, no account, no network")
-    print("  ctx get [--remote]               Print the whole context (or the last pulled copy)")
-    print('  ctx remember <category> <key> "<value>"')
-    print("                                   Add or replace a fact")
-    print("  ctx forget <category> <key>      Remove a fact")
-    print("  ctx remote [server]              Put this on a server — shares it and backs it up")
-    print("  ctx clone <org>:<name> [server]  Bring a context here from a server")
-    print("  ctx pull                         Bring in the latest and merge it, fact by fact")
-    print("  ctx push                         Send what's here")
+    print("  ctx init [name]                  set up here — local, no account, no network")
+    print("  ctx remote [server]              share it on a server (keepctx.com unless you name one)")
+    print("  ctx clone <org>:<name> [server]  bring a shared context here")
+    print("  ctx get                          see everything in it")
     print()
-    print("Categories: " + ", ".join(CATEGORY))
-    print()
-    print("Everything works locally without an account. The server is keepctx.com")
-    print("unless you name your own: ctx remote https://keepctx.example.com")
+    print("Your AI starts with `ctx ai` — run it yourself to see what it's told.")
     return 0
 
 
 COMMANDS = {
-    "get": cmd_get, "remember": cmd_remember, "forget": cmd_forget,
+    "ai": cmd_ai, "get": cmd_get, "remember": cmd_remember, "forget": cmd_forget,
     "pull": cmd_pull, "push": cmd_push, "remote": cmd_remote, "clone": cmd_clone,
 }
 
@@ -1074,14 +1086,13 @@ def main():
     if cmd in ("-v", "--version"):
         print(f"keepctx {VERSION}")
         return 0
-    refreshed = refresh_instructions()
     if cmd == "init":
-        return cmd_init(argv[1:], refreshed)
+        return cmd_init(argv[1:])
     if cmd in COMMANDS:
         return COMMANDS[cmd](argv[1:])
     if cmd == "sync":
         err("error: `ctx sync` is now `ctx pull` and `ctx push` — and `ctx remember`")
-        err("       pushes by itself. Re-read AGENTS.md for the new steps.")
+        err("       pushes by itself. Run `ctx ai` for how it all works.")
         return 1
     if not argv:
         return cmd_status(with_usage=True)

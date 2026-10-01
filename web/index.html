@@ -172,16 +172,16 @@ ctx init
 
 <span class="c">Initialized `example-project`</span>
 <span class="c">  .ctx/example-project/facts.md  your facts</span>
-<span class="c">  .ctx/instructions.md           how the agent keeps them</span>
-<span class="c">  AGENTS.md                      pointer added at the top</span>
+<span class="c">  AGENTS.md                      pointer at the top: your AI starts with `ctx ai`</span>
 
 <span class="c">Tell your AI to re-read AGENTS.md.</span></code></pre>
     </li>
     <li>
       <h3>Work</h3>
-      <p>Your agent reads <code>.ctx/instructions.md</code>, learns the rules, and starts
-      remembering what matters &mdash; goals, decisions, how things run, what's still open.
-      Nothing else to do.</p>
+      <p>The pointer tells your agent to start every session with <code>ctx ai</code>, which
+      prints the rules and then the whole context. From there it remembers what matters &mdash;
+      goals, decisions, how things run, what's still open. Nothing else to do. Run
+      <code>ctx ai</code> yourself any time to see exactly what your agent is told.</p>
     </li>
     <li>
       <h3>Share it, when you want to</h3>
@@ -201,10 +201,13 @@ ctx pull     <span class="c"># the agent runs this at the start of every session
   </ol>
 
   <h3>The commands, all of them</h3>
-  <p class="sub">Shown as <code>ctx</code>; <code>keepctx</code> works the same everywhere.</p>
+  <p class="sub">Shown as <code>ctx</code>; <code>keepctx</code> works the same everywhere. Plain
+  <code>ctx</code> lists only the ones people need; your agent learns the rest from
+  <code>ctx ai</code>.</p>
   <table>
     <tr><th><code>ctx</code></th><td>status</td></tr>
     <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
+    <tr><th><code>ctx ai</code></th><td>where your agent starts every session: pulls, then prints the rules and the whole context</td></tr>
     <tr><th><code>ctx get [--remote]</code></th><td>print the whole context &mdash; or the copy the last pull downloaded</td></tr>
     <tr><th><code>ctx remember &lt;category&gt; &lt;key&gt; "&lt;value&gt;"</code></th><td>add a fact, or replace it</td></tr>
     <tr><th><code>ctx forget &lt;category&gt; &lt;key&gt;</code></th><td>remove a fact</td></tr>

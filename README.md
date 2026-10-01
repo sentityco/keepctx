@@ -35,7 +35,9 @@ Every line starting with `KeepCTX:` is passed on to you by the agent, so you alw
 kept and synced.
 
 `AGENTS.md` is only the doorway. `ctx init` adds a short pointer to the top of it — the file
-Claude Code, Codex and most other agents already read — and the pointer sends them to KeepCTX.
+Claude Code, Codex and most other agents already read — telling the agent to start every
+session with `ctx ai`. That one command pulls the latest, prints the rules, and prints the
+whole context.
 **Nothing you wrote there is touched.** Switch tools and nothing is lost. To uninstall, delete
 `.ctx/`; the pointer can stay, since it tells agents to carry on when `.ctx/` is missing.
 
@@ -66,7 +68,8 @@ It isn't only for code. An investing context holds your thesis, sizing rules and
 ruled out; a book's holds characters, voice and what's canon; a business's holds customers,
 pricing and tone. Anything you keep re-explaining to an AI is a context.
 
-The agent's rules live in `.ctx/instructions.md`, which `ctx` writes and keeps current.
+The agent's rules come from `ctx ai`, made fresh by the installed CLI every time, so they
+never go stale. Run it yourself to see exactly what your agent is told.
 
 ## Sharing, pulling and pushing
 
@@ -114,10 +117,14 @@ not git exists yet, and keeps working if you run `git init` next week.
 
 ## Commands
 
+Plain `ctx` lists only what people need — `init`, `remote`, `clone`, `get` — and points at
+`ctx ai`, where the agent learns the rest.
+
 | | |
 |---|---|
 | `ctx` | status |
 | `ctx init [name]` | set up here. local, no account, no network |
+| `ctx ai` | where your agent starts every session: pulls, then prints the rules and the context |
 | `ctx get [--remote]` | print the whole context — or the copy the last pull downloaded |
 | `ctx remember <category> <key> "<value>"` | add a fact, or replace it |
 | `ctx forget <category> <key>` | remove a fact |

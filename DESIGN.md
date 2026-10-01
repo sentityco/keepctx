@@ -69,6 +69,15 @@ rest land in knowledge.
   drops or rewrites a fact. A three-way merge does the routine part exactly; only a true
   conflict needs judgment.
 
+**`ctx ai` is where the agent starts, and the only command `AGENTS.md` names.** It pulls when
+there is a server, prints the rules, then prints the whole context — the session start in one
+command. The rules are made fresh by the installed CLI on every run, so `.ctx/instructions.md`
+is gone, along with the machinery that kept it current; upgrading is reinstalling. If it can't
+pull — offline, signed out — it says so and works from the local copy. Plain `ctx` is for
+people and lists only `init`, `remote`, `clone` and `get`, plus one line saying the AI starts
+with `ctx ai`, so anyone can run it and see exactly what their agent is told. `ctx init`
+replaces an older pointer in place; nothing else in `AGENTS.md` is touched.
+
 **When to sync.** The agent pulls and reads at the start of a session, and pushes once before
 finishing. In between, every `remember` and `forget` pushes by itself. That is two moments
 the agent has to remember, and nothing it can forget in the middle.
