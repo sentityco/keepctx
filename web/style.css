@@ -13,7 +13,6 @@ pre{background:#14161a;color:#e6e9ef;padding:16px 18px;border-radius:8px;
 overflow-x:auto;font-size:13.5px;line-height:1.6}
 pre code{background:none;padding:0;color:inherit;font-size:inherit}
 pre .c{color:#8a94a6}
-pre .k{color:#7ee0a2}
 
 header{border-bottom:1px solid var(--line);position:sticky;top:0;background:#fffe;backdrop-filter:blur(6px);z-index:10}
 header .wrap{display:flex;align-items:center;gap:22px;height:58px}
@@ -39,86 +38,10 @@ h3{font-size:16px;margin:26px 0 8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
 .card h3{margin:0 0 6px;font-size:16px}
 .card p{margin:0;color:var(--dim);font-size:14.5px}
-.steps{counter-reset:s;padding:0;list-style:none;margin:0}
-.steps li{counter-increment:s;margin-bottom:26px;padding-left:38px;position:relative}
-.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:25px;height:25px;
-border-radius:50%;background:var(--soft);border:1px solid var(--line);
-display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--dim)}
-.steps h3{margin:0 0 7px}
-.steps p{margin:0 0 10px;color:var(--dim);font-size:14.5px}
 table{border-collapse:collapse;width:100%;font-size:14.5px}
 th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-weight:600;white-space:nowrap}
 td code{white-space:nowrap}
 footer{padding:34px 0;color:var(--dim);font-size:14px}
 footer a{color:var(--dim)}
-
-/* app */
-.panel{max-width:400px;margin:64px auto;border:1px solid var(--line);border-radius:10px;padding:28px}
-.panel h2{font-size:20px;margin:0 0 4px}
-.panel .sub{font-size:14px;margin-bottom:20px}
-label{display:block;font-size:13px;font-weight:600;margin:14px 0 5px}
-input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;
-font-size:15px;font-family:inherit;background:#fff;color:var(--ink)}
-input:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
-.hint{font-size:12.5px;color:var(--dim);margin-top:5px}
-.panel .btn{width:100%;margin-top:20px;text-align:center}
-.switch{text-align:center;font-size:14px;margin-top:16px;color:var(--dim)}
-.msg{padding:10px 12px;border-radius:7px;font-size:14px;margin-top:16px;display:none}
-.msg.bad{background:#fdf0f0;color:#962020;display:block}
-.msg.good{background:#eef8f1;color:var(--ok);display:block}
-.bar{display:flex;align-items:center;gap:14px;padding:20px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.bar h2{margin:0}
-.tag{font-family:var(--mono);font-size:12.5px;background:var(--soft);
-border:1px solid var(--line);padding:3px 9px;border-radius:20px;color:var(--dim)}
-.right{margin-left:auto;display:flex;gap:10px;align-items:center}
-.ctx-row{display:flex;gap:14px;align-items:baseline;padding:15px 0;border-bottom:1px solid var(--line)}
-.ctx-row .nm{font-family:var(--mono);font-weight:600;font-size:15px}
-.ctx-row .meta{color:var(--dim);font-size:13.5px;margin-left:auto;white-space:nowrap}
-.empty{padding:50px 0;text-align:center;color:var(--dim)}
-.facts{background:var(--soft);border:1px solid var(--line);border-radius:8px;
-padding:14px 16px;margin-top:14px;font-family:var(--mono);font-size:13px;
-white-space:pre-wrap;line-height:1.7;max-height:400px;overflow:auto}
-.vrow{display:flex;gap:12px;font-size:13.5px;padding:8px 0;border-bottom:1px solid var(--line);align-items:baseline}
-.vrow .v{font-family:var(--mono);color:var(--dim);width:42px}
-.vrow .by{color:var(--dim);margin-left:auto}
-.link-btn{background:none;border:0;color:var(--acc);cursor:pointer;font-size:13.5px;padding:0;font-family:inherit}
-.link-btn:hover{text-decoration:underline}
 @media(max-width:620px){h1{font-size:31px}.hero{padding:52px 0 44px}header nav a:nth-child(-n+2){display:none}}
-select{padding:9px 34px 9px 12px;border:1px solid var(--line);border-radius:7px;font-size:14px;
-font-family:inherit;color:var(--ink);cursor:pointer;-webkit-appearance:none;appearance:none;
-background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center}
-.panel h3{font-size:15px;margin:24px 0 4px}
-.inline-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 0}
-.inline-form input{flex:1;min-width:200px;width:auto}
-.inline-form .msg{flex-basis:100%;margin-top:0}
-#people{margin-top:34px}
-.mrow{display:flex;gap:12px;align-items:baseline;font-size:14px;padding:10px 0;border-bottom:1px solid var(--line)}
-.mrow .em{font-family:var(--mono);font-size:13.5px}
-.mrow .right{font-size:13px;color:var(--dim)}
-.seg{display:flex;border:1px solid var(--line);border-radius:8px;padding:3px;gap:3px;margin:4px 0 6px}
-.seg button{flex:1;background:none;border:0;border-radius:6px;padding:8px 10px;font:inherit;
-font-size:14px;color:var(--dim);cursor:pointer}
-.seg button[aria-selected="true"]{background:var(--soft);color:var(--ink);font-weight:600}
-#pane-join .facts{margin:8px 0}
-/* the human view of a context */
-.vsec{padding:22px 0 8px;border-bottom:1px solid var(--line)}
-.vsec h3{margin:0 0 2px;font-size:18px;letter-spacing:-.2px}
-.vsec.open h3::after{content:" — undecided";color:var(--warn);font-weight:500;font-size:14px}
-.flist{list-style:none;padding:0;margin:0 0 12px;font-size:14.5px}
-.flist>li{padding:7px 0;border-top:1px solid var(--soft)}
-.flist ul{margin:4px 0 0;padding-left:20px;color:var(--dim)}
-.fk{font-family:var(--mono);font-size:13px;font-weight:600}
-.fr{color:var(--dim);margin-left:6px}
-.flist>li{display:flex;gap:8px;align-items:baseline}
-.flist>li>span:first-child{flex:1}
-.ftools{display:flex;gap:10px;opacity:.55}
-.flist>li:hover .ftools{opacity:1}
-.finput{flex:1;padding:5px 8px;font-size:14px}
-.addfact{margin-top:18px}
-.addfact select{width:auto}
-.ok-tag{font-size:11.5px;color:var(--ok);border:1px solid #bfe3cd;border-radius:10px;padding:1px 7px;margin-left:4px}
-.raw{margin-top:22px}
-.raw summary{cursor:pointer;color:var(--dim);font-size:14px}
-/* the hidden attribute must win over any display rule (e.g. .inline-form's flex) */
-[hidden]{display:none!important}

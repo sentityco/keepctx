@@ -64,10 +64,8 @@ when they pull. History, review and revert work as they do for everything else.
 ## Contributing
 
 `src/keepctx.py` is the whole tool: one file, standard library only. The template and the
-rules in it are the product, so changes to them matter most.
-
-`server/` and `web/app.*` hold a sync server from an earlier version. It's paused; the CLI
-doesn't use it.
+rules in it are the product, so changes to them matter most. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md), and [`DESIGN.md`](DESIGN.md) for why it's this simple.
 
 ## License
 

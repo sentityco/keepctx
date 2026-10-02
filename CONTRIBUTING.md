@@ -2,53 +2,29 @@
 
 ## The shape of the thing
 
-- `src/keepctx.py` — the whole client. One file, standard library only.
-- `server/handler.py` — the whole server. One file, boto3 only.
-- `web/` — landing page and the org app. No build step, no framework.
-- `DESIGN.md` — why things are the way they are.
+- `src/keepctx.py` — the whole tool: `ctx init`, the template and its rules. One file,
+  standard library only.
+- `install.sh` — the `curl … | sh` installer.
+- `web/` — the landing page at keepctx.com. No build step, no framework.
+- `DESIGN.md` — why it is the way it is, and what was tried and dropped.
 
-The single-file, zero-dependency constraint is deliberate. It's what makes the installer a
-`curl`, self-hosting plausible, and the code readable in one sitting. A pull request that
-adds a dependency needs to argue for it.
+**The template and its rules are the product.** Most useful changes are to their wording: what
+an agent should keep, how it should keep it, and what it should never write down.
+
+Keep it simple. Nothing may depend on KeepCTX being installed — anyone who clones a repo must
+be able to read and keep the context with no tool at all. A pull request that adds a command,
+a dependency or a server needs to argue for it against `DESIGN.md`.
 
 ## Running it
 
 ```sh
-python3 src/keepctx.py init        # no install needed
-CTX_REMOTE=http://localhost:8000 python3 src/keepctx.py sync
+python3 src/keepctx.py init      # in any directory; no install needed
 ```
 
 ## Tests
 
 ```sh
-python3 tests/test_server.py
 python3 tests/test_cli.py
 ```
 
-Neither needs AWS or a network: `tests/fakes.py` stands in for DynamoDB and serves the real
-handler locally. Add a check for anything you change.
-
-## Before you open a PR
-
-Read the **Explicitly rejected** section of `DESIGN.md` first. Several reasonable-sounding
-ideas have already been tried and discarded — scoring users, a server-side AI that judges
-whether a change is good enough, keyed JSON claims with supersede pointers, prose alongside
-the facts. Each entry records why, and the reasoning is usually the load-bearing part.
-
-If you want to reopen one, that's legitimate — argue against the recorded reasoning rather
-than around it.
-
-## Things that would genuinely help
-
-- **Homebrew formula and release automation.** Currently there's an install script and
-  nothing else.
-- **A static binary.** Python is the right thing to prototype in and the wrong thing to
-  hand to strangers. See *Language is a distribution decision* in `DESIGN.md`.
-- **The HTML render of a context.** Facts are a reference document; the mechanical render
-  is grouping plus markdown-to-HTML and needs no model.
-- **More tests.** The server and the CLI's main flows are covered; the web app isn't.
-
-## Style
-
-Match what's there. Comments explain *why*, not *what*. If a behaviour is surprising, the
-comment should say what it would otherwise look like a bug for.
+Add a check for anything you change.
