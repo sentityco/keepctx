@@ -2,10 +2,10 @@
 
 ## What it is
 
-A convention, and a one-command setup for it. `ctx init` creates `.ctx/context.md` — a plain
+A convention, and a one-command setup for it. `ctx init` creates `KEEPCTX.md` — a plain
 Markdown file with the rules for keeping it at the top and a heading per category — and adds
 a pointer to the top of `AGENTS.md` telling agents to read it at the start of every session
-and keep it current. That's the whole product.
+and keep it current, or carry on if it's missing. That's the whole product.
 
 ## Decisions
 
@@ -17,6 +17,13 @@ file directly, and the rules travel inside it. The CLI only sets it up.
 holds instructions people write. KeepCTX adds one pointer block there and touches nothing
 else; the context itself lives in its own file. Running `ctx init` again replaces an older
 pointer in place.
+
+**One file at the root, named for what it is.** `KEEPCTX.md` sits beside `AGENTS.md` and
+`README.md`, where people and agents see it. An earlier version kept it in `.ctx/context.md`;
+one file doesn't need a folder, and `ctx init` moves the old one across.
+
+**If it's missing, carry on.** The pointer says so, so an agent never hunts for the file or
+stops when someone has removed it or copied `AGENTS.md` without it.
 
 **One Markdown file, one fact per line.** `- **key** — value`, under one of eleven headings:
 Overview, Requirements, Architecture, Environments, Decisions, Questions, Conventions,
@@ -32,7 +39,7 @@ what the user puts off the record.
 **Tell the person.** The rules ask the agent to say in one line whenever it changes the file:
 `KeepCTX: added to Decisions — storage: SQLite`.
 
-**Shared through git, optionally.** Committing `.ctx/` gives teammates and their agents the same
+**Shared through git, optionally.** Committing `KEEPCTX.md` gives teammates and their agents the same
 context, with history, review and revert. Git merges it like any other file; the one common
 conflict — two people adding a fact at the same spot — is answered in the rules: keep both.
 

@@ -29,7 +29,7 @@ every session, and keep it current as you work, by these rules.**
 ## Overview
 _What this is, why it exists, who it's for, and what success looks like._
 
-- **what** — a convention plus one command: `ctx init` creates `.ctx/context.md`, a Markdown file of facts with its rules at the top, and points `AGENTS.md` at it
+- **what** — a convention plus one command: `ctx init` creates `KEEPCTX.md`, a Markdown file of facts with its rules at the top, and points `AGENTS.md` at it
 - **users** — anyone working with AI agents on a project, alone or with a team; not only code
 - **tagline** — Keep one context. Every session, every AI, every teammate.
 
@@ -58,6 +58,7 @@ _What was chosen and why, and what was considered and rejected._
 
 - **simple** — the product is the file and its rules; the CLI only sets it up, because it must work for people who never installed it
 - **markdown** — every agent and person can read and edit it with nothing installed, and it renders on GitHub
+- **one-file** — `KEEPCTX.md` at the project root, not a folder; the pointer says to carry on if it's missing
 - **no-gitattributes** — merge conflicts in the file are rare, and the rules say what to do: keep both
 - **rejected.server** — a sync server, accounts and console: most of the code, and needed the tool everywhere (tagged `server-archive`)
 - **rejected.agent-commands** — `ctx ai` / `remember` / `forget` / `pull` / `push`: an agent without KeepCTX installed couldn't use them

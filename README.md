@@ -11,19 +11,20 @@ reads them back at the start of every session.
 curl -fsSL https://keepctx.com/install.sh | sh
 cd ~/work/your-project && ctx init
 
-# optional: commit .ctx/ so teammates and their AI agents see and update the context too
-git add .ctx AGENTS.md && git commit -m "Add KeepCTX"
+# optional: commit KEEPCTX.md so teammates and their AI agents see and update the context too
+git add KEEPCTX.md AGENTS.md && git commit -m "Add KeepCTX"
 ```
 
 That's all. Open source, no account, no server.
 
 ## What `ctx init` does
 
-1. Creates **`.ctx/context.md`** — a plain Markdown file with a heading per category, and the
-   rules for keeping it at the top.
+1. Creates **`KEEPCTX.md`** in your project — a plain Markdown file with a heading per
+   category, and the rules for keeping it at the top.
 2. Adds a short pointer to the top of **`AGENTS.md`**, the file Claude Code, Codex and most
-   other agents already read: *read `.ctx/context.md` at the start of every session, and keep
-   it current.* Nothing else in `AGENTS.md` is touched.
+   other agents already read: *read `KEEPCTX.md` at the start of every session and keep it
+   current; if it's missing, ignore this and carry on.* Nothing else in `AGENTS.md` is
+   touched.
 
 From then on your AI reads and edits the file like any other. **Nobody needs KeepCTX
 installed** — not your teammates, not their agents. The rules travel inside the file.

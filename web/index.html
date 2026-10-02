@@ -54,14 +54,14 @@
     </div>
     <div class="card">
       <h3>Simple and open</h3>
-      <p>One command to set up. Open source. Uninstalling is deleting <code>.ctx/</code>.</p>
+      <p>One command to set up. Open source. Uninstalling is deleting <code>KEEPCTX.md</code>.</p>
     </div>
   </div>
 </div></section>
 
 <section id="how"><div class="wrap">
   <h2>How it works</h2>
-  <p class="sub"><code>ctx init</code> creates <code>.ctx/context.md</code> and adds a short
+  <p class="sub"><code>ctx init</code> creates <code>KEEPCTX.md</code> and adds a short
   pointer to <code>AGENTS.md</code>. Your AI reads the file at the start of every session and
   adds to it as it learns &mdash; one fact per line, under the right heading. When it does, it
   tells you:</p>
@@ -104,8 +104,8 @@
 cd ~/work/your-project
 ctx init
 
-<span class="c"># optional: commit .ctx/ so teammates and their AI agents see and update the context too</span>
-git add .ctx AGENTS.md && git commit -m "Add KeepCTX"</code></pre>
+<span class="c"># optional: commit KEEPCTX.md so teammates and their AI agents see and update the context too</span>
+git add KEEPCTX.md AGENTS.md && git commit -m "Add KeepCTX"</code></pre>
   <p class="sub" style="margin-top:18px">Then start a new AI session. That's all &mdash; there
   are no other commands.</p>
 </div></section>

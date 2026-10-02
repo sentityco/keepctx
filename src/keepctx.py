@@ -2,7 +2,7 @@
 """keepctx — keep one context. Every session, every AI, every teammate.
 
 Installed as `keepctx`, with `ctx` as a short alias. It does one thing:
-`ctx init` creates `.ctx/context.md` — a plain Markdown file of facts, with the
+`ctx init` creates `KEEPCTX.md` — a plain Markdown file of facts, with the
 rules for keeping it at the top — and points AGENTS.md at it. After that,
 nobody needs KeepCTX installed: agents read and edit the file like any other,
 and it's shared through git with the rest of the code.
@@ -10,13 +10,14 @@ and it's shared through git with the rest of the code.
 import pathlib
 import sys
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
-CTXDIR = ".ctx"
-CONTEXT = "context.md"
+CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
-BEGIN = "<!-- ctx -->"
-END = "<!-- /ctx -->"
+BEGIN = "<!-- KeepCTX -->"
+END = "<!-- /KeepCTX -->"
+OLD_MARKERS = [("<!-- ctx -->", "<!-- /ctx -->")]      # earlier versions' pointer
+OLD_CONTEXT = pathlib.Path(".ctx") / "context.md"      # where 0.5 kept the file
 
 CATEGORIES = [
     ("Overview", "What this is, why it exists, who it's for, and what success looks like."),
@@ -69,8 +70,9 @@ def template():
 
 POINTER = (
     f"{BEGIN}\n"
-    f"This project's context is kept in `{CTXDIR}/{CONTEXT}`. Read it at the start of every\n"
-    f"session, and keep it current as the rules at its top say.\n"
+    f"This project's context is kept in `{CONTEXT}`. Read it at the start of every session,\n"
+    f"and keep it current as the rules at its top say. If `{CONTEXT}` is missing, ignore\n"
+    f"this and carry on.\n"
     f"{END}\n"
 )
 
@@ -80,10 +82,12 @@ def write_pointer(root):
     is replaced. -> True if the file changed."""
     agents = root / AGENTS
     existing = agents.read_text() if agents.exists() else ""
-    if BEGIN in existing and END in existing:
-        start = existing.index(BEGIN)
-        end = existing.index(END, start) + len(END)
-        updated = existing[:start] + POINTER.rstrip("\n") + existing[end:]
+    for begin, end in [(BEGIN, END)] + OLD_MARKERS:
+        if begin in existing and end in existing:
+            start = existing.index(begin)
+            stop = existing.index(end, start) + len(end)
+            updated = existing[:start] + POINTER.rstrip("\n") + existing[stop:]
+            break
     else:
         updated = POINTER + ("\n" + existing if existing else "")
     if updated == existing:
@@ -94,19 +98,25 @@ def write_pointer(root):
 
 def cmd_init():
     root = pathlib.Path.cwd().resolve()
-    if CTXDIR in root.parts:
-        print(f"error: {root} is inside {CTXDIR}/ — run `ctx init` in your project.", file=sys.stderr)
-        return 1
-    path = root / CTXDIR / CONTEXT
+    path = root / CONTEXT
+    old = root / OLD_CONTEXT
+    moved = not path.exists() and old.exists()
+    if moved:                      # one file at the root now, not a folder
+        old.rename(path)
+        try:
+            old.parent.rmdir()     # only if nothing else is in it
+        except OSError:
+            pass
     created = not path.exists()
     if created:
-        path.parent.mkdir(exist_ok=True)
         path.write_text(template())
     pointed = write_pointer(root)
     if created:
-        print(f"Created {CTXDIR}/{CONTEXT} — your project's context. Commit it with your code.")
+        print(f"Created {CONTEXT} — your project's context.")
+    elif moved:
+        print(f"Moved {OLD_CONTEXT} to {CONTEXT}.")
     else:
-        print(f"{CTXDIR}/{CONTEXT} is already here.")
+        print(f"{CONTEXT} is already here.")
     if pointed:
         print(f"Added a pointer to it at the top of {AGENTS}.")
     if created or pointed:
@@ -117,12 +127,12 @@ def cmd_init():
 def usage():
     print("KeepCTX — keep one context. Every session, every AI, every teammate.")
     print()
-    print("  ctx init    create .ctx/context.md here and point AGENTS.md at it")
+    print("  ctx init    create KEEPCTX.md here and point AGENTS.md at it")
     print()
-    print("That's the only command. From then on, your AI reads .ctx/context.md at the")
+    print("That's the only command. From then on, your AI reads KEEPCTX.md at the")
     print("start of each session and adds what it learns.")
     print()
-    print("Optional: commit .ctx/ so teammates and their AI agents share it too —")
+    print("Optional: commit KEEPCTX.md so teammates and their AI agents share it too —")
     print("they don't need KeepCTX installed.")
     return 0
 

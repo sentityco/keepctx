@@ -1,4 +1,4 @@
-"""The CLI: `ctx init` makes .ctx/context.md and points AGENTS.md at it."""
+"""The CLI: `ctx init` makes KEEPCTX.md and points AGENTS.md at it."""
 import pathlib
 import subprocess
 import sys
@@ -24,8 +24,9 @@ P = tmp / "proj"
 P.mkdir()
 
 code, out = ctx(P, "init")
-f = P / ".ctx" / "context.md"
-check("init: creates .ctx/context.md", code == 0 and f.exists() and "Created" in out, out)
+f = P / "KEEPCTX.md"
+check("init: creates KEEPCTX.md at the root, no folder", code == 0 and f.exists() and "Created" in out
+      and not (P / ".ctx").exists(), out)
 text = f.read_text()
 check("context: the rules are at the top", text.startswith("# Project Context")
       and text.index("How to keep this file") < text.index("## Overview"), text)
@@ -34,7 +35,9 @@ check("context: every category has a heading and a description",
       and "_What is still undecided" in text, text)
 check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added to Decisions — storage: SQLite" in text, text)
 agents = (P / "AGENTS.md").read_text()
-check("init: AGENTS.md points at it", ".ctx/context.md" in agents, agents)
+check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
+      and agents.startswith("<!-- KeepCTX -->"), agents)
+check("pointer: if the file is missing, carry on", "is missing, ignore" in agents, agents)
 
 f.write_text(text + "- **owner** — Jason\n")
 code, out = ctx(P, "init")
@@ -47,7 +50,15 @@ E.mkdir()
 ctx(E, "init")
 agents = (E / "AGENTS.md").read_text()
 check("pointer: an old one is replaced, the rest kept",
-      "old words" not in agents and ".ctx/context.md" in agents and agents.endswith("# Mine\nkeep me\n"), agents)
+      "old words" not in agents and "`KEEPCTX.md`" in agents and agents.endswith("# Mine\nkeep me\n"), agents)
+
+# a context from 0.5, in .ctx/context.md, moves to the root
+O = tmp / "old"
+(O / ".ctx").mkdir(parents=True)
+(O / ".ctx" / "context.md").write_text("# Project Context\n- **owner** — Jason\n")
+code, out = ctx(O, "init")
+check("upgrade: .ctx/context.md moves to KEEPCTX.md, and the empty folder goes",
+      "Moved" in out and "Jason" in (O / "KEEPCTX.md").read_text() and not (O / ".ctx").exists(), out)
 
 code, out = ctx(P)
 check("usage: one command", "ctx init" in out and "remember" not in out, out)
