@@ -40,6 +40,7 @@ _What this is, why it exists, who it's for, and what success looks like._
 _What it must and must not do, and what is in and out of scope._
 
 - **no-install** — nothing may depend on KeepCTX being installed; anyone who clones a repo must be able to read and keep the context with no tool
+- **layers** — a repo can have its own context and also sit under a workspace/team-level context; both are used together
 - **stdlib** — `src/keepctx.py` is one file, Python 3.9+, standard library only
 
 ## Architecture
@@ -69,7 +70,7 @@ _What was chosen and why, and what was considered and rejected._
 ## Questions
 _What is still undecided. Deleted once a decision settles it._
 
-- **workspace-context** — how to support a workspace-level context (non-git root holding many repos, tracked by an allow-list .gitignore): docs only, `init` detecting nested repos, and/or the pointer also reading a parent folder's KEEPCTX.md
+- **layers.design** — proposed, not agreed: read KEEPCTX.md in the current folder and every folder above it; a fact goes in the narrowest file it's true for; never copy facts between files (a repo's may be public, the workspace's private); startup line lists each file read; `init` offers the allow-list .gitignore for a non-git folder holding repos
 
 ## Conventions
 _Patterns future developers and agents should follow, and what not to touch._
