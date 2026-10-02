@@ -33,6 +33,8 @@ check("context: one Facts list, no category headings",
       text.endswith("\n## Facts\n") and "## Overview" not in text and "## Decisions" not in text, text)
 check("context: say it was read", "KeepCTX: KEEPCTX.md read (N facts)" in text, text)
 check("context: read it before the next reply", "before your next reply of\n  any kind" in text, text)
+check("context: typical things to keep, marked as not a complete list",
+      "Typical things worth keeping — not a complete list" in text and "rejected.<name>" in text, text)
 check("context: offer to fill an empty file in the same reply, write only what's approved",
       "Fill an empty file" in text and "*same reply*" in text and "approves" in text, text)
 check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added — storage: SQLite" in text, text)

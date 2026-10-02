@@ -32,7 +32,9 @@ and it renders on GitHub.
 so on — each with a description of what belongs there. They were dropped: an AI already knows
 what belongs in a project's context, the headings were written for software and fit a book or a
 business badly, and a flat list leaves one less decision per fact. Keys like `prod.access` and
-`rejected.postgres` group related facts well enough.
+`rejected.postgres` group related facts well enough. What the categories did well — reminding an
+agent of the kinds of things worth keeping — survives as a short list of typical examples in the
+rules, marked as not complete so the agent still uses its judgment.
 
 **Capture a wide net, distilled — never the conversation.** Goals, requirements, decisions with
 their reasons, rejected options, open questions, corrections, and how things are built and

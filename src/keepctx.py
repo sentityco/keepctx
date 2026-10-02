@@ -38,10 +38,12 @@ reply of any kind, and keep it current as you work, by these rules.**
   lowercase (`server-a.ip`, `deploy.command`). Values are one line that a
   newcomer would understand.
 - **Write it down the moment you learn it** — a session can end at any time.
-  Worth keeping: goals and requirements the user states; decisions, once the
-  user commits, with the reason; options turned down, as `rejected.<name>`,
-  with why; open questions; corrections; anything that took real effort to
-  find out; how things are built, run, tested and deployed.
+  Typical things worth keeping — not a complete list, use your judgment: goals
+  and requirements the user states; decisions, once the user commits, with the
+  reason; options turned down, as `rejected.<name>`, with why; open questions;
+  corrections; how things are built, run, tested and deployed; hosts,
+  environments and how to get access; conventions and what not to touch;
+  gotchas and anything that took real effort to find out; who owns what.
 - **Musing is not deciding.** "Maybe Postgres?" is a question, not a decision.
 - **Change a fact by editing its line**, never by adding a second one. Delete a
   line when it's no longer true, and a question once a decision settles it.
