@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>KeepCTX — keep your AI context</title>
-<meta name="description" content="Keep one context. Every session, every AI, every teammate. KeepCTX keeps what your project's agents learn and decide as a list of facts in git, next to your code." />
+<meta name="description" content="Keep one context. Every session, every AI, every teammate. One file in your repo where your AI writes down what it learns and reads it back every session. Open source, nothing to install for your team." />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,7 +12,6 @@
 <header><div class="wrap">
   <a class="logo" href="/">KeepCTX</a>
   <nav>
-    <a href="#why">Why</a>
     <a href="#how">How it works</a>
     <a href="#quickstart">Quickstart</a>
     <a href="https://github.com/sentityco/keepctx">GitHub</a>
@@ -21,10 +20,9 @@
 
 <div class="hero"><div class="wrap">
   <h1>Keep one context.<br />Every session, every AI, every teammate.</h1>
-  <p class="lede">What your AI learns and decides about a project shouldn't die with the
-  session, stay locked in one tool, or live on one laptop. KeepCTX keeps context as a list of
-  facts &mdash; automatically remembered as your agent works, and kept in git next to your code,
-  so your whole team has it.</p>
+  <p class="lede">What your AI learns about a project shouldn't die with the session. KeepCTX
+  gives your project one file where your AI writes down what it learns, and reads it back at the
+  start of every session &mdash; in any tool, for everyone on the team.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="https://github.com/sentityco/keepctx">View on GitHub</a>
@@ -34,175 +32,85 @@
 <section id="why"><div class="wrap">
   <h2>Stop re-explaining the same thing</h2>
   <p class="sub">Every session, you re-explain how to log in to your servers, where the logs
-  live, and what runs where. Every next session, it's forgotten.
-  The fix isn't a bigger context window &mdash; it's automatically recording as the AI learns, in a
-  place the next session reads automatically.</p>
+  live, and what was decided last week. Every next session, it's forgotten. The fix isn't a
+  bigger context window &mdash; it's automatically recording as the AI learns, in a place the
+  next session reads automatically.</p>
 
   <div class="grid">
     <div class="card">
-      <h3>Every AI agent shares one memory</h3>
-      <p>Correct Claude on Monday and Codex knows on Tuesday — and so does any other agent that
-      reads <code>AGENTS.md</code>. That file just points the agent at KeepCTX, so there's no
-      plugin per tool and nothing to migrate when you switch.</p>
+      <h3>Every AI shares it</h3>
+      <p>Claude, Codex and any agent that reads <code>AGENTS.md</code> reads the same file.
+      Switch tools and nothing is lost.</p>
     </div>
     <div class="card">
-      <h3>Corrections stick</h3>
-      <p>When you correct your agent, it records the correction. The next session — yours or a
-      teammate's — starts already knowing.</p>
-    </div>
-    <div class="card">
-      <h3>Onboarding on day one</h3>
-      <p>A new hire clones the repo and their agent already knows how to get into prod, where
-      the logs are, and which docs are lying.</p>
-    </div>
-    <div class="card">
-      <h3>Nothing gets wrecked</h3>
-      <p>Every change is in git history and one revert away. A weak model can add noise; it
-      can't destroy what your team already established.</p>
+      <h3>Nothing to install for your team</h3>
+      <p>It's a Markdown file in your repo, with its rules at the top. Teammates and their
+      agents just pull.</p>
     </div>
     <div class="card">
       <h3>In git, next to your code</h3>
-      <p>The context is one file you commit. It travels with the code, shows up for review in
-      pull requests, and your <code>AGENTS.md</code> gets a short pointer and nothing else.</p>
+      <p>History, review and revert work like everything else. A bad change is one revert
+      away.</p>
     </div>
     <div class="card">
-      <h3>Plain text, open source</h3>
-      <p>One fact per line, in one file. No account, no server, no network. Uninstalling is
-      deleting <code>.ctx/</code>.</p>
+      <h3>Simple and open</h3>
+      <p>One command to set up. Open source. Uninstalling is deleting <code>.ctx/</code>.</p>
     </div>
   </div>
 </div></section>
 
 <section id="how"><div class="wrap">
   <h2>How it works</h2>
-  <p class="sub">A context is a list of facts, grouped by category. Your agent remembers
-  each one the moment it learns it, and every line <code>ctx</code> prints starting with
-  <code>KeepCTX:</code> gets passed on to you, so you always see what's kept.</p>
+  <p class="sub"><code>ctx init</code> creates <code>.ctx/context.md</code> and adds a short
+  pointer to <code>AGENTS.md</code>. Your AI reads the file at the start of every session and
+  adds to it as it learns &mdash; one fact per line, under the right heading. When it does, it
+  tells you:</p>
 
-<pre><code>ctx remember environments logs.location "Splunk, index app_prod. Not CloudWatch."
-<span class="c">KeepCTX: remembered environments.logs.location — Splunk, index app_prod. Not CloudWatch.</span>
+<pre><code><span class="c">KeepCTX: remembered Decisions › storage — SQLite</span>
 
-ctx get
 <span class="c">## Environments</span>
-<span class="c">- **prod.access** — SSO, then jump host `bastion.example.com`. Never direct SSH.</span>
-<span class="c">- **logs.location** — Splunk, index app_prod. Not CloudWatch.</span>
+- **logs.location** — Splunk, index app_prod. Not CloudWatch.
+- **prod.access** — SSO, then the bastion host. Never direct SSH.
+
 <span class="c">## Decisions</span>
-<span class="c">- **storage** — SQLite: one file to back up, no database server</span>
-<span class="c">- **rejected.postgres** — a server to run for a few megabytes of text</span></code></pre>
+- **storage** — SQLite: one file to back up, no database server to run
+- **rejected.postgres** — a server to operate for a few megabytes of text</code></pre>
 
-  <h3>What goes in a context</h3>
-  <p class="sub">A wide net: not only how things run, but what's being built and why &mdash;
-  everything you'd tell a sharp new teammate. Never secrets, never what you put off the record,
-  and never the conversation itself.</p>
-
+  <h3>What goes in it</h3>
+  <p class="sub">A wide net: not just how things run, but what's being built and why. Never
+  secrets, never what you put off the record.</p>
   <table>
     <tr><th>Overview</th><td>what this is, why it exists, who it's for, what success looks like</td></tr>
     <tr><th>Requirements</th><td>what it must and must not do, and what's in and out of scope</td></tr>
     <tr><th>Architecture</th><td>services, components, dependencies and data flows</td></tr>
     <tr><th>Environments</th><td>hosts, deployment environments, service names, versions, access</td></tr>
-    <tr><th>Decisions</th><td>what was chosen and why, and what was rejected &mdash; so it stops being re-suggested</td></tr>
-    <tr><th>Questions</th><td>what's still undecided, until a decision settles it</td></tr>
+    <tr><th>Decisions</th><td>what was chosen and why, and what was rejected</td></tr>
+    <tr><th>Questions</th><td>what's still undecided</td></tr>
     <tr><th>Conventions</th><td>patterns to follow, and what not to touch</td></tr>
     <tr><th>Operations</th><td>build, deploy, runbooks, troubleshooting</td></tr>
     <tr><th>Testing</th><td>how to test, what passing means, what isn't covered</td></tr>
     <tr><th>Knowledge</th><td>gotchas, domain facts, vocabulary no model could guess</td></tr>
     <tr><th>People</th><td>who owns what, who to ask, how they like to work</td></tr>
   </table>
-
-  <p class="sub" style="margin-top:26px"><strong>Not just code.</strong> Anything you keep explaining to an AI is a
-  context.</p>
-  <div class="grid">
-    <div class="card">
-      <h3>Investing</h3>
-      <p>Your thesis, entry criteria, sizing rules, which account holds what for tax reasons,
-      sources you trust — and what you've ruled out, and why.</p>
-    </div>
-    <div class="card">
-      <h3>Writing a book</h3>
-      <p>Characters, voice rules, the timeline, what's canon and what got cut.</p>
-    </div>
-    <div class="card">
-      <h3>Running a business</h3>
-      <p>Customers, pricing logic, vendors, tone of voice, the promises you've made.</p>
-    </div>
-    <div class="card">
-      <h3>Research</h3>
-      <p>Sources, what's been ruled out, and the questions still open.</p>
-    </div>
-  </div>
-
-  <h3>Your agent works through one command</h3>
-  <p class="sub"><code>ctx get</code> to read everything, <code>ctx remember</code> and
-  <code>ctx forget</code> to change it. The facts land in <code>.ctx/context.jsonl</code>, one
-  per line, and get committed with the rest of the work.</p>
-
-  <h3>Merged fact by fact</h3>
-  <p class="sub">Git normally merges line by line, and calls two changes on neighbouring lines a
-  conflict. KeepCTX teaches git to merge this file fact by fact instead: two people adding or
-  changing different facts never conflict. Only the same fact changed two different ways needs
-  someone to choose &mdash; and git marks just that one.</p>
-
+  <p class="sub" style="margin-top:22px"><strong>Not just code.</strong> Investing, a book, a
+  business &mdash; anything you keep re-explaining to an AI.</p>
 </div></section>
 
 <section id="quickstart"><div class="wrap">
   <h2>Quickstart</h2>
-  <p class="sub">Two minutes. No account, no server.</p>
-
-  <ol class="steps">
-    <li>
-      <h3>Install</h3>
-      <p>Python 3.9 or newer, no dependencies. The command is <code>keepctx</code>, and it also
-      installs <code>ctx</code> as a short alias, which is what the examples below use. If
-      another <code>ctx</code> is already on your PATH the alias is skipped and
-      <code>keepctx</code> works the same.</p>
-<pre><code>curl -fsSL https://keepctx.com/install.sh | sh</code></pre>
-    </li>
-    <li>
-      <h3>Set up in your project</h3>
-      <p>Creates <code>.ctx/</code> and adds a short pointer to the top of
-      <code>AGENTS.md</code>.</p>
-<pre><code>cd ~/work/example-project
+  <p class="sub">Python 3.9 or newer. The command is <code>keepctx</code>, with <code>ctx</code>
+  as a short alias.</p>
+<pre><code>curl -fsSL https://keepctx.com/install.sh | sh
+cd ~/work/your-project
 ctx init
-
-<span class="c">Initialized KeepCTX in example-project</span>
-<span class="c">  .ctx/context.jsonl  the context — commit it with your code</span>
-<span class="c">  AGENTS.md            pointer at the top: your AI starts with `ctx ai`</span>
-
-<span class="c">Tell your AI to re-read AGENTS.md.</span></code></pre>
-    </li>
-    <li>
-      <h3>Work</h3>
-      <p>The pointer tells your agent to start every session with <code>ctx ai</code>, which
-      prints the rules and then the whole context. From there it remembers what matters &mdash;
-      goals, decisions, how things run, what's still open. Run <code>ctx ai</code> yourself any
-      time to see exactly what your agent is told.</p>
-    </li>
-    <li>
-      <h3>Share it</h3>
-      <p>Commit <code>.ctx/</code>. Your teammates get the context when they pull, and their
-      agents start already knowing what yours learned.</p>
-<pre><code>git add .ctx AGENTS.md && git commit -m "Add KeepCTX"</code></pre>
-    </li>
-  </ol>
-
-  <h3>The commands, all of them</h3>
-  <p class="sub">Shown as <code>ctx</code>; <code>keepctx</code> works the same everywhere. Plain
-  <code>ctx</code> lists only the ones people need; your agent learns the rest from
-  <code>ctx ai</code>.</p>
-  <table>
-    <tr><th><code>ctx</code></th><td>status</td></tr>
-    <tr><th><code>ctx init</code></th><td>set up here &mdash; then commit <code>.ctx/</code></td></tr>
-    <tr><th><code>ctx ai</code></th><td>where your agent starts every session: the rules, then the whole context</td></tr>
-    <tr><th><code>ctx get</code></th><td>print the whole context</td></tr>
-    <tr><th><code>ctx remember &lt;category&gt; &lt;key&gt; "&lt;value&gt;"</code></th><td>add a fact, or change it</td></tr>
-    <tr><th><code>ctx forget &lt;category&gt; &lt;key&gt;</code></th><td>remove a fact</td></tr>
-  </table>
+git add .ctx AGENTS.md && git commit -m "Add KeepCTX"</code></pre>
+  <p class="sub" style="margin-top:18px">Then start a new AI session. That's all &mdash; there
+  are no other commands.</p>
 </div></section>
 
 <footer><div class="wrap">
   <a href="https://github.com/sentityco/keepctx">GitHub</a> ·
   Apache-2.0 · free and open source
 </div></footer>
-
 </body>
 </html>

@@ -8,9 +8,10 @@ useful half.
 
 - **`src/keepctx.py` is one file, standard library only.** No dependencies. This is
   what makes the installer a `curl` and the code readable in one sitting.
-- **The CLI uses no server.** The context is `.ctx/context.jsonl`, committed to git, merged
-  fact by fact by `ctx git-merge`. `server/` and `web/app.*` are a paused sync server (see
-  README, "A server, later"); keep its tests passing, but the CLI must not depend on it.
+- **Nothing may depend on KeepCTX being installed.** The product is `.ctx/context.md`, a
+  Markdown file whose rules are at its top; `ctx init` only creates it and points
+  `AGENTS.md` at it. `server/` and `web/app.*` are a paused sync server; keep its tests
+  passing, but the CLI must not depend on it.
 - **`web/` has no build step and no framework.**
 - **No per-agent integrations.** No hooks, plugins, or config for Claude Code,
   Cursor, Copilot or anything else. `AGENTS.md` is the integration. ctx prints
@@ -27,7 +28,7 @@ reasoning is welcome; re-proposing it without reading is not.
 ## Testing
 
 ```sh
-python3 tests/test_cli.py      # the CLI end to end, including real git merges
+python3 tests/test_cli.py      # ctx init: the template and the AGENTS.md pointer
 python3 tests/test_server.py   # the paused server: accounts, orgs, who can read and write
 python3 tests/test_serve.py    # the paused server, self-hosted on SQLite
 ```

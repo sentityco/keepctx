@@ -26,64 +26,44 @@ Same claim at two altitudes; use whichever matches who is asking. See *How to pi
 
 ---
 
-## The current model (v0.4) — read this first
+## The current model (v0.5) — read this first
 
-Much of this document records how KeepCTX got here — including a sync server that is now
-paused. Where it disagrees with this section, this section wins.
+Much of this document records how KeepCTX got here. Where it disagrees with this section,
+this section wins.
 
-**Name and pitch.** KeepCTX in prose; `keepctx` and `ctx` stay as the commands. *Keep one
-context. Every session, every AI, every teammate.* `AGENTS.md` is only the mechanism many
-agents already read: one pointer telling the agent to run `ctx ai`, nothing more.
+**It has to work for someone who never installed it.** A teammate clones the repo; their agent
+has no `ctx`. So nothing in the agent's workflow can depend on a command. The whole product is
+a file convention, and the CLI only sets it up.
 
-**The context lives in git.** One file, `.ctx/context.jsonl`, committed with the code. The
-server was dropped for the MVP: accounts, sign-in, sync, a merge rule on two sides, a console
-and its security surface were most of the code and none of the claim. Git already gives
-sharing, history, review and revert, and teammates get the context when they pull. What this
-gives up, knowingly: contexts that span repos or live outside one, read-only members, the
-console, and facts learned on a branch reaching others before it merges. It also answers the
-question that matters first — whether people and their agents use `ctx remember` and `ctx ai`
-at all — with the least built.
+**One file: `.ctx/context.md`.** Plain Markdown, committed with the code. The rules for keeping
+it are at the top of the file, so they travel with every clone; then a heading per category —
+Overview, Requirements, Architecture, Environments, Decisions, Questions, Conventions,
+Operations, Testing, Knowledge, People — each with a one-line description. One fact per line,
+`- **key** — value`. Agents read it at the start of every session and edit it directly as they
+learn. It also reads well on GitHub.
 
-This reverses "context never lives in git", below. That argument — context is a claim about
-now, and branches make it stale — is real, but it costs less than running a server before
-anyone has asked for one, and facts about a feature arguably belong on its branch anyway.
+**`ctx init` is the only command.** It creates the file from the template and adds a pointer at
+the top of `AGENTS.md` — "read `.ctx/context.md` at the start of every session, and keep it
+current as its rules say." Running it again leaves the file alone and only refreshes the
+pointer.
 
-**The agent works through the CLI.** `ctx ai` starts a session — the rules, made fresh by the
-installed CLI every time, then the whole context. `ctx get` reads it; `ctx remember
-<category> <key> "<value>"` adds or changes a fact; `ctx forget` removes one. Plain `ctx` is
-for people and lists only `init` and `get`, plus one line saying the AI starts with `ctx ai`.
-`remote`, `clone`, `pull` and `push` are gone from the CLI.
+**What went, and why.** A sync server (accounts, orgs, console, self-hosting), pull and push,
+newest-wins timestamps, a fact-by-fact git merge driver, `ctx ai` / `get` / `remember` /
+`forget`, the secret check, and JSON storage. Each was reasonable, and each either needed the
+tool installed on every machine or solved a problem no user had reported yet. The server code
+remains in `server/`, paused.
 
-**A fact is a key and a value, one per line, sorted.**
+**Merging.** Git merges the file like any other. The one case that conflicts — two people
+adding a fact at the same spot at the same time — is rare, and the rules say what to do: keep
+both. A `.gitattributes` union merge would avoid even that, and was left out as more machinery
+than the problem deserves.
 
-```
-{"key": "environments.server-a.ip", "value": "10.0.4.12"}
-```
+**What this gives up, knowingly.** Secrets and formatting are kept out by rules the agent
+follows, not by code. There is no human view beyond the file itself. The value is entirely in
+the template and its rules, which is where changes should go.
 
-Keys are `category.key`; the eleven categories — overview, requirements, architecture,
-environments, decisions, questions, conventions, operations, testing, knowledge, people — are
-fixed. No timestamps and no removed markers: those existed for server sync, and git's history
-and plain line deletion do both jobs. Values are always one line. Gone along the way, and why:
-`[verified]` (nothing used it), `→` relationships and the diagram (a second kind of fact for a
-picture nobody relied on), journal and agent-written prose (more kinds of content before any
-evidence they're read).
-
-**Git merges the file fact by fact.** Git's own merge is line-based and treats changes on
-*neighbouring* lines as a conflict — and in a small sorted file almost every fact neighbours
-another, which a test proved straight away. So the file has a merge driver: `ctx git-merge`, a
-three-way merge per fact against the common ancestor. A fact changed or removed on one side is
-taken from that side; only the same fact changed differently on both sides is a conflict, and
-the driver marks just that fact with git's usual markers. `.ctx/.gitattributes` names the
-driver and is committed; each clone's git config says how to run it, set by `ctx init` and
-`ctx ai` (so any clone where an agent has started a session has it). A clone without `ctx`
-falls back to git's normal merge. A line that isn't a fact — a conflict left in the file — is
-reported by `ctx get`, never silently dropped.
-
-**Secrets matter more now.** The file is committed, so `ctx remember` refuses anything shaped
-only like a credential, and the rules say why.
-
-**Tell the operator.** Every line `ctx` prints that starts with `KeepCTX:` is meant for the
-person too, and the rules tell the agent to repeat it as printed.
+**Tell the operator.** The rules ask the agent to say, in one line, whenever it changes the file:
+`KeepCTX: remembered Decisions › storage — SQLite`.
 
 ## How to pitch it
 

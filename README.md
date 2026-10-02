@@ -4,113 +4,68 @@
 
 Every AI session starts blind. You re-explain the same things — what the project is for, how
 to log in to your servers, where the logs live, what was decided last week and why. KeepCTX
-keeps it as a list of facts: your agent remembers each one as it learns it, the next session
-starts knowing, Codex and your other AI agents know what Claude learned, and because the facts
-live in git next to your code, your team gets them too.
+gives your project one file where your AI writes those things down as it learns them, and
+reads them back at the start of every session.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
-cd ~/work/example-project && ctx init
+cd ~/work/your-project && ctx init
 git add .ctx AGENTS.md && git commit -m "Add KeepCTX"
 ```
 
-That's it. No account, no server, no network.
+That's all. Open source, no account, no server.
 
-The command is `keepctx`; `ctx` is a short alias and what you'll actually type. If another
-project's `ctx` is already on your PATH the alias is skipped, and `keepctx` works the same.
+## What `ctx init` does
 
----
+1. Creates **`.ctx/context.md`** — a plain Markdown file with a heading per category, and the
+   rules for keeping it at the top.
+2. Adds a short pointer to the top of **`AGENTS.md`**, the file Claude Code, Codex and most
+   other agents already read: *read `.ctx/context.md` at the start of every session, and keep
+   it current.* Nothing else in `AGENTS.md` is touched.
 
-## How it works
+From then on your AI reads and edits the file like any other. **Nobody needs KeepCTX
+installed** — not your teammates, not their agents. The rules travel inside the file.
 
-A context is a list of facts in one file, `.ctx/context.jsonl`, committed with your code. Your
-agent works through `ctx`: it reads everything with `ctx get`, and changes it with
-`ctx remember` and `ctx forget` the moment it learns something:
+## What it looks like
 
-```sh
-ctx remember environments logs.location "Splunk, index app_prod. Not CloudWatch."
-KeepCTX: remembered environments.logs.location — Splunk, index app_prod. Not CloudWatch.
+```markdown
+## Environments
+_Hosts, deployment environments, service names, versions and access. Never secrets._
+
+- **logs.location** — Splunk, index app_prod. Not CloudWatch.
+- **prod.access** — SSO, then the bastion host. Never direct SSH.
+
+## Decisions
+_What was chosen and why, and what was considered and rejected._
+
+- **storage** — SQLite: one file to back up, no database server to run
+- **rejected.postgres** — a server to operate for a few megabytes of text
 ```
 
-Every line starting with `KeepCTX:` is passed on to you by the agent, so you always see what's
-kept.
+Whenever the AI changes the file, it tells you in one line:
+`KeepCTX: remembered Decisions › storage — SQLite`.
 
-`AGENTS.md` is only the doorway. `ctx init` adds a short pointer to the top of it — the file
-Claude Code, Codex and most other agents already read — telling the agent to start every
-session with `ctx ai`, which prints the rules and then the whole context. **Nothing you wrote
-in `AGENTS.md` is touched.** Switch tools and nothing is lost.
+## The categories
 
-## What goes in a context
+Overview · Requirements · Architecture · Environments · Decisions · Questions · Conventions ·
+Operations · Testing · Knowledge · People
 
-A wide net: not only how things run, but what's being built and why — everything you'd tell a
-sharp new teammate. The categories:
+A wide net: not just how things run, but what's being built and why. Never secrets, never
+what you put off the record. It isn't only for code — anything you keep re-explaining to an
+AI belongs in a context.
 
-| | |
-|---|---|
-| **overview** | what this is, why it exists, who it's for, what success looks like |
-| **requirements** | what it must and must not do, and what's in and out of scope |
-| **architecture** | services, components, dependencies and data flows |
-| **environments** | hosts, deployment environments, service names, versions, access |
-| **decisions** | what was chosen and why, and what was rejected |
-| **questions** | what's still undecided, until a decision settles it |
-| **conventions** | patterns to follow, and what not to touch |
-| **operations** | build, deploy, runbooks, troubleshooting |
-| **testing** | how to test, what passing means, what isn't covered |
-| **knowledge** | gotchas, domain facts, vocabulary no model could guess |
-| **people** | who owns what, who to ask, how they like to work |
+## Sharing
 
-Never secrets — the file is committed, and `ctx` refuses anything shaped like a key or token —
-never what you put off the record, and never the conversation itself. Musing isn't deciding:
-"maybe Postgres?" is a question, not a decision.
+It's a file in your repo, so it's shared the way your code is: commit it, and teammates get it
+when they pull. History, review and revert work as they do for everything else.
 
-It isn't only for code. An investing context holds your thesis, sizing rules and what you've
-ruled out; a book's holds characters, voice and what's canon; a business's holds customers,
-pricing and tone. Anything you keep re-explaining to an AI is a context.
+## Contributing
 
-The agent's rules come from `ctx ai`, made fresh by the installed CLI every time, so they
-never go stale. Run it yourself to see exactly what your agent is told.
+`src/keepctx.py` is the whole tool: one file, standard library only. The template and the
+rules in it are the product, so changes to them matter most.
 
-## Sharing, through git
-
-The context is shared the way your code is. Commit it, and teammates get it when they pull;
-history, blame, review and revert all work as they do for anything else.
-
-The file has one fact per line, sorted by key, and KeepCTX teaches git to **merge it fact by
-fact**. Git's normal merge goes line by line and calls two changes on neighbouring lines a
-conflict, which in a small sorted file would be almost every change. With the KeepCTX merge:
-
-- Two people adding, changing or removing **different** facts never conflict.
-- Only the **same** fact changed two different ways needs someone to choose, and git marks
-  just that one fact.
-
-`.ctx/.gitattributes` (committed) tells git to use the KeepCTX merge for the file, and
-`ctx init` / `ctx ai` set it up in each clone's git config. A clone without `ctx` installed
-falls back to git's normal merge.
-
-## Commands
-
-Plain `ctx` lists only what people need, and points at `ctx ai`, where the agent learns the
-rest.
-
-| | |
-|---|---|
-| `ctx` | status |
-| `ctx init` | set up here — then commit `.ctx/` |
-| `ctx ai` | where your agent starts every session: the rules, then the whole context |
-| `ctx get` | print the whole context |
-| `ctx remember <category> <key> "<value>"` | add a fact, or change it |
-| `ctx forget <category> <key>` | remove a fact |
-
-## A server, later
-
-`server/` (and `web/app.*`) hold a sync server — accounts, orgs, a console, self-hosting —
-from an earlier version. It's paused: the CLI doesn't use it. If contexts that span repos, or
-live outside one, turn out to matter, sync can come back on top of the same file.
-
-## Design
-
-[`DESIGN.md`](DESIGN.md) is the long version — what was decided, and what was rejected and
-why. The rejected list is the useful half.
+`server/` and `web/app.*` hold a sync server from an earlier version. It's paused; the CLI
+doesn't use it.
 
 ## License
 
