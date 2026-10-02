@@ -42,10 +42,12 @@ reply of any kind, and keep it current as you work, by these rules.**
 - **Read it before you reply.** Read this whole file before your next reply of
   any kind. Start that reply with one line: `KeepCTX: KEEPCTX.md read (N facts)`,
   where N is the number of `- **key** — value` lines under the sections below.
-- **Fill an empty file.** If it has no facts yet, offer to fill it from what you
-  already know: this session, your own memory and instruction files, and the
-  project itself (README, git history). List what you'd add and write only what
-  the user approves, by the rules below. Someone may have emptied it on purpose.
+- **Fill an empty file.** If it has no facts yet, the *same reply* that reports
+  `(0 facts)` must also offer to fill it — don't just report the count and stop.
+  Offer to fill it from what you already know: this session, your own memory
+  and instruction files, and the project itself (README, git history). List
+  what you'd add and write only what the user approves, by the rules below.
+  Someone may have emptied it on purpose.
 - **One fact per line**, under the heading it belongs to: `- **key** — value`.
   Keys are short and lowercase (`server-a.ip`, `deploy.command`). Values are one
   line that a newcomer would understand.
