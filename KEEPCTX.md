@@ -7,6 +7,9 @@ every session, and keep it current as you work, by these rules.**
 
 ## How to keep this file
 
+- **Say you've read it.** After reading this file at the start of a session, print
+  one line: `KeepCTX: KEEPCTX.md read (N facts)`, where N is the number of
+  `- **key** — value` lines under the sections below this one.
 - **One fact per line**, under the heading it belongs to: `- **key** — value`.
   Keys are short and lowercase (`server-a.ip`, `deploy.command`). Values are one
   line that a newcomer would understand.
@@ -61,7 +64,7 @@ _What was chosen and why, and what was considered and rejected._
 - **markdown** — every agent and person can read and edit it with nothing installed, and it renders on GitHub
 - **one-file** — `KEEPCTX.md` at the project root; the pointer says to carry on if it's missing
 - **no-gitattributes** — merge conflicts in the file are rare, and the rules say what to do: keep both
-- **rejected.startup-line** — having the agent open its first reply with `KeepCTX: read KEEPCTX.md (N facts loaded)`: the owner decided the pointer doesn't need it
+- **startup-line** — after reading the file, the agent prints `KeepCTX: KEEPCTX.md read (N facts)`; the instruction lives in the file's rules, not the AGENTS.md pointer, so it travels with the file
 
 ## Questions
 _What is still undecided. Deleted once a decision settles it._

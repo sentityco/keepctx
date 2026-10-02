@@ -9,7 +9,7 @@ like any other, and it's shared through git with the rest of the code.
 import pathlib
 import sys
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 
 CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
@@ -39,6 +39,9 @@ every session, and keep it current as you work, by these rules.**
 
 ## How to keep this file
 
+- **Say you've read it.** After reading this file at the start of a session, print
+  one line: `KeepCTX: KEEPCTX.md read (N facts)`, where N is the number of
+  `- **key** — value` lines under the sections below this one.
 - **One fact per line**, under the heading it belongs to: `- **key** — value`.
   Keys are short and lowercase (`server-a.ip`, `deploy.command`). Values are one
   line that a newcomer would understand.

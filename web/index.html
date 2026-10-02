@@ -63,10 +63,11 @@
   <h2>How it works</h2>
   <p class="sub"><code>keepctx init</code> creates <code>KEEPCTX.md</code> and adds a short
   pointer to <code>AGENTS.md</code>. Your AI reads the file at the start of every session and
-  adds to it as it learns &mdash; one fact per line, under the right heading. When it does, it
-  tells you:</p>
+  adds to it as it learns &mdash; one fact per line, under the right heading. It tells you
+  when it has read the file, and whenever it adds to it:</p>
 
-<pre><code><span class="c">KeepCTX: added to Decisions — storage: SQLite</span>
+<pre><code><span class="c">KeepCTX: KEEPCTX.md read (24 facts)</span>
+<span class="c">KeepCTX: added to Decisions — storage: SQLite</span>
 
 <span class="c">## Environments</span>
 - **logs.location** — Splunk, index app_prod. Not CloudWatch.
