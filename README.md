@@ -43,7 +43,7 @@ _What was chosen and why, and what was considered and rejected._
 ```
 
 Whenever the AI changes the file, it tells you in one line:
-`KeepCTX: remembered Decisions › storage — SQLite`.
+`KeepCTX: added to Decisions — storage: SQLite` (or "updated in", "removed from").
 
 ## The categories
 

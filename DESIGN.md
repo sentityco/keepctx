@@ -63,7 +63,7 @@ follows, not by code. There is no human view beyond the file itself. The value i
 the template and its rules, which is where changes should go.
 
 **Tell the operator.** The rules ask the agent to say, in one line, whenever it changes the file:
-`KeepCTX: remembered Decisions › storage — SQLite`.
+`KeepCTX: added to Decisions — storage: SQLite` (or "updated in", "removed from").
 
 ## How to pitch it
 

@@ -56,8 +56,8 @@ every session, and keep it current as you work, by these rules.**
 - **Never** write secrets (passwords, tokens, keys), anything the user says is
   off the record, opinions about people, or the conversation itself. This file
   is committed with the code.
-- **Tell the user** in one line whenever you change this file:
-  `KeepCTX: remembered Decisions › storage — SQLite`
+- **Tell the user** in one line whenever you change this file, e.g.
+  `KeepCTX: added to Decisions — storage: SQLite` (or "updated in", "removed from").
 - **A merge conflict here** almost always means both sides added facts: keep both.
 """
 
