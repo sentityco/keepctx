@@ -1,23 +1,16 @@
-"""The CLI end to end, against the real handler served locally.
+"""The CLI end to end: a context in one file in git.
 
-Covers a local context (remember, forget, get, ai, AGENTS.md), sharing it,
-two copies of one context kept in step by newest-wins (including a removal and
-an edit made in the console), clone joining a local context of the same name,
-the one-context-per-directory rule, a read-only member, and a sign-in that
-expired."""
+Covers init and the AGENTS.md pointer, remember / forget / get / ai, the
+secret check, and the reason the file is one fact per line: two clones of a
+repo changing different facts merge in git without a conflict."""
 import json
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
-import time
-
-from fakes import call, fresh, serve
 
 CTX = str(pathlib.Path(__file__).resolve().parent.parent / "src" / "keepctx.py")
-fresh()
-URL, stop = serve()
 fails = 0
 
 
@@ -27,163 +20,146 @@ def check(label, cond, detail=""):
     fails += 0 if cond else 1
 
 
-def ctx(cwd, *args, typed=""):
-    r = subprocess.run([sys.executable, CTX, *args], cwd=cwd, input=typed, text=True,
-                       capture_output=True, env={**os.environ, "CTX_REMOTE": URL})
+def ctx(cwd, *args):
+    r = subprocess.run([sys.executable, CTX, *args], cwd=cwd, text=True, capture_output=True)
     return r.stdout + r.stderr
 
 
+def git(cwd, *args):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@x"}
+    r = subprocess.run(["git", *args], cwd=cwd, text=True, capture_output=True, env=env)
+    return r.returncode, r.stdout + r.stderr
+
+
+def lines(d):
+    return (pathlib.Path(d) / ".ctx" / "context.jsonl").read_text().splitlines()
+
+
 def facts(d):
-    return json.loads((pathlib.Path(d) / ".ctx" / "context.json").read_text())["facts"]
+    return {json.loads(x)["key"]: json.loads(x)["value"] for x in lines(d) if x.strip()}
 
 
-def value(d, key):
-    f = facts(d).get(key)
-    return None if f is None or f["removed"] else f["value"]
-
-
-def cfg(d):
-    return json.loads((pathlib.Path(d) / ".ctx" / "config.json").read_text())
-
-
-def tick():
-    time.sleep(0.01)      # timestamps are to the millisecond
-
-
-def signup(email, org=None):
-    tok = call("POST", "/v1/auth/register", {"email": email, "password": "password1"})[1]["token"]
-    if org:
-        call("POST", "/v1/orgs", {"org": org}, token=tok)
-    return tok
-
-
-owner = signup("owner@x.com", "team")
-signup("member@x.com")
-call("POST", "/v1/orgs/team/members", {"email": "member@x.com"}, token=owner)
 tmp = pathlib.Path(tempfile.mkdtemp())
-A, B, C, J, L = (tmp / x for x in "abcjl")
-for d in (A, B, C, J, L):
-    d.mkdir()
-me = "owner@x.com\npassword1\n"
+P = tmp / "proj"
+P.mkdir()
 
-# ------------------------------------------------------------------ local
-ctx(L, "init", "solo")
-check("init: one JSON file is the context", (L / ".ctx" / "context.json").exists()
-      and not list((L / ".ctx").glob("*.md")) and facts(L) == {})
-check("init: the AGENTS.md pointer says to start with ctx ai", "`ctx ai`" in (L / "AGENTS.md").read_text())
+# --------------------------------------------------------------- init
+out = ctx(P, "init")
+check("init: one committed file is the context", (P / ".ctx" / "context.jsonl").exists()
+      and not (P / ".ctx" / ".gitignore").exists() and "commit it" in out, out)
+check("init: the AGENTS.md pointer says to start with ctx ai", "`ctx ai`" in (P / "AGENTS.md").read_text())
 
-out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.12")
+# ------------------------------------------------- remember, forget, get
+out = ctx(P, "remember", "environments", "server-a.ip", "10.0.4.12")
 check("remember: says what it kept", out.strip() == "KeepCTX: remembered environments.server-a.ip — 10.0.4.12", out)
-f = facts(L)["environments.server-a.ip"]
-check("remember: a fact is a value and a time", f["value"] == "10.0.4.12" and f["updated"].endswith("Z")
-      and f["removed"] is False, f)
-ctx(L, "remember", "architecture.api.depends-on", "auth-service, for sessions")
-out = ctx(L, "get")
+check("remember: one fact per line", lines(P) == ['{"key": "environments.server-a.ip", "value": "10.0.4.12"}'], lines(P))
+ctx(P, "remember", "architecture.api.depends-on", "auth-service, for sessions")
+ctx(P, "remember", "decisions", "storage", "SQLite")
+check("save: lines are sorted by key", [json.loads(x)["key"] for x in lines(P)]
+      == ["architecture.api.depends-on", "decisions.storage", "environments.server-a.ip"], lines(P))
+out = ctx(P, "get")
 check("get: facts appear under their category", "## Environments\n\n- **server-a.ip** — 10.0.4.12" in out, out)
 check("get: the category.key form works too", "- **api.depends-on** — auth-service, for sessions" in out, out)
-out = ctx(L, "remember", "environments", "server-a.ip", "10.0.4.12")
+out = ctx(P, "remember", "environments", "server-a.ip", "10.0.4.12")
 check("remember: the same value again changes nothing", "already remembered" in out, out)
-out = ctx(L, "remember", "stuff", "x", "y")
+out = ctx(P, "remember", "environments", "server-a.ip", "10.0.4.13")
+check("remember: an existing key is updated, not doubled", "updated" in out and len(lines(P)) == 3, out)
+out = ctx(P, "remember", "stuff", "x", "y")
 check("remember: an unknown category is refused, with the list", "isn't a category" in out and "environments" in out, out)
-out = ctx(L, "remember", "environments", "aws.key", "AKIA" + "ABCDEFGHIJKLMNOP")
-check("remember: a secret is refused, and not written",
-      "Secrets never" in out and "environments.aws.key" not in facts(L), out)
-out = ctx(L, "forget", "environments", "server-a.ip")
-check("forget: the key stays, marked removed, and get hides it",
-      "forgot environments.server-a.ip" in out and facts(L)["environments.server-a.ip"]["removed"]
-      and "server-a" not in ctx(L, "get"), out)
-ai = ctx(L, "ai")
+out = ctx(P, "remember", "environments", "aws.key", "AKIA" + "ABCDEFGHIJKLMNOP")
+check("remember: a secret is refused, and not written", "committed to git" in out
+      and "environments.aws.key" not in facts(P), out)
+out = ctx(P, "forget", "decisions", "storage")
+check("forget: removes the line", "forgot decisions.storage" in out and "decisions.storage" not in facts(P), out)
+out = ctx(P, "forget", "decisions", "storage")
+check("forget: twice says there's nothing to forget", "nothing to forget" in out, out)
+
+# ------------------------------------------------------------------ ai
+ai = ctx(P, "ai")
 check("ai: prints the rules, then the context",
-      ai.index("how to work with this project's context") < ai.index("# solo —"), ai)
-check("ai: a local context's rules have no sync steps", "local only" in ai and "It pulled" not in ai, ai)
-check("ai: tells the agent to leave existing facts alone", "Leave existing facts alone" in ai, ai)
-out = ctx(L, "pull")
-check("pull: a local-only context says so", "local only" in out, out)
+      ai.index("how to work with this project's context") < ai.index("# proj —"), ai)
+check("ai: says the context lives in git", "It lives in git" in ai and ".ctx/context.jsonl" in ai, ai)
+check("ai: no server commands", all(c not in ai for c in ("ctx pull", "ctx push", "ctx remote", "ctx clone")), ai)
 out = ctx(tmp, "ai")
 check("ai: no context here says carry on", "carry on without it" in out, out)
+for gone in ("remote", "clone", "pull", "push"):
+    out = ctx(P, gone)
+    check(f"{gone}: not a command", "unknown command" in out, out)
+out = ctx(P, "--help")
+check("people usage: init and get, and ctx ai", "ctx init" in out and "ctx get" in out
+      and "ctx ai" in out and "remote" not in out, out)
 
-# ------------------------------------------------------- share, two copies
-ctx(A, "init", "proj")
+# -------------------------------- git: different facts merge without a conflict
+ORIGIN, A, B = tmp / "origin.git", tmp / "a", tmp / "b"
+git(tmp, "init", "--bare", "-b", "main", str(ORIGIN))
+git(tmp, "clone", str(ORIGIN), str(A))
+ctx(A, "init")
 ctx(A, "remember", "operations", "deploy.command", "`make ship`")
-out = ctx(A, "remote", typed=me + "\n")
-check("remote: goes live and says what it pushed", "team:proj is live" in out and "pushed 1 fact" in out, out)
+ctx(A, "remember", "people", "owner", "Jason")
+git(A, "add", "-A")
+git(A, "commit", "-m", "context")
+git(A, "push", "origin", "HEAD:main")
+git(tmp, "clone", str(ORIGIN), str(B))
+check("git: a clone brings the context with it", facts(B).get("people.owner") == "Jason", facts(B))
+check("git: the merge driver is named in a committed file",
+      (B / ".ctx" / ".gitattributes").read_text() == "context.jsonl merge=keepctx\n")
+ctx(B, "ai")                                  # each clone's git config gets the driver
+check("git: ctx ai sets up the driver in this clone", "git-merge" in git(B, "config", "merge.keepctx.driver")[1])
 
-out = ctx(A, "remember", "environments", "logs.location", "Splunk")
-check("remember: with a server, it pushes straight away", "pushed 1 change" in out, out)
+ctx(A, "remember", "testing", "command", "`make test`")          # A adds one fact
+ctx(A, "remember", "operations", "deploy.command", "`make release`")  # and changes another
+git(A, "commit", "-am", "a")
+git(A, "push", "origin", "HEAD:main")
+ctx(B, "remember", "environments", "logs.location", "Splunk")      # B adds a different one
+ctx(B, "forget", "people", "owner")                                 # and removes another
+git(B, "commit", "-am", "b")
+code, out = git(B, "pull", "--no-rebase", "origin", "main")
+check("git: changes to different facts merge with no conflict", code == 0 and "CONFLICT" not in out, out)
+f = facts(B)
+check("git: every change from both sides lands",
+      f.get("testing.command") == "`make test`" and f.get("operations.deploy.command") == "`make release`"
+      and f.get("environments.logs.location") == "Splunk" and "people.owner" not in f, f)
 
-out = ctx(B, "clone", "team:proj", typed=me)
-check("clone: into an empty directory", "cloned team:proj" in out and value(B, "environments.logs.location") == "Splunk", out)
-check("clone: writes the AGENTS.md pointer", (B / "AGENTS.md").exists())
+git(B, "push", "origin", "HEAD:main")
 
-# both copies change things; every fact settles on its most recent change
-tick()
-ctx(A, "remember", "testing", "command", "`make test`")
-tick()
-out = ctx(B, "remember", "operations", "deploy.command", "`make release`")
-check("newest wins: a push also brings in what the other copy changed",
-      "pushed 1 change" in out and "pulled 1 new" in out and value(B, "testing.command") == "`make test`", out)
-out = ctx(A, "pull")
-check("newest wins: pull takes the newer value", "1 updated" in out
-      and value(A, "operations.deploy.command") == "`make release`", out)
-
-tick()
-ctx(B, "forget", "environments", "logs.location")
-out = ctx(A, "pull")
-check("removal: reaches the other copy", "1 removed" in out and value(A, "environments.logs.location") is None, out)
-out = ctx(A, "push")
-check("removal: an older copy doesn't bring it back", "nothing new to push" in out
-      and value(B, "environments.logs.location") is None, out)
-
-# a person edits in the console; the next pull brings it in
-tick()
-call("POST", "/v1/contexts/team/proj/facts", {"key": "people.owner", "value": "Jason"}, token=owner)
-out = ctx(A, "ai")
-check("console edit: ctx ai pulls it in first", out.startswith("KeepCTX: pulled") and "1 new" in out
-      and "- **owner** — Jason" in out, out)
-
-# ------------------------------------- clone into a local context, same name
-ctx(J, "init", "proj")
-ctx(J, "remember", "knowledge", "local-only", "kept")
-out = ctx(J, "clone", "team:proj", typed=me)
-check("clone: joins a local context of the same name and says so",
-      "joined your local `proj`" in out and value(J, "people.owner") == "Jason"
-      and value(J, "knowledge.local-only") == "kept", out)
-view = call("GET", "/v1/contexts/team/proj", token=owner)[1]["facts"]
-check("clone: the local facts reach the server", "knowledge.local-only" in view, view)
-out = ctx(J, "clone", "team:other", typed=me)
-check("one context per directory: a different one is refused", "One context per directory" in out, out)
-ctx(L, "init", "solo")
-out = ctx(L, "clone", "team:proj", typed=me)
-check("one context per directory: a different local name is refused", "local context, `solo`" in out, out)
-
-# ------------------------------------------------------- member, read-only
-out = ctx(C, "clone", "team:proj", typed="member@x.com\npassword1\n")
-check("member: clone is read-only", "Read-only" in out and cfg(C)["readonly"], out)
-check("member: ctx ai says don't change it", "Don't change it" in ctx(C, "ai"))
-out = ctx(C, "remember", "knowledge", "x", "y")
-check("member: remember is refused", "read-only" in out, out)
-
-# an expired sign-in: an agent is told what to do, and ctx ai still works
-conf = cfg(C)
-conf["token"] = "expired.token.value"
-(C / ".ctx" / "config.json").write_text(json.dumps(conf))
-out = ctx(C, "pull")
-check("expired: an agent is told to sign in from a terminal", "Run `ctx pull` in a terminal" in out, out)
-out = ctx(C, "ai")
-check("expired: ctx ai works from the local copy", "working from the local copy" in out and "# proj" in out, out)
-
-out = ctx(A)
-check("agent index: points at ctx ai", "ctx ai" in out, out)
+# the same fact changed differently on both sides: only that fact conflicts
+git(A, "pull", "--no-rebase", "origin", "main")
+ctx(A, "remember", "testing", "command", "`make check`")
+ctx(A, "remember", "people", "lead", "Jess")
+git(A, "commit", "-am", "a2")
+git(A, "push", "origin", "HEAD:main")
+ctx(B, "remember", "testing", "command", "`make verify`")
+git(B, "commit", "-am", "b2")
+code, out = git(B, "pull", "--no-rebase", "origin", "main")
+text = (B / ".ctx" / "context.jsonl").read_text()
+check("conflict: same fact changed on both sides is a git conflict", code != 0 and "CONFLICT" in out, out)
+check("conflict: only that fact is marked; the rest merged",
+      text.count("<<<<<<<") == 1 and "make check" in text and "make verify" in text
+      and '"people.lead"' in text and text.index('"people.lead"') < text.index("<<<<<<<"), text)
+out = ctx(B, "get")
+check("conflict: get reports the markers instead of dropping them", "git conflict" in out, out)
 
 # an older pointer is replaced; nothing else in AGENTS.md is touched
 E = tmp / "e"
 E.mkdir()
 (E / "AGENTS.md").write_text("<!-- ctx -->\nold words\n<!-- /ctx -->\n\n# Mine\nkeep me\n")
-ctx(E, "init", "fresh")
+ctx(E, "init")
 agents = (E / "AGENTS.md").read_text()
 check("pointer: an old one is replaced, the rest kept",
       "old words" not in agents and "`ctx ai`" in agents and agents.endswith("# Mine\nkeep me\n"), agents)
 
-stop()
+# an earlier setup is made committable, and its facts carried over
+O = tmp / "old"
+(O / ".ctx").mkdir(parents=True)
+(O / ".ctx" / ".gitignore").write_text("*\n")
+(O / ".ctx" / "config.json").write_text("{}")
+(O / ".ctx" / "context.json").write_text(json.dumps({"facts": {
+    "decisions.x": {"value": "kept", "updated": "2026-10-01T10:00:00.000Z", "removed": False},
+    "decisions.y": {"value": "gone", "updated": "2026-10-01T10:00:00.000Z", "removed": True}}}))
+out = ctx(O, "init")
+check("upgrade: .gitignore and config go, live facts carry over",
+      not (O / ".ctx" / ".gitignore").exists() and facts(O) == {"decisions.x": "kept"}, out)
+
 print(f"\n{fails} failed")
 sys.exit(1 if fails else 0)

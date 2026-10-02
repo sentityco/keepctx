@@ -1,18 +1,14 @@
 """The self-hosted server end to end: serve.py on SQLite, serving the site and
-the API on one port, with the CLI pointed at it by `ctx remote <server>` and
-`ctx clone <org>:<name> <server>` — and everything still there after a restart."""
+the API on one port, and everything still there after a restart. (The CLI
+doesn't talk to a server for now; this keeps the server working for later.)"""
 import http.client
-import importlib.util
 import json
-import os
 import pathlib
-import subprocess
 import sys
 import tempfile
 import threading
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CTX = str(ROOT / "src" / "keepctx.py")
 sys.path.insert(0, str(ROOT / "server"))
 import serve  # noqa: E402
 
@@ -49,19 +45,6 @@ def post(port, path, body, token=None):
     return r.status, json.loads(r.read())
 
 
-env = {k: v for k, v in os.environ.items() if k != "CTX_REMOTE"}   # the argument alone picks the server
-
-
-def ctx(cwd, *args, typed=""):
-    r = subprocess.run([sys.executable, CTX, *args], cwd=cwd, input=typed, text=True,
-                       capture_output=True, env=env)
-    return r.stdout + r.stderr
-
-
-def cfg(d):
-    return json.loads((d / ".ctx" / "config.json").read_text())
-
-
 tmp = pathlib.Path(tempfile.mkdtemp())
 data = tmp / "data"
 srv, port = start(data)
@@ -81,44 +64,21 @@ code, out = post(port, "/v1/auth/register", {"email": "owner@x.com", "password":
 check("api: register", code == 200 and out.get("token"), out)
 post(port, "/v1/orgs", {"org": "team"}, token=out["token"])
 
-# the CLI, pointed at it by argument — a bare host:port on this machine means http
-spec = importlib.util.spec_from_file_location("keepctx", CTX)
-K = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(K)
-check("url: a bare name gets https", K.server_url("keepctx.example.com") == "https://keepctx.example.com")
-check("url: a full URL is kept as typed",
-      K.server_url("https://keepctx.example.com/") == "https://keepctx.example.com")
-check("url: localhost gets http", K.server_url("localhost:8080") == "http://localhost:8080")
-
-me = "owner@x.com\npassword1\n"
-A, B = tmp / "a", tmp / "b"
-A.mkdir()
-B.mkdir()
-ctx(A, "init", "proj")
-ctx(A, "remember", "operations", "deploy.command", "`make ship`")
-out = ctx(A, "remote", f"127.0.0.1:{port}", typed=me + "\n")
-check("cli: ctx remote <server> goes live there", "team:proj is live" in out, out)
-check("cli: the directory remembers the server", cfg(A)["remote"] == f"http://127.0.0.1:{port}", cfg(A))
-check("cli: sign-up hint points at this server's console", f"127.0.0.1:{port}/app.html" in out, out)
-
-out = ctx(B, "clone", "team:proj", f"http://127.0.0.1:{port}", typed=me)
-check("cli: ctx clone <org>:<name> <server>", "make ship" in (B / ".ctx" / "context.json").read_text(), out)
-
-out = ctx(A, "clone", "team:other", "https://keepctx.other.example.com")
-check("cli: one context, so one server, per directory", "One context per directory" in out, out)
+tok = out["token"]
+T = "2026-10-01T10:00:00.000Z"
+code, out = post(port, "/v1/contexts", {"name": "proj", "org": "team",
+                 "facts": {"operations.deploy.command": {"value": "`make ship`", "updated": T, "removed": False}}}, tok)
+check("api: a context is stored", code == 200, out)
 
 # restart on the same data: accounts, contexts and sign-ins all survive
 srv.shutdown()
 srv.server_close()
 srv, port2 = start(data)
-for d in (A, B):
-    c = cfg(d)
-    c["remote"] = f"http://127.0.0.1:{port2}"
-    (d / ".ctx" / "config.json").write_text(json.dumps(c))
-ctx(A, "remember", "environments", "logs.location", "Splunk")
-out = ctx(B, "pull")
-check("restart: data and sign-ins survive, pull and push still work",
-      "Splunk" in (B / ".ctx" / "context.json").read_text(), out)
+code, out = post(port2, "/v1/contexts/team/proj/push",
+                 {"facts": {"environments.logs.location": {"value": "Splunk", "updated": T, "removed": False}}}, tok)
+check("restart: the sign-in still works, and the context is still there",
+      code == 200 and out["facts"]["operations.deploy.command"]["value"] == "`make ship`"
+      and "environments.logs.location" in out["facts"], out)
 
 srv.shutdown()
 print(f"\n{fails} failed")

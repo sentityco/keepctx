@@ -1,6 +1,6 @@
 # KeepCTX
 
-Keep your AI context across sessions, across AIs, across your team. See `DESIGN.md` for why things are
+Keep one context. Every session, every AI, every teammate. See `DESIGN.md` for why things are
 the way they are; it is long, and the **Explicitly rejected** section is the
 useful half.
 
@@ -8,13 +8,9 @@ useful half.
 
 - **`src/keepctx.py` is one file, standard library only.** No dependencies. This is
   what makes the installer a `curl` and the code readable in one sitting.
-- **`server/handler.py` is one file, boto3 only (and only on Lambda)**, and is deliberately
-  model-free: storage and version history; the merge happens in the CLI. Nothing
-  in it needs inference, which is what keeps self-hosting plausible.
-- **`server/serve.py` is the self-hosted server, standard library only.** It runs the
-  same `handler.py` on SQLite and serves `web/` beside the API, so a self-hosted server
-  is keepctx.com on one port. Anything added to the handler's storage calls has to work
-  on its `Table` too.
+- **The CLI uses no server.** The context is `.ctx/context.jsonl`, committed to git, merged
+  fact by fact by `ctx git-merge`. `server/` and `web/app.*` are a paused sync server (see
+  README, "A server, later"); keep its tests passing, but the CLI must not depend on it.
 - **`web/` has no build step and no framework.**
 - **No per-agent integrations.** No hooks, plugins, or config for Claude Code,
   Cursor, Copilot or anything else. `AGENTS.md` is the integration. ctx prints
@@ -31,10 +27,9 @@ reasoning is welcome; re-proposing it without reading is not.
 ## Testing
 
 ```sh
-python3 tests/test_server.py   # accounts, orgs, membership, who can read and write
-python3 tests/test_cli.py      # the CLI end to end, against the handler served locally
-python3 tests/test_serve.py    # the self-hosted server: site, API on SQLite, restart
+python3 tests/test_cli.py      # the CLI end to end, including real git merges
+python3 tests/test_server.py   # the paused server: accounts, orgs, who can read and write
+python3 tests/test_serve.py    # the paused server, self-hosted on SQLite
 ```
 
-No AWS and no network: `tests/fakes.py` stands in for DynamoDB and serves the real
-handler on a local port. Run both before pushing; add a check for anything you change.
+No AWS and no network. Run all three before pushing; add a check for anything you change.
