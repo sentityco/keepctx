@@ -35,6 +35,12 @@ their reasons, rejected options, open questions, corrections, and how things are
 run. Musing is not deciding: an idea still being weighed is a question. Never secrets, never
 what the user puts off the record.
 
+**An empty file is filled by asking, not by dumping.** The first agent to meet an empty
+`KEEPCTX.md` often already knows a lot — from the session, its own memory, the README and git
+history — and that knowledge should move into the shared file. But it offers a list and writes
+only what the person approves: an empty file may be a deliberate fresh start, an agent's memory
+mixes personal preferences with project facts, and anything it writes gets committed.
+
 **Tell the person.** The rules ask the agent to say in one line whenever it changes the file:
 `KeepCTX: added to Decisions — storage: SQLite`.
 
