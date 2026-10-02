@@ -44,6 +44,10 @@ reply of any kind, and keep it current as you work, by these rules.**
   corrections; how things are built, run, tested and deployed; hosts,
   environments and how to get access; conventions and what not to touch;
   gotchas and anything that took real effort to find out; who owns what.
+- **If you have to ask what something is, write down the answer.** Any time you
+  don't recognize a term, host, datasource or repo reference and the user
+  explains it so you can proceed, add a fact for it before continuing — don't
+  just use the answer and move on.
 - **Musing is not deciding.** "Maybe Postgres?" is a question, not a decision.
 - **Change a fact by editing its line**, never by adding a second one. Delete a
   line when it's no longer true, and a question once a decision settles it.
