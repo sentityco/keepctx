@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """keepctx — keep one context. Every session, every AI, every teammate.
 
-The command is `keepctx`. It does one thing: `keepctx init` creates `KEEPCTX.md` — a plain Markdown file of facts, with the
-rules for keeping it at the top — and points AGENTS.md at it. After that,
-nobody needs KeepCTX installed: agents read and edit the file like any other,
-and it's shared through git with the rest of the code.
+It does one thing: `keepctx init` creates KEEPCTX.md — a plain Markdown file
+of facts, with the rules for keeping it at the top — and points AGENTS.md at
+it. After that, nobody needs KeepCTX installed: agents read and edit the file
+like any other, and it's shared through git with the rest of the code.
 """
 import pathlib
 import sys
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
 BEGIN = "<!-- KeepCTX -->"
 END = "<!-- /KeepCTX -->"
-OLD_MARKERS = [("<!-- ctx -->", "<!-- /ctx -->")]      # earlier versions' pointer
-OLD_CONTEXT = pathlib.Path(".ctx") / "context.md"      # where 0.5 kept the file
 
 CATEGORIES = [
     ("Overview", "What this is, why it exists, who it's for, and what success looks like."),
@@ -77,16 +75,14 @@ POINTER = (
 
 
 def write_pointer(root):
-    """At the top of AGENTS.md; nothing else in it is touched. An older pointer
-    is replaced. -> True if the file changed."""
+    """At the top of AGENTS.md; nothing else in it is touched. If the pointer is
+    already there, it's brought up to date. -> True if the file changed."""
     agents = root / AGENTS
     existing = agents.read_text() if agents.exists() else ""
-    for begin, end in [(BEGIN, END)] + OLD_MARKERS:
-        if begin in existing and end in existing:
-            start = existing.index(begin)
-            stop = existing.index(end, start) + len(end)
-            updated = existing[:start] + POINTER.rstrip("\n") + existing[stop:]
-            break
+    if BEGIN in existing and END in existing:
+        start = existing.index(BEGIN)
+        stop = existing.index(END, start) + len(END)
+        updated = existing[:start] + POINTER.rstrip("\n") + existing[stop:]
     else:
         updated = POINTER + ("\n" + existing if existing else "")
     if updated == existing:
@@ -98,22 +94,12 @@ def write_pointer(root):
 def cmd_init():
     root = pathlib.Path.cwd().resolve()
     path = root / CONTEXT
-    old = root / OLD_CONTEXT
-    moved = not path.exists() and old.exists()
-    if moved:                      # one file at the root now, not a folder
-        old.rename(path)
-        try:
-            old.parent.rmdir()     # only if nothing else is in it
-        except OSError:
-            pass
     created = not path.exists()
     if created:
         path.write_text(template())
     pointed = write_pointer(root)
     if created:
         print(f"Created {CONTEXT} — your project's context.")
-    elif moved:
-        print(f"Moved {OLD_CONTEXT} to {CONTEXT}.")
     else:
         print(f"{CONTEXT} is already here.")
     if pointed:

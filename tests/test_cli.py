@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 
-CTX = str(pathlib.Path(__file__).resolve().parent.parent / "src" / "keepctx.py")
+KEEPCTX = str(pathlib.Path(__file__).resolve().parent.parent / "src" / "keepctx.py")
 fails = 0
 
 
@@ -14,8 +14,8 @@ def check(label, cond, detail=""):
     fails += 0 if cond else 1
 
 
-def ctx(cwd, *args):
-    r = subprocess.run([sys.executable, CTX, *args], cwd=cwd, text=True, capture_output=True)
+def keepctx(cwd, *args):
+    r = subprocess.run([sys.executable, KEEPCTX, *args], cwd=cwd, text=True, capture_output=True)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -23,10 +23,9 @@ tmp = pathlib.Path(tempfile.mkdtemp())
 P = tmp / "proj"
 P.mkdir()
 
-code, out = ctx(P, "init")
+code, out = keepctx(P, "init")
 f = P / "KEEPCTX.md"
-check("init: creates KEEPCTX.md at the root, no folder", code == 0 and f.exists() and "Created" in out
-      and not (P / ".ctx").exists(), out)
+check("init: creates KEEPCTX.md", code == 0 and f.exists() and "Created" in out, out)
 text = f.read_text()
 check("context: the rules are at the top", text.startswith("# Project Context")
       and text.index("How to keep this file") < text.index("## Overview"), text)
@@ -40,29 +39,21 @@ check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
 check("pointer: if the file is missing, carry on", "is missing, ignore" in agents, agents)
 
 f.write_text(text + "- **owner** — Jason\n")
-code, out = ctx(P, "init")
+code, out = keepctx(P, "init")
 check("init again: leaves the context alone", "already here" in out and "Jason" in f.read_text(), out)
 check("init again: AGENTS.md unchanged", (P / "AGENTS.md").read_text() == agents)
 
 E = tmp / "e"
 E.mkdir()
-(E / "AGENTS.md").write_text("<!-- ctx -->\nold words\n<!-- /ctx -->\n\n# Mine\nkeep me\n")
-ctx(E, "init")
+(E / "AGENTS.md").write_text("<!-- KeepCTX -->\nold words\n<!-- /KeepCTX -->\n\n# Mine\nkeep me\n")
+keepctx(E, "init")
 agents = (E / "AGENTS.md").read_text()
-check("pointer: an old one is replaced, the rest kept",
+check("pointer: brought up to date in place, the rest kept",
       "old words" not in agents and "`KEEPCTX.md`" in agents and agents.endswith("# Mine\nkeep me\n"), agents)
 
-# a context from 0.5, in .ctx/context.md, moves to the root
-O = tmp / "old"
-(O / ".ctx").mkdir(parents=True)
-(O / ".ctx" / "context.md").write_text("# Project Context\n- **owner** — Jason\n")
-code, out = ctx(O, "init")
-check("upgrade: .ctx/context.md moves to KEEPCTX.md, and the empty folder goes",
-      "Moved" in out and "Jason" in (O / "KEEPCTX.md").read_text() and not (O / ".ctx").exists(), out)
-
-code, out = ctx(P)
+code, out = keepctx(P)
 check("usage: one command, keepctx init", "keepctx init" in out and "remember" not in out, out)
-code, out = ctx(P, "remember")
+code, out = keepctx(P, "remember")
 check("usage: anything else is unknown", code == 1 and "unknown command" in out, out)
 
 print(f"\n{fails} failed")

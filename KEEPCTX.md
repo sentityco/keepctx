@@ -43,7 +43,7 @@ _What it must and must not do, and what is in and out of scope._
 _Services, components, dependencies and data flows: what connects to what._
 
 - **cli** — `src/keepctx.py`: `keepctx init`, the template and its rules; that is the whole tool
-- **installer** — `install.sh` downloads `src/keepctx.py` from GitHub at main's exact commit into `~/.local/bin/keepctx`; it also removes the `ctx` alias older versions installed
+- **installer** — `install.sh` downloads `src/keepctx.py` from GitHub at main's exact commit into `~/.local/bin/keepctx`
 - **site** — `web/index.html` and `web/style.css`, static, no build step
 
 ## Environments
@@ -51,27 +51,24 @@ _Hosts, deployment environments, service names, versions and access. Never secre
 
 - **site** — https://keepctx.com: S3 bucket `ctxhub-site-975050072453` behind CloudFront `E1FU0K7RDCME20`
 - **repo** — https://github.com/sentityco/keepctx
-- **old-server** — Lambda `ctxhub`, its API Gateway and DynamoDB table `ctx` are still running though nothing uses them (code tagged `server-archive`)
 
 ## Decisions
 _What was chosen and why, and what was considered and rejected._
 
 - **simple** — the product is the file and its rules; the CLI only sets it up, because it must work for people who never installed it
+- **rejected.commands** — agents use no KeepCTX commands, because an agent without KeepCTX installed couldn't run them
+- **rejected.server** — no server or accounts: git already shares, versions and reviews the file
 - **markdown** — every agent and person can read and edit it with nothing installed, and it renders on GitHub
-- **one-file** — `KEEPCTX.md` at the project root, not a folder; the pointer says to carry on if it's missing
+- **one-file** — `KEEPCTX.md` at the project root; the pointer says to carry on if it's missing
 - **no-gitattributes** — merge conflicts in the file are rare, and the rules say what to do: keep both
-- **rejected.server** — a sync server, accounts and console: most of the code, and needed the tool everywhere (tagged `server-archive`)
-- **rejected.agent-commands** — `ctx ai` / `remember` / `forget` / `pull` / `push`: an agent without KeepCTX installed couldn't use them
 
 ## Questions
 _What is still undecided. Deleted once a decision settles it._
 
-- **old-server** — tear down the unused Lambda, API Gateway and DynamoDB table?
-
 ## Conventions
 _Patterns future developers and agents should follow, and what not to touch._
 
-- **name** — KeepCTX in prose; `keepctx` is the command (the `ctx` alias was dropped)
+- **name** — KeepCTX in prose; `keepctx` is the command
 - **rules** — the template's rules are the product; most changes should be to their wording
 
 ## Operations

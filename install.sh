@@ -3,12 +3,12 @@
 # The command is `keepctx`.
 set -e
 
-REPO="${CTX_REPO:-sentityco/keepctx}"
-PREFIX="${CTX_PREFIX:-$HOME/.local/bin}"
+REPO="${KEEPCTX_REPO:-sentityco/keepctx}"
+PREFIX="${KEEPCTX_PREFIX:-$HOME/.local/bin}"
 
 # Fetch main's exact commit, not `main`: GitHub caches raw files by URL for a few
 # minutes, so right after a release `main` can still serve the previous version.
-REF="${CTX_REF:-}"
+REF="${KEEPCTX_REF:-}"
 if [ -z "$REF" ]; then
   REF=$(curl -fsSL -H "Accept: application/vnd.github.sha" \
     "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null) || REF=""
@@ -37,12 +37,6 @@ if [ -L "$PREFIX/keepctx" ]; then
   echo "      with the downloaded copy. The file it pointed at is untouched."
 fi
 mv -f "$TMP" "$PREFIX/keepctx"
-
-# Earlier versions also installed a `ctx` alias. Remove it — but only if it's
-# our own link; anything else called ctx is left alone.
-if [ -L "$PREFIX/ctx" ] && [ "$(readlink "$PREFIX/ctx")" = "$PREFIX/keepctx" ]; then
-  rm -f "$PREFIX/ctx"
-fi
 
 echo
 echo "Installed: $PREFIX/keepctx"

@@ -4,8 +4,8 @@
 # published installer ends up pointing at a path that no longer exists.
 set -euo pipefail
 
-BUCKET="${CTX_BUCKET:-ctxhub-site-975050072453}"
-DIST="${CTX_DIST:-E1FU0K7RDCME20}"
+BUCKET="${KEEPCTX_BUCKET:-ctxhub-site-975050072453}"
+DIST="${KEEPCTX_DIST:-E1FU0K7RDCME20}"
 export AWS_PAGER=""
 
 cd "$(dirname "$0")"

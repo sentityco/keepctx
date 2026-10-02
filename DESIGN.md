@@ -15,12 +15,11 @@ file directly, and the rules travel inside it. The CLI only sets it up.
 
 **`AGENTS.md` is the doorway, not the store.** It's the file most agents already read, and it
 holds instructions people write. KeepCTX adds one pointer block there and touches nothing
-else; the context itself lives in its own file. Running `keepctx init` again replaces an older
-pointer in place.
+else; the context itself lives in its own file. Running `keepctx init` again brings the pointer up
+to date.
 
 **One file at the root, named for what it is.** `KEEPCTX.md` sits beside `AGENTS.md` and
-`README.md`, where people and agents see it. An earlier version kept it in `.ctx/context.md`;
-one file doesn't need a folder, and `keepctx init` moves the old one across.
+`README.md`, where people and agents see it. One file doesn't need a folder.
 
 **If it's missing, carry on.** The pointer says so, so an agent never hunts for the file or
 stops when someone has removed it or copied `AGENTS.md` without it.
@@ -42,17 +41,3 @@ what the user puts off the record.
 **Shared through git, optionally.** Committing `KEEPCTX.md` gives teammates and their agents the same
 context, with history, review and revert. Git merges it like any other file; the one common
 conflict — two people adding a fact at the same spot — is answered in the rules: keep both.
-
-## Tried and dropped
-
-KeepCTX went through several larger designs before this one: a sync server with accounts, orgs,
-a web console and self-hosting; agent commands (`ctx ai`, `remember`, `forget`, `pull`,
-`push`); a three-way merge with AI-settled conflicts, then newest-wins timestamps; JSON
-storage with a fact-by-fact git merge driver; a secret check; a journal and agent-written
-prose; relationship facts drawn as a diagram.
-
-Each worked. Each either needed the tool installed on every machine, or solved a problem no
-user had reported yet. The server version is tagged `server-archive` in git.
-
-**If something comes back, it should be because people using the file asked for it** —
-contexts that span repos, a view for people who never open the repo, enforcement of the rules.
