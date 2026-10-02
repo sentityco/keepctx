@@ -10,6 +10,8 @@ reads them back at the start of every session.
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
 cd ~/work/your-project && ctx init
+
+# optional: commit .ctx/ so teammates and their AI agents see and update the context too
 git add .ctx AGENTS.md && git commit -m "Add KeepCTX"
 ```
 
