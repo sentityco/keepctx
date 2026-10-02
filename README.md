@@ -22,8 +22,8 @@ That's all. Open source, no account, no server.
 1. Creates **`KEEPCTX.md`** in your project — a plain Markdown file with a heading per
    category, and the rules for keeping it at the top.
 2. Adds a short pointer to the top of **`AGENTS.md`**, the file Claude Code, Codex and most
-   other agents already read: *in every session, read `KEEPCTX.md` before your first reply
-   and keep it current; if it's missing, ignore this and carry on.* Nothing else in `AGENTS.md` is
+   other agents already read: *read `KEEPCTX.md` before your next reply of any kind and
+   keep it current; if it's missing, ignore this and carry on.* Nothing else in `AGENTS.md` is
    touched.
 
 From then on your AI reads and edits the file like any other. **Nobody needs KeepCTX

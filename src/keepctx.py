@@ -34,15 +34,14 @@ RULES = """# Project Context
 
 This file is this project's memory: what it is, why, how it's built and run,
 what has been decided, and what is still open. Every AI agent and every person
-working on the project reads it. **AI agents: read all of it before your first
-reply in every session, and keep it current as you work, by these rules.**
+working on the project reads it. **AI agents: read all of it before your next
+reply of any kind, and keep it current as you work, by these rules.**
 
 ## How to keep this file
 
-- **Read it before you reply.** In every session, read this whole file before
-  your first reply, even if the user only said hello. Start that reply with one
-  line: `KeepCTX: KEEPCTX.md read (N facts)`, where N is the number of
-  `- **key** — value` lines under the sections below this one.
+- **Read it before you reply.** Read this whole file before your next reply of
+  any kind. Start that reply with one line: `KeepCTX: KEEPCTX.md read (N facts)`,
+  where N is the number of `- **key** — value` lines under the sections below.
 - **Fill an empty file.** If it has no facts yet, offer to fill it from what you
   already know: this session, your own memory and instruction files, and the
   project itself (README, git history). List what you'd add and write only what
@@ -77,9 +76,9 @@ def template():
 
 POINTER = (
     f"{BEGIN}\n"
-    f"This project's context is kept in `{CONTEXT}`. In every session, read it before your\n"
-    f"first reply, and keep it current as the rules at its top say. If `{CONTEXT}` is\n"
-    f"missing, ignore this and carry on.\n"
+    f"This project's context is kept in `{CONTEXT}`. Read it before your next reply of any\n"
+    f"kind, and keep it current as the rules at its top say. If `{CONTEXT}` is missing,\n"
+    f"ignore this and carry on.\n"
     f"{END}\n"
 )
 
