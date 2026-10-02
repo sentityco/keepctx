@@ -38,10 +38,6 @@ h3{font-size:16px;margin:26px 0 8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
 .card h3{margin:0 0 6px;font-size:16px}
 .card p{margin:0;color:var(--dim);font-size:14.5px}
-table{border-collapse:collapse;width:100%;font-size:14.5px}
-th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-weight:600;white-space:nowrap}
-td code{white-space:nowrap}
 footer{padding:34px 0;color:var(--dim);font-size:14px}
 footer a{color:var(--dim)}
 @media(max-width:620px){h1{font-size:31px}.hero{padding:52px 0 44px}header nav a:nth-child(-n+2){display:none}}

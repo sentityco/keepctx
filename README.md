@@ -19,8 +19,8 @@ That's all. Open source, no account, no server.
 
 ## What `keepctx init` does
 
-1. Creates **`KEEPCTX.md`** in your project — a plain Markdown file with a heading per
-   category, and the rules for keeping it at the top.
+1. Creates **`KEEPCTX.md`** in your project — a plain Markdown file of facts, with the rules for
+   keeping it at the top.
 2. Adds a short pointer to the top of **`AGENTS.md`**, the file Claude Code, Codex and most
    other agents already read: *read `KEEPCTX.md` before your next reply of any kind and
    keep it current; if it's missing, ignore this and carry on.* Nothing else in `AGENTS.md` is
@@ -32,28 +32,20 @@ installed** — not your teammates, not their agents. The rules travel inside th
 ## What it looks like
 
 ```markdown
-## Environments
-_Hosts, deployment environments, service names, versions and access. Never secrets._
+## Facts
 
 - **logs.location** — Splunk, index app_prod. Not CloudWatch.
 - **prod.access** — SSO, then the bastion host. Never direct SSH.
-
-## Decisions
-_What was chosen and why, and what was considered and rejected._
-
 - **storage** — SQLite: one file to back up, no database server to run
 - **rejected.postgres** — a server to operate for a few megabytes of text
 ```
 
 Whenever the AI changes the file, it tells you in one line:
-`KeepCTX: added to Decisions — storage: SQLite` (or "updated in", "removed from").
+`KeepCTX: added — storage: SQLite` (or "updated", "removed").
 
-## The categories
+## What goes in it
 
-Overview · Requirements · Architecture · Environments · Decisions · Questions · Conventions ·
-Operations · Testing · Knowledge · People
-
-A wide net: not just how things run, but what's being built and why. Never secrets, never
+Whatever the AI judges worth keeping. A wide net: not just how things run, but what's being built and why. Never secrets, never
 what you put off the record. It isn't only for code — anything you keep re-explaining to an
 AI belongs in a context.
 

@@ -3,7 +3,7 @@
 ## What it is
 
 A convention, and a one-command setup for it. `keepctx init` creates `KEEPCTX.md` — a plain
-Markdown file with the rules for keeping it at the top and a heading per category — and adds
+Markdown file of facts with the rules for keeping it at the top — and adds
 a pointer to the top of `AGENTS.md` telling agents to read it before their next reply of any
 kind and keep it current, or carry on if it's missing. That's the whole product.
 
@@ -24,11 +24,15 @@ to date.
 **If it's missing, carry on.** The pointer says so, so an agent never hunts for the file or
 stops when someone has removed it or copied `AGENTS.md` without it.
 
-**One Markdown file, one fact per line.** `- **key** — value`, under one of eleven headings:
-Overview, Requirements, Architecture, Environments, Decisions, Questions, Conventions,
-Operations, Testing, Knowledge, People. Markdown because every agent and every person can
-read and edit it with nothing installed, and it renders on GitHub. The categories are written
-for software but read sensibly for a book, a business or a portfolio.
+**One Markdown file, one fact per line.** `- **key** — value`, in one list under `## Facts`.
+Markdown because every agent and every person can read and edit it with nothing installed,
+and it renders on GitHub.
+
+**No categories.** There used to be eleven headings — Overview, Requirements, Architecture and
+so on — each with a description of what belongs there. They were dropped: an AI already knows
+what belongs in a project's context, the headings were written for software and fit a book or a
+business badly, and a flat list leaves one less decision per fact. Keys like `prod.access` and
+`rejected.postgres` group related facts well enough.
 
 **Capture a wide net, distilled — never the conversation.** Goals, requirements, decisions with
 their reasons, rejected options, open questions, corrections, and how things are built and
@@ -42,7 +46,7 @@ only what the person approves: an empty file may be a deliberate fresh start, an
 mixes personal preferences with project facts, and anything it writes gets committed.
 
 **Tell the person.** The rules ask the agent to say in one line whenever it changes the file:
-`KeepCTX: added to Decisions — storage: SQLite`.
+`KeepCTX: added — storage: SQLite`.
 
 **Contexts inside contexts, left to the agent.** A `KEEPCTX.md` can sit in a folder below
 another — a repo inside a team workspace — and an agent may read one or both. There are no

@@ -63,36 +63,21 @@
   <h2>How it works</h2>
   <p class="sub"><code>keepctx init</code> creates <code>KEEPCTX.md</code> and adds a short
   pointer to <code>AGENTS.md</code>. Your AI reads the file at the start of every session and
-  adds to it as it learns &mdash; one fact per line, under the right heading. It tells you
-  when it has read the file, and whenever it adds to it:</p>
+  adds to it as it learns &mdash; one fact per line. It tells you when it has read the
+  file, and whenever it adds to it:</p>
 
 <pre><code><span class="c">KeepCTX: KEEPCTX.md read (24 facts)</span>
-<span class="c">KeepCTX: added to Decisions — storage: SQLite</span>
+<span class="c">KeepCTX: added — storage: SQLite</span>
 
-<span class="c">## Environments</span>
+<span class="c">## Facts</span>
 - **logs.location** — Splunk, index app_prod. Not CloudWatch.
 - **prod.access** — SSO, then the bastion host. Never direct SSH.
-
-<span class="c">## Decisions</span>
 - **storage** — SQLite: one file to back up, no database server to run
 - **rejected.postgres** — a server to operate for a few megabytes of text</code></pre>
 
   <h3>What goes in it</h3>
-  <p class="sub">A wide net: not just how things run, but what's being built and why. Never
-  secrets, never what you put off the record.</p>
-  <table>
-    <tr><th>Overview</th><td>what this is, why it exists, who it's for, what success looks like</td></tr>
-    <tr><th>Requirements</th><td>what it must and must not do, and what's in and out of scope</td></tr>
-    <tr><th>Architecture</th><td>services, components, dependencies and data flows</td></tr>
-    <tr><th>Environments</th><td>hosts, deployment environments, service names, versions, access</td></tr>
-    <tr><th>Decisions</th><td>what was chosen and why, and what was rejected</td></tr>
-    <tr><th>Questions</th><td>what's still undecided</td></tr>
-    <tr><th>Conventions</th><td>patterns to follow, and what not to touch</td></tr>
-    <tr><th>Operations</th><td>build, deploy, runbooks, troubleshooting</td></tr>
-    <tr><th>Testing</th><td>how to test, what passing means, what isn't covered</td></tr>
-    <tr><th>Knowledge</th><td>gotchas, domain facts, vocabulary no model could guess</td></tr>
-    <tr><th>People</th><td>who owns what, who to ask, how they like to work</td></tr>
-  </table>
+  <p class="sub">Whatever your AI judges worth keeping. A wide net: not just how things run,
+  but what's being built and why. Never secrets, never what you put off the record.</p>
   <p class="sub" style="margin-top:22px"><strong>Not just code.</strong> Investing, a book, a
   business &mdash; anything you keep re-explaining to an AI.</p>
 </div></section>

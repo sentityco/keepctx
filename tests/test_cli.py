@@ -28,16 +28,15 @@ f = P / "KEEPCTX.md"
 check("init: creates KEEPCTX.md", code == 0 and f.exists() and "Created" in out, out)
 text = f.read_text()
 check("context: the rules are at the top", text.startswith("# Project Context")
-      and text.index("How to keep this file") < text.index("## Overview"), text)
-check("context: every category has a heading and a description",
-      all(f"## {h}" in text for h in ("Overview", "Decisions", "Questions", "People"))
-      and "_What is still undecided" in text, text)
+      and text.index("How to keep this file") < text.index("## Facts"), text)
+check("context: one Facts list, no category headings",
+      text.endswith("\n## Facts\n") and "## Overview" not in text and "## Decisions" not in text, text)
 check("context: say it was read", "KeepCTX: KEEPCTX.md read (N facts)" in text, text)
 check("context: read it before the next reply", "before your next reply of\n  any kind" in text, text)
 check("context: offer to fill an empty file in the same reply, write only what's approved",
       "Fill an empty file" in text and "*same reply*" in text and "approves" in text, text)
-check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added to Decisions — storage: SQLite" in text, text)
-check("context: name the file when there's more than one", "KeepCTX: added to ../KEEPCTX.md Decisions" in text, text)
+check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added — storage: SQLite" in text, text)
+check("context: name the file when there's more than one", "KeepCTX: added to ../KEEPCTX.md — storage" in text, text)
 agents = (P / "AGENTS.md").read_text()
 check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
       and agents.startswith("<!-- KeepCTX -->"), agents)
