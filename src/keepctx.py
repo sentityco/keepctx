@@ -119,8 +119,11 @@ def usage():
     print()
     print("  ctx init    create .ctx/context.md here and point AGENTS.md at it")
     print()
-    print("Then commit .ctx/ with your code. Your AI reads and keeps the file itself;")
-    print("nobody else needs KeepCTX installed.")
+    print("That's the only command. From then on, your AI reads .ctx/context.md at the")
+    print("start of each session and adds what it learns.")
+    print()
+    print("Optional: commit .ctx/ so teammates and their AI agents share it too —")
+    print("they don't need KeepCTX installed.")
     return 0
 
 
