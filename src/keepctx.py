@@ -59,6 +59,8 @@ every session, and keep it current as you work, by these rules.**
   is committed with the code.
 - **Tell the user** in one line whenever you change this file, e.g.
   `KeepCTX: added to Decisions — storage: SQLite` (or "updated in", "removed from").
+  If you know of more than one `KEEPCTX.md`, name the file you changed:
+  `KeepCTX: added to ../KEEPCTX.md Decisions — storage: SQLite`.
 - **A merge conflict here** almost always means both sides added facts: keep both.
 """
 

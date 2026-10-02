@@ -34,6 +34,7 @@ check("context: every category has a heading and a description",
       and "_What is still undecided" in text, text)
 check("context: say it was read", "KeepCTX: KEEPCTX.md read (N facts)" in text, text)
 check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added to Decisions — storage: SQLite" in text, text)
+check("context: name the file when there's more than one", "KeepCTX: added to ../KEEPCTX.md Decisions" in text, text)
 agents = (P / "AGENTS.md").read_text()
 check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
       and agents.startswith("<!-- KeepCTX -->"), agents)

@@ -38,6 +38,11 @@ what the user puts off the record.
 **Tell the person.** The rules ask the agent to say in one line whenever it changes the file:
 `KeepCTX: added to Decisions — storage: SQLite`.
 
+**Contexts inside contexts, left to the agent.** A `KEEPCTX.md` can sit in a folder below
+another — a repo inside a team workspace — and an agent may read one or both. There are no
+rules for which wins or where a fact goes: agents sort that out well, and the change line names
+the file whenever there's more than one, so a fact in the wrong place is easy to spot.
+
 **Shared through git, optionally.** Committing `KEEPCTX.md` gives teammates and their agents the same
 context, with history, review and revert. Git merges it like any other file; the one common
 conflict — two people adding a fact at the same spot — is answered in the rules: keep both.
