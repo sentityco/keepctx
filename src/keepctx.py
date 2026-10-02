@@ -68,9 +68,7 @@ def template():
 POINTER = (
     f"{BEGIN}\n"
     f"This project's context is kept in `{CONTEXT}`. Read it at the start of every session,\n"
-    f"before answering the first message, and begin that first reply with the line\n"
-    f"`KeepCTX: read {CONTEXT} (N facts loaded)`, where N is the number of fact lines in it.\n"
-    f"Keep it current as the rules at its top say. If `{CONTEXT}` is missing, ignore\n"
+    f"and keep it current as the rules at its top say. If `{CONTEXT}` is missing, ignore\n"
     f"this and carry on.\n"
     f"{END}\n"
 )

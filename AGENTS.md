@@ -1,8 +1,6 @@
 <!-- KeepCTX -->
 This project's context is kept in `KEEPCTX.md`. Read it at the start of every session,
-before answering the first message, and begin that first reply with the line
-`KeepCTX: read KEEPCTX.md (N facts loaded)`, where N is the number of fact lines in it.
-Keep it current as the rules at its top say. If `KEEPCTX.md` is missing, ignore
+and keep it current as the rules at its top say. If `KEEPCTX.md` is missing, ignore
 this and carry on.
 <!-- /KeepCTX -->
 
