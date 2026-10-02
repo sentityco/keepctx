@@ -61,6 +61,7 @@ _What was chosen and why, and what was considered and rejected._
 - **markdown** — every agent and person can read and edit it with nothing installed, and it renders on GitHub
 - **one-file** — `KEEPCTX.md` at the project root; the pointer says to carry on if it's missing
 - **no-gitattributes** — merge conflicts in the file are rare, and the rules say what to do: keep both
+- **startup-line** — the pointer has the agent open its first reply with `KeepCTX: read KEEPCTX.md (N facts loaded)`, so the user can see the context was read; the fact count shows it read the contents, not just the filename
 
 ## Questions
 _What is still undecided. Deleted once a decision settles it._
