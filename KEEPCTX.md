@@ -69,6 +69,8 @@ _What was chosen and why, and what was considered and rejected._
 ## Questions
 _What is still undecided. Deleted once a decision settles it._
 
+- **workspace-context** — how to support a workspace-level context (non-git root holding many repos, tracked by an allow-list .gitignore): docs only, `init` detecting nested repos, and/or the pointer also reading a parent folder's KEEPCTX.md
+
 ## Conventions
 _Patterns future developers and agents should follow, and what not to touch._
 
