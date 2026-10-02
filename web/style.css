@@ -110,6 +110,13 @@ font-size:14px;color:var(--dim);cursor:pointer}
 .flist ul{margin:4px 0 0;padding-left:20px;color:var(--dim)}
 .fk{font-family:var(--mono);font-size:13px;font-weight:600}
 .fr{color:var(--dim);margin-left:6px}
+.flist>li{display:flex;gap:8px;align-items:baseline}
+.flist>li>span:first-child{flex:1}
+.ftools{display:flex;gap:10px;opacity:.55}
+.flist>li:hover .ftools{opacity:1}
+.finput{flex:1;padding:5px 8px;font-size:14px}
+.addfact{margin-top:18px}
+.addfact select{width:auto}
 .ok-tag{font-size:11.5px;color:var(--ok);border:1px solid #bfe3cd;border-radius:10px;padding:1px 7px;margin-left:4px}
 .raw{margin-top:22px}
 .raw summary{cursor:pointer;color:var(--dim);font-size:14px}

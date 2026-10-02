@@ -252,18 +252,16 @@ async function createOrg() {
 }
 
 // ------------------------------------------------------------- human view
-// Drawn in the browser from the facts alone: a section per category. No
-// model, no server rendering, so a self-hosted server shows the same page.
-
-const FACT = /^\s*-\s+\*\*([^*]+)\*\*\s*([—→-])\s*(.*)$/;
-const HEADING = /^##\s+(.+?)\s*$/;
+// A section per category, drawn in the browser from the facts. A person who can
+// write the context can add, change and remove facts here; each change is
+// stamped now on the server, so the next pull brings it into every copy.
 
 // the same categories, in the same order, as the CLI
 const CATEGORIES = [
   ["overview", "Overview", "What this is, why it exists, who it's for, and what success looks like."],
   ["requirements", "Requirements", "What it must and must not do, and what is in and out of scope."],
   ["architecture", "Architecture", "Services, components, dependencies and data flows: what connects to what."],
-  ["environments", "Environments", "Hosts, deployment environments, service names, versions and access."],
+  ["environments", "Environments", "Hosts, deployment environments, service names, versions and access. Never secrets."],
   ["decisions", "Decisions", "What was chosen and why, and what was considered and rejected."],
   ["questions", "Questions", "What is still undecided."],
   ["conventions", "Conventions", "Patterns future developers and agents should follow, and what not to touch."],
@@ -272,31 +270,6 @@ const CATEGORIES = [
   ["knowledge", "Knowledge", "Gotchas, domain facts and vocabulary nobody outside would know."],
   ["people", "People", "Who owns what, who to ask, and how they like to work."],
 ];
-const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-// -> [{cat, key, value, verified, more}]. A file from before categories
-// has no headings; its facts show under Knowledge.
-function parseFacts(text) {
-  const out = [];
-  let cat = null, cur = null;
-  (text || "").split("\n").forEach((line) => {
-    const h = line.match(HEADING);
-    if (h) { cat = slug(h[1]); cur = null; return; }
-    const m = line.match(FACT);
-    if (m) {
-      let value = m[3];
-      const verified = value.includes("`[verified]`");
-      value = value.replace("`[verified]`", "").trim();
-      cur = { cat: cat || "knowledge", key: m[1].trim(), value, verified, more: [] };
-      out.push(cur);
-    } else if (cur && line.trim() && /^\s/.test(line)) {
-      cur.more.push(line.trim().replace(/^[-*]\s+/, ""));
-    } else {
-      cur = null;
-    }
-  });
-  return out;
-}
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -309,41 +282,89 @@ function inline(s) {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
 }
 
-function factList(facts) {
-  const ul = el("ul", "flist");
-  facts.forEach((f) => {
-    const li = el("li");
-    li.innerHTML = `<span class="fk">${esc(f.key)}</span>` +
-      `<span class="fr">—</span> ${inline(f.value)}` +
-      (f.verified ? ' <span class="ok-tag">verified</span>' : "") +
-      (f.more.length ? "<ul>" + f.more.map((m) => `<li>${inline(m)}</li>`).join("") + "</ul>" : "");
-    ul.appendChild(li);
-  });
-  return ul;
+let viewing = null;   // { org, name, canWrite }
+
+async function editFact(body) {
+  try {
+    await post(`/v1/contexts/${viewing.org}/${viewing.name}/facts`, body);
+    openContext(viewing.name);
+  } catch (e) { alert(e.message); }
 }
 
-function renderView(text) {
+function factRow(full, f) {
+  const li = el("li");
+  const key = full.slice(full.indexOf(".") + 1);
+  const text = el("span");
+  text.innerHTML = `<span class="fk">${esc(key)}</span><span class="fr">—</span> ${inline(f.value)}`;
+  li.appendChild(text);
+  if (viewing.canWrite) {
+    const tools = el("span", "ftools");
+    const edit = el("button", "link-btn", "edit");
+    edit.onclick = () => {
+      const input = el("input", "finput");
+      input.value = f.value;
+      const save = el("button", "link-btn", "save");
+      const go = () => input.value.trim() && input.value.trim() !== f.value
+        ? editFact({ key: full, value: input.value.trim() }) : openContext(viewing.name);
+      save.onclick = go;
+      input.onkeydown = (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") openContext(viewing.name); };
+      li.replaceChildren(el("span", "fk", key), input, save);
+      input.focus();
+    };
+    const rm = el("button", "link-btn", "remove");
+    rm.onclick = () => confirm(`Remove ${full}? It's removed from every copy on their next pull.`)
+      && editFact({ key: full, removed: true });
+    tools.append(edit, rm);
+    li.appendChild(tools);
+  }
+  return li;
+}
+
+function renderView(facts) {
   const box = $("d-view");
   box.innerHTML = "";
-  const facts = parseFacts(text);
-  if (!facts.length) {
+  const live = Object.entries(facts).filter(([, f]) => !f.removed).sort(([a], [b]) => a.localeCompare(b));
+  if (!live.length) {
     const e = el("div", "empty");
     e.appendChild(el("p", "", "Nothing remembered yet."));
     e.appendChild(el("p", "", "As agents work in this project, what they learn and decide shows up here."));
     box.appendChild(e);
-    return;
   }
+  const catOf = (full) => full.slice(0, full.indexOf("."));
   const known = CATEGORIES.map((c) => c[0]);
-  const extra = [...new Set(facts.map((f) => f.cat))].filter((c) => !known.includes(c)).sort();
+  const extra = [...new Set(live.map(([k]) => catOf(k)))].filter((c) => !known.includes(c)).sort();
   CATEGORIES.concat(extra.map((c) => [c, c, ""])).forEach(([cat, title, desc]) => {
-    const list = facts.filter((f) => f.cat === cat);
+    const list = live.filter(([k]) => catOf(k) === cat);
     if (!list.length) return;
     const s = el("div", "vsec" + (cat === "questions" ? " open" : ""));
     s.appendChild(el("h3", "", title));
     if (desc) s.appendChild(el("p", "hint", desc));
-    s.appendChild(factList(list));
+    const ul = el("ul", "flist");
+    list.forEach(([k, f]) => ul.appendChild(factRow(k, f)));
+    s.appendChild(ul);
     box.appendChild(s);
   });
+  if (viewing.canWrite) box.appendChild(addForm());
+}
+
+function addForm() {
+  const form = el("div", "inline-form addfact");
+  const cat = el("select");
+  cat.setAttribute("aria-label", "Category");
+  CATEGORIES.forEach(([c, t]) => { const o = el("option", "", t); o.value = c; cat.appendChild(o); });
+  const key = el("input");
+  key.placeholder = "key, e.g. server-a.ip";
+  const value = el("input");
+  value.placeholder = "value";
+  const add = el("button", "btn", "Add fact");
+  const go = () => {
+    const k = key.value.trim().toLowerCase().replace(/\s+/g, "-");
+    if (k && value.value.trim()) editFact({ key: `${cat.value}.${k}`, value: value.value.trim() });
+  };
+  add.onclick = go;
+  value.onkeydown = (e) => { if (e.key === "Enter") go(); };
+  form.append(cat, key, value, add);
+  return form;
 }
 
 async function openContext(name) {
@@ -354,9 +375,9 @@ async function openContext(name) {
   $("d-name").textContent = `${org}:${name}`;
 
   const c = await api(`/v1/contexts/${org}/${name}`);
-  $("d-version").textContent = `v${c.version} · ${c.count} facts`;
-  $("d-facts").textContent = c.facts || "(empty)";
-  renderView(c.facts);
+  viewing = { org, name, canWrite: c.can_write };
+  $("d-version").textContent = `v${c.version} · ${c.count} facts${c.can_write ? "" : " · read-only"}`;
+  renderView(c.facts || {});
 
   const v = await api(`/v1/contexts/${org}/${name}/versions`);
   const box = $("d-versions");
@@ -369,7 +390,7 @@ async function openContext(name) {
     if (i > 0 && c.can_write) {
       const b = el("button", "link-btn", "revert to this");
       b.onclick = async () => {
-        if (!confirm(`Revert ${name} to v${ver.version}? This creates a new version — nothing is lost.`)) return;
+        if (!confirm(`Revert ${name} to v${ver.version}? It's a new change, so every copy takes it on its next pull. Nothing is lost.`)) return;
         await post(`/v1/contexts/${org}/${name}/revert`, { version: ver.version });
         openContext(name);
       };

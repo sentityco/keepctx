@@ -102,10 +102,10 @@ check("cli: the directory remembers the server", cfg(A)["remote"] == f"http://12
 check("cli: sign-up hint points at this server's console", f"127.0.0.1:{port}/app.html" in out, out)
 
 out = ctx(B, "clone", "team:proj", f"http://127.0.0.1:{port}", typed=me)
-check("cli: ctx clone <org>:<name> <server>", "make ship" in (B / ".ctx" / "proj" / "facts.md").read_text(), out)
+check("cli: ctx clone <org>:<name> <server>", "make ship" in (B / ".ctx" / "context.json").read_text(), out)
 
 out = ctx(A, "clone", "team:other", "https://keepctx.other.example.com")
-check("cli: one server per directory", "already syncs with" in out, out)
+check("cli: one context, so one server, per directory", "One context per directory" in out, out)
 
 # restart on the same data: accounts, contexts and sign-ins all survive
 srv.shutdown()
@@ -118,7 +118,7 @@ for d in (A, B):
 ctx(A, "remember", "environments", "logs.location", "Splunk")
 out = ctx(B, "pull")
 check("restart: data and sign-ins survive, pull and push still work",
-      "Splunk" in (B / ".ctx" / "proj" / "facts.md").read_text(), out)
+      "Splunk" in (B / ".ctx" / "context.json").read_text(), out)
 
 srv.shutdown()
 print(f"\n{fails} failed")

@@ -26,69 +26,82 @@ Same claim at two altitudes; use whichever matches who is asking. See *How to pi
 
 ---
 
-## The current model (v0.2) — read this first
+## The current model (v0.3) — read this first
 
 Much of this document records how KeepCTX got here. Where it disagrees with this section,
 this section wins.
 
-**Name and pitch.** KeepCTX in prose; `keepctx` and `ctx` stay as the commands. *Keep your AI
-context — across sessions, across AIs, across your team.* `AGENTS.md` is only the mechanism
-many agents already read: one pointer to `.ctx/instructions.md`, nothing more. The earlier
+**Name and pitch.** KeepCTX in prose; `keepctx` and `ctx` stay as the commands. *Keep one
+context. Every session, every AI, every teammate.* `AGENTS.md` is only the mechanism many
+agents already read: one pointer telling the agent to run `ctx ai`, nothing more. The earlier
 "your AGENTS.md, except it writes itself" pitch is retired — it made people think KeepCTX
 rewrites `AGENTS.md`, and the context holds far more than an `AGENTS.md` would.
 
-**The agent works through the CLI, not the file.** `ctx get` reads the whole context;
-`ctx remember <category> <key> "<value>"` adds or replaces a fact; `ctx forget` removes one.
-The agent never edits `.ctx/` itself. This reverses the earlier "the agent edits facts.md
-directly, no write command to forget": commands give every write a visible `KeepCTX:` line
-for the operator, a secret check before anything is stored, and a push at the moment of
-writing — and agents run commands as readily as they edit files.
-
-**One file, a heading per category.** `facts.md` has eleven categories in a fixed order —
-overview, requirements, architecture, environments, decisions, questions, conventions,
-operations, testing, knowledge, people — each with a one-line description, and a fact's full
-key is `category.key`. One file is one thing to merge, push and read; a file per category
-was considered and would have multiplied all three. The categories are written for software
-but read sensibly for a book, a business or a portfolio. A file from before categories is
-still read: `decision.*`, `question.*` and a few other prefixes find their category, and the
-rest land in knowledge.
-
-**`ctx pull`, merge fact by fact, `ctx push`** replace `ctx sync`:
-
-- `pull` downloads the latest into `.ctx/<name>/remote/v<N>.md` (the last five kept) and
-  merges it against `.base`, the server copy both sides started from. A fact changed on one
-  side only is taken from that side. A fact changed differently on both is a conflict: the
-  local value stays, `pull` names it, and the agent settles exactly that fact with
-  `remember` or `forget` after comparing `ctx get` with `ctx get --remote`.
-- `push` sends the whole merged file with the version it started from. The server accepts it
-  only if that is still its current version; otherwise `ctx` pulls, merges and tries again,
-  and stops only on a real conflict. The server never merges — it stores versions — which
-  removed its keyed merge entirely.
-- **The CLI merges, the AI settles.** Having the AI merge every fact on every pull was the
-  first idea and was rejected: slow, expensive in tokens, and sooner or later it silently
-  drops or rewrites a fact. A three-way merge does the routine part exactly; only a true
-  conflict needs judgment.
+**The agent works through the CLI, never the files.** `ctx ai` starts a session; `ctx get`
+reads the whole context; `ctx remember <category> <key> "<value>"` adds or changes a fact;
+`ctx forget` removes one. Commands give every write a visible `KeepCTX:` line for the
+operator, a secret check before anything is stored, and a push at the moment of writing.
 
 **`ctx ai` is where the agent starts, and the only command `AGENTS.md` names.** It pulls when
-there is a server, prints the rules, then prints the whole context — the session start in one
-command. The rules are made fresh by the installed CLI on every run, so `.ctx/instructions.md`
-is gone, along with the machinery that kept it current; upgrading is reinstalling. If it can't
-pull — offline, signed out — it says so and works from the local copy. Plain `ctx` is for
-people and lists only `init`, `remote`, `clone` and `get`, plus one line saying the AI starts
-with `ctx ai`, so anyone can run it and see exactly what their agent is told. `ctx init`
-replaces an older pointer in place; nothing else in `AGENTS.md` is touched.
+there is a server, prints the rules, then prints the whole context. The rules are made fresh by
+the installed CLI on every run, so there is no instructions file to go stale; upgrading is
+reinstalling. If it can't pull — offline, signed out — it says so and works from the local
+copy. Plain `ctx` is for people and lists only `init`, `remote`, `clone` and `get`, plus one
+line saying the AI starts with `ctx ai`, so anyone can see exactly what their agent is told.
 
-**A fact is a key and a value, nothing more.** The `→` relationship syntax and the architecture
-diagram drawn from it were removed: a second kind of fact for the agent to choose between, for
-a picture nobody had asked to rely on. Old lines written with `→` are still read, and written
-back with `—`. Dependencies are ordinary facts under architecture.
+**One context per directory, in one JSON file.** `.ctx/context.json` is the only copy of the
+facts — there is no Markdown beside it to keep in step, because nobody needs to open the file:
+the agent and people read through `ctx get` and the console. `.ctx/config.json` holds where it
+syncs and the sign-in. Allowing a second, "reference" context beside a directory's own was
+built and removed: it shared a folder name with the directory's own context and silently
+overwrote it, and one context per directory is easier to explain.
 
-**When to sync.** The agent pulls and reads at the start of a session, and pushes once before
-finishing. In between, every `remember` and `forget` pushes by itself. That is two moments
-the agent has to remember, and nothing it can forget in the middle.
+**A fact is a key, a value, and the time it last changed.**
+
+```json
+"environments.server-a.ip": {"value": "10.0.4.12", "updated": "2026-10-01T14:03:11.402Z", "removed": false}
+```
+
+Keys are `category.key`; the eleven categories — overview, requirements, architecture,
+environments, decisions, questions, conventions, operations, testing, knowledge, people — are
+fixed, each with a one-line description. Gone, and why: the `[verified]` marker (nothing used
+it), and `→` relationships with the diagram drawn from them (a second kind of fact for the
+agent to choose between, for a picture nobody relied on).
+
+This is not the rejected "keyed JSON claims with supersede pointers": there are no pointers,
+evidence fields, corroboration counts or per-claim operations. One value and one time per key;
+history is the server's version list, as before.
+
+**For every fact, the most recent change wins.** One rule, applied identically by the CLI and
+the server, with ties broken the same way everywhere so every copy settles on the same answer.
+It replaced a three-way merge in which the AI settled conflicts: that was correct but needed a
+base copy, a folder of pulled versions, `ctx get --remote`, conflict state and a version check
+on push, and it handed judgment to the agent at exactly the moment it was least needed. Under
+newest-wins none of that exists. The cost is accepted knowingly: two people changing one fact
+within moments of each other, the later one silently wins — and the earlier is still in the
+server's history.
+
+**Forgetting keeps the key, marked removed.** Without that, a fact deleted in one copy would
+come straight back from any copy that still had it. Removed facts are hidden from `ctx get` and
+the console, but they carry their time, so the removal wins wherever it is newer.
+
+**Pull, push and clone all merge the same way.** `pull` takes the server's facts; `push` sends
+every local fact, the server keeps whichever version of each is newer and sends the whole back,
+so a push also brings in what others changed. `clone` into a directory whose local context has
+the same name joins the two and says so; any other context already there is refused.
+
+**People edit in the console.** Anyone who maintains a context can add, change and remove
+facts there; the server stamps the change with its time, so the next pull brings it into every
+copy. A revert is likewise a new change — every fact that differs from the chosen version is
+set back to it, stamped now — because restoring old timestamps would lose to every copy's newer
+changes on the next push.
+
+**When to sync.** The agent pulls at the start of a session (`ctx ai` does it), now and then in
+a long one, and pushes once before finishing. In between, every `remember` and `forget` pushes
+by itself.
 
 **Tell the operator.** Every line `ctx` prints that starts with `KeepCTX:` is meant for the
-person too, and the instructions tell the agent to repeat it as printed.
+person too, and the rules tell the agent to repeat it as printed.
 
 ## How to pitch it
 

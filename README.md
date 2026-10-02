@@ -21,14 +21,15 @@ project's `ctx` is already on your PATH the alias is skipped, and `keepctx` work
 
 ## How it works
 
-A context is a list of facts, grouped by category in one file. Your agent works through
+A context is a list of facts, grouped by category, kept in one file: `.ctx/context.json`.
+Each fact is a key, a short value, and the time it last changed. Your agent works through
 `ctx`: it reads everything with `ctx get`, and changes it with `ctx remember` and
 `ctx forget` the moment it learns something:
 
 ```sh
 ctx remember environments logs.location "Splunk, index app_prod. Not CloudWatch."
 KeepCTX: remembered environments.logs.location — Splunk, index app_prod. Not CloudWatch.
-KeepCTX: pushed 48 facts to https://keepctx.com (v13)
+KeepCTX: pushed 1 change to https://keepctx.com
 ```
 
 Every line starting with `KeepCTX:` is passed on to you by the agent, so you always see what's
@@ -77,15 +78,15 @@ never go stale. Run it yourself to see exactly what your agent is told.
 
 - **Every `ctx remember` and `ctx forget` is pushed straight away**, so a session that ends
   abruptly loses nothing.
-- **The agent runs `ctx pull` at the start of each session.** It downloads the latest into
-  `.ctx/<name>/remote/`, kept by version, and merges it into the local facts **fact by fact**.
-- **A fact changed on one side is simply taken.** A fact changed differently here and on the
-  server is a conflict: `ctx pull` names it, the agent compares `ctx get` with
-  `ctx get --remote`, settles just that fact with `ctx remember` or `ctx forget`, and pushes.
-  Everything else was already merged.
-- **A push is accepted only from the latest version.** If the server moved on, `ctx` pulls and
-  merges first, so nobody overwrites what they never saw.
-- **Every push is a version on the server** — a bad change is one revert away in the console.
+- **The agent pulls at the start of each session** — `ctx ai` does it first — and now and then
+  in a long one.
+- **For every fact, the most recent change wins.** Copies merge fact by fact on every pull,
+  push and clone, by the time each fact last changed. There are no conflicts, and nothing for
+  the agent or anyone else to resolve.
+- **A forgotten fact stays forgotten.** Its key is kept, marked removed, so the removal
+  reaches every copy instead of the fact coming back from one that still has it.
+- **Every change is a version on the server** — a bad change is one revert away in the
+  console, and a revert is itself a new change, so every copy takes it.
 
 A context is **written by its owner** — whoever ran `ctx remote` — **and the org's admins.
 Everyone else in the org reads it.** Add teammates to your org in the
@@ -96,13 +97,17 @@ ctx clone your-org:your-context
 ```
 
 They get a read-only copy that `ctx pull` keeps current. The same command gives you a writable
-copy on another machine. Run beside an existing context, it brings the other one in as a
-read-only reference that `ctx get` shows after the context's own facts.
+copy on another machine.
+
+**One context per directory.** Cloning into a directory whose local context has the same name
+joins the two: the local facts and the server's are merged, newest change winning, and the
+result is shared. Any other context already in the directory is refused, never overwritten.
 
 ## What people see
 
-Open a context in the console and it reads by category, each with its facts. It's all drawn
-in the browser; the server stores text and never needs a model, so a
+Open a context in the console and it reads by category, each with its facts. Anyone who
+maintains it can add, change and remove facts there; each edit is stamped with the time, so the
+next pull brings it into every copy. The server stores text and never needs a model, so a
 self-hosted server shows exactly the same page.
 
 ## Why not just commit it
@@ -124,12 +129,12 @@ Plain `ctx` lists only what people need — `init`, `remote`, `clone`, `get` —
 | `ctx` | status |
 | `ctx init [name]` | set up here. local, no account, no network |
 | `ctx ai` | where your agent starts every session: pulls, then prints the rules and the context |
-| `ctx get [--remote]` | print the whole context — or the copy the last pull downloaded |
+| `ctx get` | print the whole context |
 | `ctx remember <category> <key> "<value>"` | add a fact, or replace it |
 | `ctx forget <category> <key>` | remove a fact |
 | `ctx remote [server]` | put this on a server — shares it and backs it up |
-| `ctx clone org:name [server]` | bring a context here from a server |
-| `ctx pull` | bring in the latest and merge it, fact by fact |
+| `ctx clone org:name [server]` | bring a shared context here, or join a local one of the same name |
+| `ctx pull` | bring in the latest; for each fact the most recent change wins |
 | `ctx push` | send what's here — done for you after every remember |
 
 The name of a context defaults to your directory, slugified; it only has to be unique when
@@ -167,8 +172,8 @@ Reinstalling replaces the code and never touches the data, which lives in
 `~/.local/share/keepctx-server/data`: the database, and the secret that signs sign-ins.
 Back up that directory and you've backed up everything.
 
-The server is deliberately **model-free**: storage and version history, with the merge done by
-the client. `server/handler.py` is the same code keepctx.com runs on Lambda and DynamoDB;
+The server is deliberately **model-free**: storage, version history, and one merge rule —
+for each fact, the most recent change wins. `server/handler.py` is the same code keepctx.com runs on Lambda and DynamoDB;
 `serve.py` runs it on SQLite instead. Auth is email + password with PBKDF2 and HMAC-signed
 tokens — stdlib only, no Cognito, no vendor dependency. Self-hosting is a commitment here, not
 a maybe: it's the only thing standing between this and lock-in.

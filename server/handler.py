@@ -1,7 +1,8 @@
 """ctxhub — the remote half of ctx.
 
-Stores contexts as versioned markdown. Deliberately model-free: the server does
-storage and version history; the merge happens on the client. Nothing here needs inference.
+Stores contexts as facts, each a value with the time it last changed, and keeps
+every version. Merging is one rule, applied the same here and in the CLI: for
+every fact, the most recent change wins. Deliberately model-free.
 """
 import base64
 import hashlib
@@ -25,7 +26,10 @@ if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     from boto3.dynamodb.conditions import Key
     tbl = boto3.resource("dynamodb").Table(TABLE)
 
-FACT_RE = re.compile(r"^\s*-\s+\*\*(?P<key>[^*]+)\*\*\s*[—→-]\s*(?P<value>.*)$")
+FULL_KEY_RE = re.compile(r"^[a-z0-9-]+\.[a-z0-9][a-z0-9._-]{0,120}$")
+STAMP_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
+MAX_FACTS = 5000
+MAX_VALUE = 4000
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")
 # Shapes that are only ever credentials. Mechanical on purpose: no model, and
 # nothing that fires on the word "password" in a sentence about passwords.
@@ -90,26 +94,51 @@ def check_pw(password, stored):
     return hmac.compare_digest(hash_pw(password, b64u_dec(salt_b64)), stored)
 
 
-def parse_facts(text):
-    """{key: block}. A block is the fact line plus indented continuations."""
-    facts, key, block = {}, None, []
+def stamp():
+    """UTC, fixed width, so comparing the strings compares the times."""
+    t = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + f".{int(t % 1 * 1000):03d}Z"
 
-    def flush():
-        if key is not None:
-            facts[key] = "\n".join(block).rstrip()
 
-    for line in (text or "").splitlines():
-        m = FACT_RE.match(line)
-        if m:
-            flush()
-            key, block = m.group("key").strip(), [line.rstrip()]
-        elif key is not None and line.strip() and line[:1].isspace():
-            block.append(line.rstrip())
-        else:
-            flush()
-            key, block = None, []
-    flush()
-    return facts
+def newer(a, b):
+    """The more recent of two versions of one fact — the CLI's rule exactly, ties
+    included, so every copy settles on the same answer."""
+    if a is None or b is None:
+        return a or b
+    ka = (a.get("updated", ""), a.get("removed", False), a.get("value", ""))
+    kb = (b.get("updated", ""), b.get("removed", False), b.get("value", ""))
+    return a if ka >= kb else b
+
+
+def live(facts):
+    return {k: f for k, f in facts.items() if not f.get("removed")}
+
+
+def check_facts(facts):
+    """-> an error message, or None. Every fact a client sends is checked."""
+    if not isinstance(facts, dict):
+        return "send the facts as {\"category.key\": {value, updated, removed}}"
+    if len(facts) > MAX_FACTS:
+        return f"a context holds at most {MAX_FACTS} facts"
+    for k, f in facts.items():
+        if not FULL_KEY_RE.match(k):
+            return f"`{k}` isn't a key — it should look like category.key"
+        if not isinstance(f, dict) or not isinstance(f.get("value"), str) \
+                or not isinstance(f.get("removed", False), bool) \
+                or not STAMP_RE.match(str(f.get("updated", ""))):
+            return f"`{k}` needs a value, an updated time and whether it was removed"
+        if len(f["value"]) > MAX_VALUE:
+            return f"`{k}` is longer than {MAX_VALUE} characters"
+        if not f.get("removed"):
+            what = find_secret(f["value"])
+            if what:
+                return (f"`{k}` looks like it contains {what} — secrets never go in a "
+                        "context. Nothing was stored.")
+    return None
+
+
+def clean(f):
+    return {"value": f["value"], "updated": f["updated"], "removed": bool(f.get("removed"))}
 
 
 def find_secret(text):
@@ -137,17 +166,40 @@ def err(code, message):
 
 
 # ------------------------------------------------------------------- storage
+#
+# The facts are stored as one JSON string, the same in DynamoDB and SQLite.
+# Every change is also kept as a version, for the history and revert.
 
 def get_context(org, name):
     r = tbl.get_item(Key={"pk": f"ORG#{org}", "sk": f"CTX#{name}"})
     return r.get("Item")
 
 
+def facts_of(item):
+    try:
+        return json.loads(item.get("facts") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+
 def put_version(org, name, facts, version, by):
     tbl.put_item(Item={
         "pk": f"CTX#{org}#{name}", "sk": f"V#{version:09d}",
-        "facts": facts, "by": by, "at": int(time.time()), "version": version,
+        "facts": json.dumps(facts), "by": by, "at": int(time.time()), "version": version,
     })
+
+
+def save(org, name, item, facts, by):
+    """Store a changed set of facts as the next version. -> the version."""
+    version = int(item.get("version", 0)) + 1
+    tbl.update_item(
+        Key={"pk": f"ORG#{org}", "sk": f"CTX#{name}"},
+        UpdateExpression="SET facts=:f, version=:v, updated=:u",
+        ExpressionAttributeValues={":f": json.dumps(facts), ":v": version,
+                                   ":u": int(time.time())},
+    )
+    put_version(org, name, facts, version, by)
+    return version
 
 
 # ---------------------------------------------------------------- membership
@@ -316,14 +368,14 @@ def create_context(claims, body):
     if get_context(org, name):
         return err(409, f"{org}:{name} already exists")
 
-    facts = body.get("facts") or ""
-    what = find_secret(facts)
-    if what:
-        return err(400, f"not stored: the facts look like they contain {what}. "
-                        "Remove it and try again — secrets never go in a context.")
+    facts = body.get("facts") or {}
+    problem = check_facts(facts)
+    if problem:
+        return err(400, problem)
+    facts = {k: clean(f) for k, f in facts.items()}
     now = int(time.time())
     tbl.put_item(Item={"pk": f"ORG#{org}", "sk": f"CTX#{name}",
-                       "name": name, "org": org, "facts": facts,
+                       "name": name, "org": org, "facts": json.dumps(facts),
                        "version": 1, "updated": now, "created": now,
                        "owner": claims["sub"]})
     put_version(org, name, facts, 1, claims["sub"])
@@ -332,9 +384,9 @@ def create_context(claims, body):
 
 def can_write(email, org, item):
     """For now a context has one writer — whoever created it — plus the org's
-    admins. Every other member reads it. The per-key merge below already copes
-    with many writers (the same owner on two machines is exactly that), so
-    opening writes to the whole org later is a permission change, not a rebuild."""
+    admins. Every other member reads it. Newest-wins already copes with many
+    writers (the same owner on two machines is exactly that), so opening writes
+    to the whole org later is a permission change, not a rebuild."""
     return item.get("owner") == email or role_in(email, org) == "admin"
 
 
@@ -345,48 +397,71 @@ def read_context(claims, org, name):
     item = get_context(org, name)
     if not item:
         return err(404, f"{org}:{name} not found")
-    facts = item.get("facts", "")
+    facts = facts_of(item)
     return resp(200, {"org": org, "name": name, "facts": facts,
                       "version": int(item.get("version", 0)),
-                      "count": len(parse_facts(facts)),
+                      "count": len(live(facts)),
                       "owner": item.get("owner", ""),
-                      "can_write": can_write(claims["sub"], org, item),
-                      "requires": item.get("requires", [])})
+                      "can_write": can_write(claims["sub"], org, item)})
+
+
+def writable_item(claims, org, name):
+    """-> (item, None) or (None, error response)."""
+    if not role_in(claims["sub"], org):
+        return None, err(403, f"you're not in `{org}`, or it doesn't exist")
+    item = get_context(org, name)
+    if not item:
+        return None, err(404, f"{org}:{name} not found")
+    if not can_write(claims["sub"], org, item):
+        return None, err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
+    return item, None
 
 
 def push_context(claims, org, name, body):
-    """The whole context, as the client merged it. Accepted only if the client
-    started from the server's current version; otherwise it is told to pull and
-    merge first. Facts are merged on the client, fact by fact, so the server
-    only ever stores a version and never has to decide between two."""
-    if not role_in(claims["sub"], org):
-        return err(403, f"you're not in `{org}`, or it doesn't exist")
-    item = get_context(org, name)
-    if not item:
-        return err(404, f"{org}:{name} not found")
-    if not can_write(claims["sub"], org, item):
-        return err(403, f"{org}:{name} is read-only for you — its owner and org admins maintain it")
-    facts = body.get("facts")
-    if not isinstance(facts, str):
-        return err(400, "send the whole context as `facts`")
-    what = find_secret(facts)
-    if what:
-        return err(400, f"not pushed: the facts look like they contain {what}. "
-                        "Remove it and push again — secrets never go in a context.")
-    current = int(item.get("version", 0))
-    if int(body.get("version", -1)) != current:
-        return resp(409, {"error": f"the server is at v{current} — pull and merge first",
-                          "version": current})
-    if facts == item.get("facts", ""):
-        return resp(200, {"version": current})
-    version = current + 1
-    tbl.update_item(
-        Key={"pk": f"ORG#{org}", "sk": f"CTX#{name}"},
-        UpdateExpression="SET facts=:f, version=:v, updated=:u",
-        ExpressionAttributeValues={":f": facts, ":v": version, ":u": int(time.time())},
-    )
-    put_version(org, name, facts, version, claims["sub"])
-    return resp(200, {"version": version})
+    """Every fact a copy has. Each one replaces the server's only if it is the
+    more recent change; the merged whole comes back, so the copy can take in
+    whatever others changed. No versions to match, nothing to retry."""
+    item, problem = writable_item(claims, org, name)
+    if problem:
+        return problem
+    incoming = body.get("facts")
+    problem = check_facts(incoming)
+    if problem:
+        return err(400, problem)
+    facts = facts_of(item)
+    accepted = 0
+    for k, f in incoming.items():
+        f = clean(f)
+        if newer(facts.get(k), f) is f and facts.get(k) != f:
+            facts[k] = f
+            accepted += 1
+    version = save(org, name, item, facts, claims["sub"]) if accepted else int(item.get("version", 0))
+    return resp(200, {"version": version, "accepted": accepted, "facts": facts})
+
+
+def edit_fact(claims, org, name, body):
+    """One fact, changed or removed by a person in the console. It is stamped
+    now, so the next pull on every copy brings it in."""
+    item, problem = writable_item(claims, org, name)
+    if problem:
+        return problem
+    key = (body.get("key") or "").strip().lower()
+    removed = bool(body.get("removed"))
+    facts = facts_of(item)
+    value = body.get("value")
+    if removed:
+        if key not in facts or facts[key].get("removed"):
+            return err(404, f"no fact `{key}`")
+        value = facts[key]["value"]
+    f = {"value": (value or "").strip(), "updated": stamp(), "removed": removed}
+    problem = check_facts({key: f})
+    if problem:
+        return err(400, problem)
+    if not removed and not f["value"]:
+        return err(400, "a fact needs a value")
+    facts[key] = f
+    version = save(org, name, item, facts, claims["sub"])
+    return resp(200, {"version": version, "facts": facts})
 
 
 def list_contexts(claims, org):
@@ -397,7 +472,7 @@ def list_contexts(claims, org):
     out = []
     for it in r.get("Items", []):
         out.append({"name": it["name"], "version": int(it.get("version", 0)),
-                    "facts": len(parse_facts(it.get("facts", ""))),
+                    "facts": len(live(facts_of(it))),
                     "updated": int(it.get("updated", 0)),
                     "owner": it.get("owner", ""),
                     "can_write": can_write(claims["sub"], org, it)})
@@ -412,7 +487,7 @@ def list_versions(claims, org, name):
                   ScanIndexForward=False, Limit=50)
     return resp(200, {"versions": [
         {"version": int(i["version"]), "by": i.get("by", ""), "at": int(i.get("at", 0)),
-         "facts": len(parse_facts(i.get("facts", "")))}
+         "facts": len(live(facts_of(i)))}
         for i in r.get("Items", [])]})
 
 
@@ -426,15 +501,19 @@ def revert(claims, org, name, body):
     old = r.get("Item")
     if not old:
         return err(404, f"no version {want}")
+    # Putting the old facts back as they were would lose to every copy's newer
+    # changes on the next push. So a revert is a new change: every fact that
+    # differs from that version is set back to it, stamped now.
     item = get_context(org, name)
-    version = int(item.get("version", 0)) + 1
-    now = int(time.time())
-    tbl.update_item(
-        Key={"pk": f"ORG#{org}", "sk": f"CTX#{name}"},
-        UpdateExpression="SET facts=:f, version=:v, updated=:u",
-        ExpressionAttributeValues={":f": old["facts"], ":v": version, ":u": now},
-    )
-    put_version(org, name, old["facts"], version, claims["sub"])
+    facts, then, t = facts_of(item), facts_of(old), stamp()
+    for k in set(facts) | set(then):
+        was, cur = then.get(k), facts.get(k)
+        want_removed = was is None or was.get("removed", False)
+        want_value = (was or cur)["value"]
+        if cur and cur.get("removed", False) == want_removed and cur["value"] == want_value:
+            continue
+        facts[k] = {"value": want_value, "updated": t, "removed": want_removed}
+    version = save(org, name, item, facts, claims["sub"])
     return resp(200, {"version": version, "reverted_to": want})
 
 
@@ -499,6 +578,8 @@ def handler(event, _context=None):
                 return err(401, "log in")
             if action == "push" and method == "POST":
                 return push_context(claims, org, name, body)
+            if action == "facts" and method == "POST":
+                return edit_fact(claims, org, name, body)
             if action == "versions" and method == "GET":
                 return list_versions(claims, org, name)
             if action == "revert" and method == "POST":

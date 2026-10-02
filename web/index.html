@@ -22,8 +22,9 @@
 <div class="hero"><div class="wrap">
   <h1>Keep one context.<br />Every session, every AI, every teammate.</h1>
   <p class="lede">What your AI learns and decides about a project shouldn't die with the
-  session, stay locked in one tool, or live on one laptop. KeepCTX keeps it as facts &mdash;
-  remembered as your agent works, merged fact by fact, and shared on our server or your own.</p>
+  session, stay locked in one tool, or live on one laptop. KeepCTX keeps context as a list of
+  facts &mdash; automatically remembered as your agent works, merged fact by fact, and shared on
+  our server or your own.</p>
   <div class="cta">
     <a class="btn" href="#quickstart">Get started</a>
     <a class="btn ghost" href="app.html#register" id="cta-account">Create an account</a>
@@ -34,8 +35,8 @@
   <h2>Stop re-explaining the same thing</h2>
   <p class="sub">Every session, you re-explain how to log in to your servers, where the logs
   live, and what runs where. Every next session, it's forgotten.
-  The fix isn't a bigger context window — it's writing things down once, in a place the next
-  session reads automatically.</p>
+  The fix isn't a bigger context window &mdash; it's automatically recording as the AI learns, in a
+  place the next session reads automatically.</p>
 
   <div class="grid">
     <div class="card">
@@ -65,9 +66,9 @@
       on a branch. Your <code>AGENTS.md</code> gets a short pointer and nothing else.</p>
     </div>
     <div class="card">
-      <h3>Plain markdown, open source</h3>
-      <p>Facts are readable text. Run our server or your own. Uninstalling is deleting
-      <code>.ctx/</code>.</p>
+      <h3>Plain text, open source</h3>
+      <p>Facts are short lines of plain text in one JSON file. Run our server or your own.
+      Uninstalling is deleting <code>.ctx/</code>.</p>
     </div>
   </div>
 </div></section>
@@ -137,10 +138,14 @@ ctx get
   made, so a session that ends abruptly loses nothing.</p>
 
   <h3>Merged fact by fact</h3>
-  <p class="sub"><code>ctx pull</code> brings in the latest and merges it one fact at a time.
-  A fact changed on one side is simply taken. Only a fact changed differently on both sides is a
-  conflict, and your agent settles just that one. Every version is kept on the server, so a bad
-  change is one revert away.</p>
+  <p class="sub">Every fact carries the time it last changed. When copies meet &mdash; on a pull,
+  a push, or a clone &mdash; each fact settles on its most recent change, so there's never a
+  conflict for anyone to resolve. A removed fact stays removed everywhere. Every version is kept
+  on the server, so a bad change is one revert away.</p>
+
+  <h3>Edit it yourself</h3>
+  <p class="sub">The console shows the context by category, and anyone who maintains it can add,
+  change and remove facts there. The next pull brings the edit into every copy.</p>
 
 </div></section>
 
@@ -165,8 +170,8 @@ ctx get
 ctx init
 
 <span class="c">Initialized `example-project`</span>
-<span class="c">  .ctx/example-project/facts.md  your facts</span>
-<span class="c">  AGENTS.md                      pointer at the top: your AI starts with `ctx ai`</span>
+<span class="c">  .ctx/      the context — ignored by git</span>
+<span class="c">  AGENTS.md  pointer at the top: your AI starts with `ctx ai`</span>
 
 <span class="c">Tell your AI to re-read AGENTS.md.</span></code></pre>
     </li>
@@ -202,12 +207,12 @@ ctx pull     <span class="c"># the agent runs this at the start of every session
     <tr><th><code>ctx</code></th><td>status</td></tr>
     <tr><th><code>ctx init [name]</code></th><td>set up here. local, no account, no network</td></tr>
     <tr><th><code>ctx ai</code></th><td>where your agent starts every session: pulls, then prints the rules and the whole context</td></tr>
-    <tr><th><code>ctx get [--remote]</code></th><td>print the whole context &mdash; or the copy the last pull downloaded</td></tr>
+    <tr><th><code>ctx get</code></th><td>print the whole context</td></tr>
     <tr><th><code>ctx remember &lt;category&gt; &lt;key&gt; "&lt;value&gt;"</code></th><td>add a fact, or replace it</td></tr>
     <tr><th><code>ctx forget &lt;category&gt; &lt;key&gt;</code></th><td>remove a fact</td></tr>
     <tr><th><code>ctx remote [server]</code></th><td>one-time. create this context on a server &mdash; keepctx.com unless you name your own</td></tr>
-    <tr><th><code>ctx clone org:name [server]</code></th><td>bring a context here from a server</td></tr>
-    <tr><th><code>ctx pull</code></th><td>bring in the latest and merge it, fact by fact</td></tr>
+    <tr><th><code>ctx clone org:name [server]</code></th><td>bring a shared context here &mdash; into an empty folder, or join a local context of the same name</td></tr>
+    <tr><th><code>ctx pull</code></th><td>bring in the latest; for each fact the most recent change wins</td></tr>
     <tr><th><code>ctx push</code></th><td>send what's here &mdash; done for you after every remember</td></tr>
   </table>
 
