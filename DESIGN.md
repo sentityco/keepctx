@@ -4,8 +4,8 @@
 
 A convention, and a one-command setup for it. `keepctx init` creates `KEEPCTX.md` — a plain
 Markdown file with the rules for keeping it at the top and a heading per category — and adds
-a pointer to the top of `AGENTS.md` telling agents to read it at the start of every session
-and keep it current, or carry on if it's missing. That's the whole product.
+a pointer to the top of `AGENTS.md` telling agents to read it before their first reply in every
+session and keep it current, or carry on if it's missing. That's the whole product.
 
 ## Decisions
 
