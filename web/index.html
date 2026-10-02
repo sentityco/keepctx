@@ -61,7 +61,7 @@
 
 <section id="how"><div class="wrap">
   <h2>How it works</h2>
-  <p class="sub"><code>ctx init</code> creates <code>KEEPCTX.md</code> and adds a short
+  <p class="sub"><code>keepctx init</code> creates <code>KEEPCTX.md</code> and adds a short
   pointer to <code>AGENTS.md</code>. Your AI reads the file at the start of every session and
   adds to it as it learns &mdash; one fact per line, under the right heading. When it does, it
   tells you:</p>
@@ -98,11 +98,10 @@
 
 <section id="quickstart"><div class="wrap">
   <h2>Quickstart</h2>
-  <p class="sub">Python 3.9 or newer. The command is <code>keepctx</code>, with <code>ctx</code>
-  as a short alias.</p>
+  <p class="sub">Python 3.9 or newer, no dependencies.</p>
 <pre><code>curl -fsSL https://keepctx.com/install.sh | sh
 cd ~/work/your-project
-ctx init
+keepctx init
 
 <span class="c"># optional: commit KEEPCTX.md so teammates and their AI agents see and update the context too</span>
 git add KEEPCTX.md AGENTS.md && git commit -m "Add KeepCTX"</code></pre>

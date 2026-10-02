@@ -29,7 +29,7 @@ every session, and keep it current as you work, by these rules.**
 ## Overview
 _What this is, why it exists, who it's for, and what success looks like._
 
-- **what** — a convention plus one command: `ctx init` creates `KEEPCTX.md`, a Markdown file of facts with its rules at the top, and points `AGENTS.md` at it
+- **what** — a convention plus one command: `keepctx init` creates `KEEPCTX.md`, a Markdown file of facts with its rules at the top, and points `AGENTS.md` at it
 - **users** — anyone working with AI agents on a project, alone or with a team; not only code
 - **tagline** — Keep one context. Every session, every AI, every teammate.
 
@@ -42,8 +42,8 @@ _What it must and must not do, and what is in and out of scope._
 ## Architecture
 _Services, components, dependencies and data flows: what connects to what._
 
-- **cli** — `src/keepctx.py`: `ctx init`, the template and its rules; that is the whole tool
-- **installer** — `install.sh` downloads `src/keepctx.py` from GitHub at main's exact commit into `~/.local/bin/keepctx`, with `ctx` as an alias unless another `ctx` exists
+- **cli** — `src/keepctx.py`: `keepctx init`, the template and its rules; that is the whole tool
+- **installer** — `install.sh` downloads `src/keepctx.py` from GitHub at main's exact commit into `~/.local/bin/keepctx`; it also removes the `ctx` alias older versions installed
 - **site** — `web/index.html` and `web/style.css`, static, no build step
 
 ## Environments
@@ -71,7 +71,7 @@ _What is still undecided. Deleted once a decision settles it._
 ## Conventions
 _Patterns future developers and agents should follow, and what not to touch._
 
-- **name** — KeepCTX in prose; `keepctx` and `ctx` are the commands
+- **name** — KeepCTX in prose; `keepctx` is the command (the `ctx` alias was dropped)
 - **rules** — the template's rules are the product; most changes should be to their wording
 
 ## Operations

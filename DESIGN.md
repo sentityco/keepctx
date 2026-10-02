@@ -2,7 +2,7 @@
 
 ## What it is
 
-A convention, and a one-command setup for it. `ctx init` creates `KEEPCTX.md` — a plain
+A convention, and a one-command setup for it. `keepctx init` creates `KEEPCTX.md` — a plain
 Markdown file with the rules for keeping it at the top and a heading per category — and adds
 a pointer to the top of `AGENTS.md` telling agents to read it at the start of every session
 and keep it current, or carry on if it's missing. That's the whole product.
@@ -10,17 +10,17 @@ and keep it current, or carry on if it's missing. That's the whole product.
 ## Decisions
 
 **It has to work for someone who never installed it.** A teammate clones the repo; their agent
-has no `ctx`. So nothing in an agent's workflow depends on a command: agents read and edit the
+has no KeepCTX. So nothing in an agent's workflow depends on a command: agents read and edit the
 file directly, and the rules travel inside it. The CLI only sets it up.
 
 **`AGENTS.md` is the doorway, not the store.** It's the file most agents already read, and it
 holds instructions people write. KeepCTX adds one pointer block there and touches nothing
-else; the context itself lives in its own file. Running `ctx init` again replaces an older
+else; the context itself lives in its own file. Running `keepctx init` again replaces an older
 pointer in place.
 
 **One file at the root, named for what it is.** `KEEPCTX.md` sits beside `AGENTS.md` and
 `README.md`, where people and agents see it. An earlier version kept it in `.ctx/context.md`;
-one file doesn't need a folder, and `ctx init` moves the old one across.
+one file doesn't need a folder, and `keepctx init` moves the old one across.
 
 **If it's missing, carry on.** The pointer says so, so an agent never hunts for the file or
 stops when someone has removed it or copied `AGENTS.md` without it.

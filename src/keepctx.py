@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """keepctx — keep one context. Every session, every AI, every teammate.
 
-Installed as `keepctx`, with `ctx` as a short alias. It does one thing:
-`ctx init` creates `KEEPCTX.md` — a plain Markdown file of facts, with the
+The command is `keepctx`. It does one thing: `keepctx init` creates `KEEPCTX.md` — a plain Markdown file of facts, with the
 rules for keeping it at the top — and points AGENTS.md at it. After that,
 nobody needs KeepCTX installed: agents read and edit the file like any other,
 and it's shared through git with the rest of the code.
@@ -10,7 +9,7 @@ and it's shared through git with the rest of the code.
 import pathlib
 import sys
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
@@ -127,7 +126,7 @@ def cmd_init():
 def usage():
     print("KeepCTX — keep one context. Every session, every AI, every teammate.")
     print()
-    print("  ctx init    create KEEPCTX.md here and point AGENTS.md at it")
+    print("  keepctx init    create KEEPCTX.md here and point AGENTS.md at it")
     print()
     print("That's the only command. From then on, your AI reads KEEPCTX.md at the")
     print("start of each session and adds what it learns.")

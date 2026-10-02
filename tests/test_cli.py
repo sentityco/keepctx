@@ -1,4 +1,4 @@
-"""The CLI: `ctx init` makes KEEPCTX.md and points AGENTS.md at it."""
+"""The CLI: `keepctx init` makes KEEPCTX.md and points AGENTS.md at it."""
 import pathlib
 import subprocess
 import sys
@@ -61,7 +61,7 @@ check("upgrade: .ctx/context.md moves to KEEPCTX.md, and the empty folder goes",
       "Moved" in out and "Jason" in (O / "KEEPCTX.md").read_text() and not (O / ".ctx").exists(), out)
 
 code, out = ctx(P)
-check("usage: one command", "ctx init" in out and "remember" not in out, out)
+check("usage: one command, keepctx init", "keepctx init" in out and "remember" not in out, out)
 code, out = ctx(P, "remember")
 check("usage: anything else is unknown", code == 1 and "unknown command" in out, out)
 

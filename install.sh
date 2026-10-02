@@ -1,9 +1,6 @@
 #!/bin/sh
 # keepctx installer. Downloads a single Python file; no dependencies.
-#
-# The executable is `keepctx`. It also installs `ctx` as a short alias, which is
-# what you'll actually type — unless another project's `ctx` is already on your
-# PATH, in which case the alias is skipped and keepctx still works.
+# The command is `keepctx`.
 set -e
 
 REPO="${CTX_REPO:-sentityco/keepctx}"
@@ -41,25 +38,14 @@ if [ -L "$PREFIX/keepctx" ]; then
 fi
 mv -f "$TMP" "$PREFIX/keepctx"
 
-# `ctx` is the short name. Don't clobber someone else's.
-if [ -e "$PREFIX/ctx" ] && [ ! -L "$PREFIX/ctx" ]; then
-  echo "note: $PREFIX/ctx already exists and isn't ours — leaving it alone."
-  SHORT=""
-elif EXISTING="$(command -v ctx 2>/dev/null)" && \
-     [ -n "$EXISTING" ] && [ "$EXISTING" != "$PREFIX/ctx" ]; then
-  echo "note: another \`ctx\` is on your PATH at $EXISTING."
-  echo "      installing as \`keepctx\` only, so nothing of yours breaks."
-  SHORT=""
-else
-  ln -sf "$PREFIX/keepctx" "$PREFIX/ctx"
-  SHORT="yes"
+# Earlier versions also installed a `ctx` alias. Remove it — but only if it's
+# our own link; anything else called ctx is left alone.
+if [ -L "$PREFIX/ctx" ] && [ "$(readlink "$PREFIX/ctx")" = "$PREFIX/keepctx" ]; then
+  rm -f "$PREFIX/ctx"
 fi
 
 echo
 echo "Installed: $PREFIX/keepctx"
-if [ -n "$SHORT" ]; then
-  echo "  with the short alias \`ctx\` — use that day to day."
-fi
 
 case ":$PATH:" in
   *":$PREFIX:"*) ;;
@@ -71,8 +57,4 @@ case ":$PATH:" in
 esac
 
 echo
-if [ -n "$SHORT" ]; then
-  echo "Next: cd your-project && ctx init"
-else
-  echo "Next: cd your-project && keepctx init"
-fi
+echo "Next: cd your-project && keepctx init"

@@ -9,7 +9,7 @@ reads them back at the start of every session.
 
 ```sh
 curl -fsSL https://keepctx.com/install.sh | sh
-cd ~/work/your-project && ctx init
+cd ~/work/your-project && keepctx init
 
 # optional: commit KEEPCTX.md so teammates and their AI agents see and update the context too
 git add KEEPCTX.md AGENTS.md && git commit -m "Add KeepCTX"
@@ -17,7 +17,7 @@ git add KEEPCTX.md AGENTS.md && git commit -m "Add KeepCTX"
 
 That's all. Open source, no account, no server.
 
-## What `ctx init` does
+## What `keepctx init` does
 
 1. Creates **`KEEPCTX.md`** in your project — a plain Markdown file with a heading per
    category, and the rules for keeping it at the top.

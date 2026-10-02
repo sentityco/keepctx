@@ -12,7 +12,7 @@ of the code; `DESIGN.md` has why it is the way it is.
 ## Constraints that are not negotiable
 
 - **Nothing may depend on KeepCTX being installed.** The product is `KEEPCTX.md`, a
-  Markdown file whose rules are at its top. `ctx init` only creates it and points
+  Markdown file whose rules are at its top. `keepctx init` only creates it and points
   `AGENTS.md` at it. Agents read and edit the file directly.
 - **`src/keepctx.py` is one file, standard library only.** It's what makes the installer a
   `curl` and the code readable in one sitting.

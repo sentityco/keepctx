@@ -2,7 +2,7 @@
 
 ## The shape of the thing
 
-- `src/keepctx.py` — the whole tool: `ctx init`, the template and its rules. One file,
+- `src/keepctx.py` — the whole tool: `keepctx init`, the template and its rules. One file,
   standard library only.
 - `install.sh` — the `curl … | sh` installer.
 - `web/` — the landing page at keepctx.com. No build step, no framework.
