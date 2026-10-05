@@ -1,4 +1,4 @@
-# KeepCTX
+<p><img src="assets/logo.png" alt="KeepCTX" width="360" /></p>
 
 **Keep one context. Every session, every AI, every teammate.**
 

@@ -21,6 +21,7 @@ put() {  # put <local> <key> <content-type>
 echo "uploading:"
 put web/index.html index.html  "text/html; charset=utf-8"
 put web/style.css  style.css   "text/css; charset=utf-8"
+put web/logo.png   logo.png    "image/png"
 put install.sh     install.sh  "text/x-shellscript; charset=utf-8"
 
 echo "invalidating..."

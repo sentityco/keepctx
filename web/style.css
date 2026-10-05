@@ -18,6 +18,7 @@ header{border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff
 header .wrap{display:flex;align-items:center;gap:22px;height:58px}
 .logo{font-family:var(--mono);font-weight:700;font-size:18px;color:var(--ink);letter-spacing:-.5px}
 .logo:hover{text-decoration:none}
+.logo img{display:block;height:30px;width:auto}
 header nav{margin-left:auto;display:flex;gap:20px;font-size:14.5px}
 header nav a{color:var(--dim)}
 header nav a:hover{color:var(--ink);text-decoration:none}
