@@ -4,11 +4,13 @@
 # published installer ends up pointing at a path that no longer exists.
 set -euo pipefail
 
-BUCKET="${KEEPCTX_BUCKET:-ctxhub-site-975050072453}"
-DIST="${KEEPCTX_DIST:-E1FU0K7RDCME20}"
-export AWS_PAGER=""
-
 cd "$(dirname "$0")"
+
+# Bucket and distribution live in deploy.env (gitignored), or in the environment.
+[ -f deploy.env ] && . ./deploy.env
+BUCKET="${KEEPCTX_BUCKET:?set KEEPCTX_BUCKET (S3 bucket) in deploy.env or the environment}"
+DIST="${KEEPCTX_DIST:?set KEEPCTX_DIST (CloudFront distribution id) in deploy.env or the environment}"
+export AWS_PAGER=""
 
 put() {  # put <local> <key> <content-type>
   aws s3 cp "$1" "s3://$BUCKET/$2" \
