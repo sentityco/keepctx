@@ -37,6 +37,12 @@ check("context: typical things to keep, marked as not a complete list",
       "Typical things worth keeping — not a complete list" in text and "rejected.<name>" in text, text)
 check("context: if you had to ask what something is, write down the answer",
       "If you have to ask what something is, write down the answer" in text, text)
+check("context: check again before you stop, every reply",
+      "Check again before you stop, every reply, not just the first" in text and "*any* reply" in text, text)
+check("context: a costly wrong assumption is always a fact",
+      "A costly wrong assumption is always a fact, no exceptions" in text, text)
+check("context: durable project-level truth, not a session log",
+      "durable, project-level truth — not a session log" in text, text)
 check("context: offer to fill an empty file in the same reply, write only what's approved",
       "Fill an empty file" in text and "*same reply*" in text and "approves" in text, text)
 check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added — storage: SQLite" in text, text)

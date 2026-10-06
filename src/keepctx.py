@@ -48,6 +48,29 @@ reply of any kind, and keep it current as you work, by these rules.**
   don't recognize a term, host, datasource or repo reference and the user
   explains it so you can proceed, add a fact for it before continuing — don't
   just use the answer and move on.
+- **Check again before you stop, every reply, not just the first.** The
+  start-of-reply read is not enough on its own — re-reading it doesn't keep it
+  current, only writing does, and the task at hand will keep pulling your
+  attention away from this file unless you deliberately check. Before you
+  finish *any* reply — not just ones about this file — ask yourself: *did I
+  learn, decide, reject, or get corrected on anything this turn that isn't in
+  Facts yet?* If yes, add it in that same reply, before you stop, using the
+  `KeepCTX: added/updated/removed — <key>` line. Don't defer it to "later" or
+  to when the user asks explicitly — by then the session may already be over.
+- **A costly wrong assumption is always a fact, no exceptions.** If something
+  you assumed (a name, a location, a config value, which of two similar things
+  was the right one) turned out to be wrong and it cost you two or more extra
+  tool calls, a user correction, or a dead end to recover from — write down
+  what was actually true the moment you find out, even if the user didn't ask
+  you to and even if you're about to move on to something else. That cost is
+  exactly the signal this file exists to capture: the next agent (or you,
+  later) must not pay it twice.
+- **This file is durable, project-level truth — not a session log.** Keep what
+  a newcomer to the *project* would need, stated as a standing fact (what's
+  true now), not a narrative of how you found it out or what you did this
+  session. If something is genuinely one-off and not reusable, it probably
+  doesn't belong here — but err toward keeping it if you're unsure, per the
+  rule above.
 - **Musing is not deciding.** "Maybe Postgres?" is a question, not a decision.
 - **Change a fact by editing its line**, never by adding a second one. Delete a
   line when it's no longer true, and a question once a decision settles it.
