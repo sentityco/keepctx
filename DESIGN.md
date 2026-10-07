@@ -36,17 +36,17 @@ business badly, and a flat list leaves one less decision per fact. Keys like `pr
 agent of the kinds of things worth keeping — survives as a short list of typical examples in the
 rules, marked as not complete so the agent still uses its judgment.
 
-**Capture a wide net, distilled — never the conversation.** Goals, requirements, decisions with
-their reasons, rejected options, open questions, corrections, and how things are built and
-run. Musing is not deciding: an idea still being weighed is a question. Never secrets, never
-what the user puts off the record.
+**More context beats less — distilled, never the conversation.** Goals, requirements, decisions
+with their reasons, rejected options, open questions, corrections, and how things are built and
+run. When unsure, keep it: a missing fact costs the next session far more than an extra line.
+Each fact is stated as what's true now, not as a log of the session. Musing is not deciding: an
+idea still being weighed is a question. Never secrets, never what the user puts off the record.
 
 **Written as you go, checked before every stop.** Reading the file at the start of a reply
 doesn't keep it current; only writing does, and the task pulls attention away from it. So the
 rules ask the agent, before it finishes any reply, whether it learned, decided, rejected or was
 corrected on anything not yet in Facts — and a wrong assumption that cost real effort to recover
-from is always written down, so nobody pays for it twice. What gets written is standing truth
-about the project, not a log of the session.
+from is always written down, so nobody pays for it twice.
 
 **An empty file is filled by asking, not by dumping.** The first agent to meet an empty
 `KEEPCTX.md` often already knows a lot — from the session, its own memory, the README and git

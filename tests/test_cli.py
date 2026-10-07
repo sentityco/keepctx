@@ -31,22 +31,25 @@ check("context: the rules are at the top", text.startswith("# Project Context")
       and text.index("How to keep this file") < text.index("## Facts"), text)
 check("context: one Facts list, no category headings",
       text.endswith("\n## Facts\n") and "## Overview" not in text and "## Decisions" not in text, text)
-check("context: say it was read", "KeepCTX: KEEPCTX.md read (N facts)" in text, text)
-check("context: read it before the next reply", "before your next reply of\n  any kind" in text, text)
-check("context: typical things to keep, marked as not a complete list",
-      "Typical things worth keeping — not a complete list" in text and "rejected.<name>" in text, text)
-check("context: if you had to ask what something is, write down the answer",
-      "If you have to ask what something is, write down the answer" in text, text)
-check("context: check again before you stop, every reply",
-      "Check again before you stop, every reply, not just the first" in text and "*any* reply" in text, text)
-check("context: a costly wrong assumption is always a fact",
-      "A costly wrong assumption is always a fact, no exceptions" in text, text)
-check("context: durable project-level truth, not a session log",
-      "durable, project-level truth — not a session log" in text, text)
-check("context: offer to fill an empty file in the same reply, write only what's approved",
-      "Fill an empty file" in text and "*same reply*" in text and "approves" in text, text)
-check("context: no secrets, and tell the user", "Never" in text and "KeepCTX: added — storage: SQLite" in text, text)
-check("context: name the file when there's more than one", "KeepCTX: added to ../KEEPCTX.md — storage" in text, text)
+# the six goals, in order
+check("1. read it before the first reply of any kind",
+      "before your first reply of any\n  kind" in text, text)
+check("2. say it was read, with the fact count", "KeepCTX: KEEPCTX.md read (N facts)" in text, text)
+check("3. empty: offer to fill from the AI's own context, in the same reply, write only what's approved",
+      "If it's empty, offer to fill it in that same reply" in text
+      and "your own memory and instruction files" in text and "approves" in text, text)
+check("4. keep writing all session, checked before every reply ends",
+      "Keep writing all session" in text and "Before you finish *every* reply" in text, text)
+check("5. more context beats less, with typical examples marked as not complete",
+      "More context beats less" in text and "When you're unsure whether something belongs,\n  keep it" in text
+      and "Typical things worth keeping — not a complete list" in text and "rejected.<name>" in text, text)
+check("5. always keep answers to questions and costly wrong assumptions",
+      "whenever you had to ask what a term" in text and "whenever a wrong assumption cost you" in text, text)
+check("6. tell the user every time, naming the file when there's more than one",
+      "Tell the user every time" in text and "KeepCTX: added — storage: SQLite" in text
+      and "KeepCTX: added to ../KEEPCTX.md — storage" in text, text)
+check("standing facts, not a session log", "Write standing facts, not a session log" in text, text)
+check("never secrets", "**Never** write secrets" in text, text)
 agents = (P / "AGENTS.md").read_text()
 check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
       and agents.startswith("<!-- KeepCTX -->"), agents)
