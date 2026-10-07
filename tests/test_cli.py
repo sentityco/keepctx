@@ -1,5 +1,6 @@
 """The CLI: `keepctx init` makes KEEPCTX.md and points AGENTS.md at it."""
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -56,9 +57,39 @@ check("init: AGENTS.md points at it, marked KeepCTX", "`KEEPCTX.md`" in agents
 check("pointer: if the file is missing, carry on", "is missing,\nignore" in agents, agents)
 check("pointer: read it before the next reply", "Read it before your next reply of any\nkind" in agents, agents)
 
+check("context: rules stamped with the version, just above Facts",
+      re.search(r"<!-- keepctx rules \d+\.\d+\.\d+ .*-->\n\n## Facts\n$", text) is not None, text)
+
 f.write_text(text + "- **owner** — Jason\n")
+before = f.read_text()
 code, out = keepctx(P, "init")
-check("init again: leaves the context alone", "already here" in out and "Jason" in f.read_text(), out)
+check("init again: current rules, file unchanged, facts counted",
+      "current rules" in out and "1 fact." in out and f.read_text() == before, out)
+
+# an older file: different rules, no stamp, facts and notes below ## Facts
+O = tmp / "old"
+O.mkdir()
+facts = ("## Facts\n- **owner** — Jason\n- **deploy.command** — ./deploy.sh — runs build first\n\n"
+         "Some free text a person left under Facts.\n")
+(O / "KEEPCTX.md").write_text("# Project Context\n\nOld rules, long gone.\n\n" + facts)
+code, out = keepctx(O, "init")
+new = (O / "KEEPCTX.md").read_text()
+check("update: old rules replaced with the current ones",
+      "Old rules" not in new and new.startswith("# Project Context") and "More context beats less" in new, new)
+check("update: everything from ## Facts down kept byte for byte", new.endswith(facts), new)
+check("update: says what changed and that the facts are untouched",
+      "Updated the rules" in out and "an earlier version" in out and "2 facts are untouched" in out, out)
+code, out = keepctx(O, "init")
+check("update: running it again changes nothing", "current rules" in out
+      and (O / "KEEPCTX.md").read_text() == new, out)
+
+# no ## Facts heading: don't guess where the rules end
+N = tmp / "nofacts"
+N.mkdir()
+(N / "KEEPCTX.md").write_text("my own notes\n")
+code, out = keepctx(N, "init")
+check("no Facts heading: file left alone", (N / "KEEPCTX.md").read_text() == "my own notes\n"
+      and "left alone" in out, out)
 check("init again: AGENTS.md unchanged", (P / "AGENTS.md").read_text() == agents)
 
 E = tmp / "e"
@@ -70,7 +101,8 @@ check("pointer: brought up to date in place, the rest kept",
       "old words" not in agents and "`KEEPCTX.md`" in agents and agents.endswith("# Mine\nkeep me\n"), agents)
 
 code, out = keepctx(P)
-check("usage: one command, keepctx init", "keepctx init" in out and "remember" not in out, out)
+check("usage: one command, keepctx init, and how to update",
+      "keepctx init" in out and "remember" not in out and "To update" in out, out)
 code, out = keepctx(P, "remember")
 check("usage: anything else is unknown", code == 1 and "unknown command" in out, out)
 

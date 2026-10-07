@@ -62,6 +62,15 @@ another — a repo inside a team workspace — and an agent may read one or both
 rules for which wins or where a fact goes: agents sort that out well, and the change line names
 the file whenever there's more than one, so a fact in the wrong place is easy to spot.
 
+**Updated by running init again.** Re-running the installer gets the latest `keepctx`, and
+re-running `keepctx init` replaces everything above `## Facts` with the current rules, leaving
+everything from `## Facts` down exactly as it was. The heading is the boundary, so files made
+before there was an update path update the same way. The rules carry a version stamp so `init`
+can say what changed. A file with no `## Facts` heading is left alone rather than guessed at.
+One person runs it and commits; everyone else gets the new rules through git, still with
+nothing installed. Fetching the rules from a URL at read time was turned down: it breaks
+"nothing to install," fails offline, and agents don't reliably fetch.
+
 **Shared through git, optionally.** Committing `KEEPCTX.md` gives teammates and their agents the same
 context, with history, review and revert. Git merges it like any other file; the one common
 conflict — two people adding a fact at the same spot — is answered in the rules: keep both.

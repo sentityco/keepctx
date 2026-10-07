@@ -7,9 +7,10 @@ it. After that, nobody needs KeepCTX installed: agents read and edit the file
 like any other, and it's shared through git with the rest of the code.
 """
 import pathlib
+import re
 import sys
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 
 CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
@@ -70,8 +71,36 @@ reply, and keep it current for the whole session, by these rules.**
 """
 
 
+FACTS = "## Facts"
+# Everything above the Facts heading is the rules; `keepctx init` replaces it.
+FACTS_HEADING = re.compile(r"^## Facts[ \t]*$", re.M)
+STAMP = re.compile(r"<!-- keepctx rules ([^ ]+) ")
+
+
+def rules():
+    return (RULES + f"\n<!-- keepctx rules {VERSION} — `keepctx init` replaces everything above "
+            f"{FACTS}; facts below it are never touched -->\n\n")
+
+
 def template():
-    return RULES + "\n## Facts\n"
+    return rules() + FACTS + "\n"
+
+
+def update_rules(path):
+    """Replace the rules above ## Facts; keep everything from ## Facts down
+    exactly as it is. -> (status, old version, fact count)."""
+    text = path.read_text()
+    m = FACTS_HEADING.search(text)
+    if not m:
+        return "no-facts", None, 0
+    head, rest = text[:m.start()], text[m.start():]
+    count = len(re.findall(r"^- \*\*.+?\*\* — ", rest, re.M))
+    old = STAMP.search(head)
+    old = old.group(1) if old else "an earlier version"
+    if head == rules():
+        return "current", old, count
+    path.write_text(rules() + rest)
+    return "updated", old, count
 
 
 POINTER = (
@@ -104,16 +133,24 @@ def cmd_init():
     root = pathlib.Path.cwd().resolve()
     path = root / CONTEXT
     created = not path.exists()
+    status = None
     if created:
         path.write_text(template())
+    else:
+        status, old, count = update_rules(path)
     pointed = write_pointer(root)
+    facts = f"{count} fact{'' if count == 1 else 's'}" if status else ""
     if created:
         print(f"Created {CONTEXT} — your project's context.")
+    elif status == "updated":
+        print(f"Updated the rules in {CONTEXT} ({old} -> {VERSION}). Your {facts} are untouched.")
+    elif status == "current":
+        print(f"{CONTEXT} is already here, with the current rules ({VERSION}) and {facts}.")
     else:
-        print(f"{CONTEXT} is already here.")
+        print(f"{CONTEXT} has no `{FACTS}` heading, so its rules were left alone.")
     if pointed:
         print(f"Added a pointer to it at the top of {AGENTS}.")
-    if created or pointed:
+    if created or pointed or status == "updated":
         print("Start a new AI session, or tell your AI to re-read AGENTS.md.")
     return 0
 
@@ -121,13 +158,16 @@ def cmd_init():
 def usage():
     print("KeepCTX — keep one context. Every session, every AI, every teammate.")
     print()
-    print("  keepctx init    create KEEPCTX.md here and point AGENTS.md at it")
+    print("  keepctx init    create KEEPCTX.md here, or update its rules, and point AGENTS.md at it")
     print()
     print("That's the only command. From then on, your AI reads KEEPCTX.md at the")
     print("start of each session and adds what it learns.")
     print()
     print("Optional: commit KEEPCTX.md so teammates and their AI agents share it too —")
     print("they don't need KeepCTX installed.")
+    print()
+    print("To update: re-run the installer, then `keepctx init` in each project.")
+    print("It replaces the rules above ## Facts and never touches the facts.")
     return 0
 
 

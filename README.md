@@ -29,6 +29,19 @@ That's all. Open source, no account, no server.
 From then on your AI reads and edits the file like any other. **Nobody needs KeepCTX
 installed** — not your teammates, not their agents. The rules travel inside the file.
 
+## Updating
+
+Re-run the install command, then `keepctx init` in each project:
+
+```sh
+curl -fsSL https://keepctx.com/install.sh | sh
+cd ~/work/your-project && keepctx init
+```
+
+`keepctx init` replaces the rules — everything above `## Facts` — with the current version and
+never touches the facts. Commit the result and your teammates get the new rules through git. Keep
+your own instructions in Facts or `AGENTS.md`, not in the rules section, since an update replaces it.
+
 ## What it looks like
 
 ```markdown
