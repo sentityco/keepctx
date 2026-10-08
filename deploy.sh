@@ -24,6 +24,13 @@ put web/style.css  style.css   "text/css; charset=utf-8"
 put web/logo.png   logo.png    "image/png"
 put install.sh     install.sh  "text/x-shellscript; charset=utf-8"
 
+echo "updating the stats Lambda (it writes stats.html hourly; never upload that file)..."
+STATS_ZIP="$(mktemp -d)/stats.zip"
+(cd stats && zip -q "$STATS_ZIP" lambda_function.py)
+aws lambda update-function-code --function-name keepctx-stats --zip-file "fileb://$STATS_ZIP" \
+  --query LastUpdateStatus --output text >/dev/null
+echo "  keepctx-stats"
+
 echo "invalidating..."
 aws cloudfront create-invalidation --distribution-id "$DIST" \
   --paths "/*" --query 'Invalidation.Id' --output text
@@ -31,7 +38,8 @@ aws cloudfront create-invalidation --distribution-id "$DIST" \
 echo
 echo "checking the installer points at a file that exists..."
 sleep 12
-src=$(curl -fsSL "https://keepctx.com/install.sh" | sed -n 's|^URL=".*\$REF/\(.*\)"|\1|p')
+# ?deploy-check keeps this request out of the download stats
+src=$(curl -fsSL "https://keepctx.com/install.sh?deploy-check" | sed -n 's|^URL=".*\$REF/\(.*\)"|\1|p')
 code=$(curl -s -o /dev/null -w '%{http_code}' \
   "https://raw.githubusercontent.com/sentityco/keepctx/main/$src")
 if [ "$code" = "200" ]; then

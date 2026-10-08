@@ -29,6 +29,12 @@ That's all. Open source, no account, no server.
 From then on your AI reads and edits the file like any other. **Nobody needs KeepCTX
 installed** — not your teammates, not their agents. The rules travel inside the file.
 
+## Stats
+
+Installer downloads per day, for the last 30 days and the last year:
+[keepctx.com/stats.html](https://keepctx.com/stats.html). Counted from the website's access logs —
+keepctx itself never sends anything anywhere.
+
 ## Updating
 
 Re-run the install command, then `keepctx init` in each project:
