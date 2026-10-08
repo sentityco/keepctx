@@ -26,7 +26,8 @@ P.mkdir()
 
 code, out = keepctx(P, "init")
 f = P / "KEEPCTX.md"
-check("init: creates KEEPCTX.md", code == 0 and f.exists() and "Created" in out, out)
+check("init: creates KEEPCTX.md and says which version", code == 0 and f.exists()
+      and "Created KEEPCTX.md with the keepctx 1.0.0 rules" in out, out)
 text = f.read_text()
 check("context: the rules are at the top", text.startswith("# Project Context")
       and text.index("How to keep this file") < text.index("## Facts"), text)
@@ -77,8 +78,12 @@ new = (O / "KEEPCTX.md").read_text()
 check("update: old rules replaced with the current ones",
       "Old rules" not in new and new.startswith("# Project Context") and "More context beats less" in new, new)
 check("update: everything from ## Facts down kept byte for byte", new.endswith(facts), new)
-check("update: says what changed and that the facts are untouched",
-      "Updated the rules" in out and "an earlier version" in out and "2 facts are untouched" in out, out)
+check("update: says from what to what, and that the facts are untouched",
+      "Updated the rules in KEEPCTX.md from an earlier version to " in out and "2 facts are untouched" in out, out)
+stamped = new.replace("keepctx rules 1.0.0", "keepctx rules 0.10.0")
+(O / "KEEPCTX.md").write_text(stamped)
+code, out = keepctx(O, "init")
+check("update: names the old stamped version", "from 0.10.0 to 1.0.0" in out, out)
 code, out = keepctx(O, "init")
 check("update: running it again changes nothing", "current rules" in out
       and (O / "KEEPCTX.md").read_text() == new, out)
@@ -102,7 +107,10 @@ check("pointer: brought up to date in place, the rest kept",
 
 code, out = keepctx(P)
 check("usage: one command, keepctx init, and how to update",
-      "keepctx init" in out and "remember" not in out and "To update" in out, out)
+      "keepctx init" in out and "remember" not in out and "To update" in out
+      and out.startswith("KeepCTX 1.0.0"), out)
+code, out = keepctx(P, "--version")
+check("version: 1.0.0", out.strip() == "keepctx 1.0.0", out)
 code, out = keepctx(P, "remember")
 check("usage: anything else is unknown", code == 1 and "unknown command" in out, out)
 

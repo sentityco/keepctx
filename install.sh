@@ -24,6 +24,12 @@ command -v python3 >/dev/null 2>&1 || {
 }
 
 mkdir -p "$PREFIX"
+# What's installed now, if anything — so we can say "installing" or "updating from".
+OLD=""
+if [ -x "$PREFIX/keepctx" ]; then
+  OLD=$("$PREFIX/keepctx" --version 2>/dev/null | awk '{print $2}') || OLD=""
+  [ -n "$OLD" ] || OLD="an unknown version"
+fi
 echo "Downloading keepctx..."
 # Download beside the target, then move it into place. Writing straight to
 # $PREFIX/keepctx would follow a symlink there (a dev checkout, say) and
@@ -32,6 +38,8 @@ TMP="$PREFIX/.keepctx.$$"
 trap 'rm -f "$TMP"' EXIT
 curl -fsSL "$URL" -o "$TMP"
 chmod +x "$TMP"
+NEW=$(python3 "$TMP" --version 2>/dev/null | awk '{print $2}')
+[ -n "$NEW" ] || { echo "error: the download isn't a working keepctx." >&2; exit 1; }
 if [ -L "$PREFIX/keepctx" ]; then
   echo "note: $PREFIX/keepctx was a link to $(readlink "$PREFIX/keepctx") — replacing the link"
   echo "      with the downloaded copy. The file it pointed at is untouched."
@@ -39,7 +47,13 @@ fi
 mv -f "$TMP" "$PREFIX/keepctx"
 
 echo
-echo "Installed: $PREFIX/keepctx"
+if [ -z "$OLD" ]; then
+  echo "Installed keepctx $NEW: $PREFIX/keepctx"
+elif [ "$OLD" = "$NEW" ]; then
+  echo "keepctx $NEW is already the latest version: $PREFIX/keepctx"
+else
+  echo "Updated keepctx from $OLD to $NEW: $PREFIX/keepctx"
+fi
 
 case ":$PATH:" in
   *":$PREFIX:"*) ;;
@@ -51,4 +65,10 @@ case ":$PATH:" in
 esac
 
 echo
-echo "Next: cd your-project && keepctx init"
+if [ -z "$OLD" ] || [ "$OLD" = "$NEW" ]; then
+  echo "Next: cd your-project && keepctx init"
+else
+  echo "To finish updating, re-run keepctx init in each project that uses KeepCTX:"
+  echo "  cd your-project && keepctx init"
+  echo "It brings the rules in KEEPCTX.md up to $NEW and never touches your facts."
+fi

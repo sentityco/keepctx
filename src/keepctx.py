@@ -10,7 +10,7 @@ import pathlib
 import re
 import sys
 
-VERSION = "0.10.0"
+VERSION = "1.0.0"
 
 CONTEXT = "KEEPCTX.md"
 AGENTS = "AGENTS.md"
@@ -141,11 +141,11 @@ def cmd_init():
     pointed = write_pointer(root)
     facts = f"{count} fact{'' if count == 1 else 's'}" if status else ""
     if created:
-        print(f"Created {CONTEXT} — your project's context.")
+        print(f"Created {CONTEXT} with the keepctx {VERSION} rules — your project's context.")
     elif status == "updated":
-        print(f"Updated the rules in {CONTEXT} ({old} -> {VERSION}). Your {facts} are untouched.")
+        print(f"Updated the rules in {CONTEXT} from {old} to {VERSION}. Your {facts} are untouched.")
     elif status == "current":
-        print(f"{CONTEXT} is already here, with the current rules ({VERSION}) and {facts}.")
+        print(f"{CONTEXT} already has the current rules ({VERSION}) and {facts}. Nothing to update.")
     else:
         print(f"{CONTEXT} has no `{FACTS}` heading, so its rules were left alone.")
     if pointed:
@@ -156,7 +156,7 @@ def cmd_init():
 
 
 def usage():
-    print("KeepCTX — keep one context. Every session, every AI, every teammate.")
+    print(f"KeepCTX {VERSION} — keep one context. Every session, every AI, every teammate.")
     print()
     print("  keepctx init    create KEEPCTX.md here, or update its rules, and point AGENTS.md at it")
     print()
