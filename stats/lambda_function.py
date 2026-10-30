@@ -178,6 +178,7 @@ def render(hist):
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Download stats — KeepCTX</title>
+<meta name="robots" content="noindex" />
 <meta name="description" content="KeepCTX installer downloads per day, for the last 30 days and the last year." />
 <link rel="stylesheet" href="style.css" />
 <style>
@@ -213,7 +214,6 @@ td.num{{text-align:right;font-variant-numeric:tabular-nums}}
   <nav>
     <a href="/#how">How it works</a>
     <a href="/#quickstart">Quickstart</a>
-    <a href="stats.html">Stats</a>
     <a href="https://github.com/sentityco/keepctx">GitHub</a>
   </nav>
 </div></header>
@@ -265,9 +265,16 @@ def lambda_handler(event=None, context=None):
     hist = ingest(load_history())
     s3.put_object(Bucket=LOG_BUCKET, Key=HISTORY_KEY, Body=json.dumps(hist).encode(),
                   ContentType="application/json")
-    s3.put_object(Bucket=SITE_BUCKET, Key="stats.html", Body=render(hist).encode(),
+    # Unlinked on purpose: reachable at /stats.html (and /stats) for anyone who knows the address.
+    page = render(hist).encode()
+    s3.put_object(Bucket=SITE_BUCKET, Key="stats.html", Body=page,
                   ContentType="text/html; charset=utf-8", CacheControl="public,max-age=300")
+    try:  # the extensionless copy needs s3:PutObject on <bucket>/stats; skip it if the role lacks that
+        s3.put_object(Bucket=SITE_BUCKET, Key="stats", Body=page,
+                      ContentType="text/html; charset=utf-8", CacheControl="public,max-age=300")
+    except Exception as e:
+        print(f"skipped /stats copy: {e}")
     cf.create_invalidation(DistributionId=DIST, InvalidationBatch={
-        "Paths": {"Quantity": 1, "Items": ["/stats.html"]},
+        "Paths": {"Quantity": 2, "Items": ["/stats", "/stats.html"]},
         "CallerReference": datetime.datetime.now(datetime.timezone.utc).isoformat()})
     return {"days": len(hist["days"]), "total": sum(hist["days"].values())}
