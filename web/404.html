@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Context not found — KeepCTX</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="/style.css" />
+<style>
+.nf{padding:64px 0 56px}
+.code404{font-family:var(--mono);font-size:15px;color:var(--dim);margin:0 0 10px;letter-spacing:.5px}
+.code404 b{color:var(--acc);font-weight:700}
+.nf h1{margin-bottom:14px}
+.nf .lede{margin-bottom:28px}
+.nf pre{margin:0 0 14px}
+pre .ai{color:#e6e9ef}
+pre .you{color:#f2b84b}
+pre .ok{color:#6fd39a}
+pre .k{color:#9cc2ff}
+.cap{font-size:14px;color:var(--dim);margin:0 0 30px}
+.nf .cta{margin-top:30px}
+.path{word-break:break-all}
+</style>
+</head>
+<body>
+
+<header><div class="wrap">
+  <a class="logo" href="/"><img src="/logo.png" alt="KeepCTX" width="148" height="36" /></a>
+  <nav>
+    <a href="/#how">How it works</a>
+    <a href="/#quickstart">Quickstart</a>
+    <a href="https://github.com/sentityco/keepctx">GitHub</a>
+  </nav>
+</div></header>
+
+<div class="nf"><div class="wrap">
+  <p class="code404"><b>404</b> · context not found</p>
+  <h1>This page didn't survive the session.</h1>
+  <p class="lede">Whatever was at <code class="path" id="path">this address</code>, nobody wrote it
+  down, so it's gone. Your AI does the same thing to your project every time a session ends.</p>
+
+<pre><code><span class="c">KeepCTX: KEEPCTX.md read (0 facts)</span>
+
+<span class="ai">&gt; Hi! I don't have any context about this project yet.</span>
+<span class="ai">&gt; Could you explain how it works? And how to log in to</span>
+<span class="ai">&gt; the servers? And where the logs live? And what we</span>
+<span class="ai">&gt; decided last week?</span>
+
+<span class="you">you: (explaining it all again, for the ninth time)</span></code></pre>
+  <p class="cap">A session without KeepCTX.</p>
+
+<pre><code><span class="c">KeepCTX: KEEPCTX.md read (31 facts)</span>
+<span class="ok">KeepCTX: added — 404.page: doesn't exist; the home page does</span>
+
+<span class="c">## Facts</span>
+- <span class="k">**prod.access**</span> — SSO, then the bastion host. Never direct SSH.
+- <span class="k">**logs.location**</span> — Splunk, index app_prod. Not CloudWatch.
+- <span class="k">**404.page**</span> — doesn't exist; the home page does</code></pre>
+  <p class="cap">A session with it. This page is lost, but your context doesn't have to be.</p>
+
+<pre><code>curl -fsSL https://keepctx.com/install.sh | sh
+keepctx init</code></pre>
+
+  <div class="cta">
+    <a class="btn" href="/#quickstart">Keep your context</a>
+    <a class="btn ghost" href="/">Back to keepctx.com</a>
+  </div>
+</div></div>
+
+<footer><div class="wrap">
+  <a href="https://github.com/sentityco/keepctx">GitHub</a> ·
+  Apache-2.0 · free and open source
+</div></footer>
+<script>
+  // show the address that wasn't found; without JS the text just says "this address"
+  try { var p = decodeURIComponent(location.pathname); if (p.length > 60) p = p.slice(0, 57) + "..."; if (p && p !== "/") document.getElementById("path").textContent = p; } catch (e) {}
+</script>
+</body>
+</html>
